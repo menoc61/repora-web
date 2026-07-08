@@ -1,7 +1,8 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useSearch } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { AgentStatus } from '../components/AgentStatus'
 import { Button } from '../components/ui/button'
+import { useDocument, useAgents } from '../hooks/useQueries'
 
 interface OutlineItemProps {
   label: string
@@ -11,16 +12,24 @@ interface OutlineItemProps {
 }
 
 export default function Editor() {
+  const search = useSearch({ strict: false }) as { id?: string }
+  const docId = search.id
+  const { data: document, isLoading } = useDocument(docId)
+  const { data: agents = [] } = useAgents()
+  const title = document?.title ?? 'Untitled Document'
+  const status = document?.status ?? 'draft'
+  const statusLabel = status === 'review' ? 'UNDER REVIEW' : status.toUpperCase()
+
   return (
     <div className="pt-16 pl-sidebar-width pr-inspector-width h-screen flex flex-col">
       {/* Top nav */}
       <header className="fixed top-0 right-0 w-[calc(100%-var(--sidebar-width,280px))] h-16 bg-surface-studio border-b border-outline-variant flex justify-between items-center px-gutter z-40">
         <div className="flex items-center gap-6">
           <div className="flex flex-col">
-            <span className="font-body-md text-body-md font-bold">2024_Strategic_Expansion_Q3.v2</span>
+            <span className="font-body-md text-body-md font-bold">{isLoading ? 'Loading…' : title}</span>
             <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-status-review" />
-              <span className="font-label-sm text-label-sm text-on-surface-variant">UNDER REVIEW • SAVED TO CLOUD</span>
+              <span className={`w-2 h-2 rounded-full ${status === 'review' ? 'bg-status-review' : status === 'final' ? 'bg-status-final' : 'bg-status-draft'}`} />
+              <span className="font-label-sm text-label-sm text-on-surface-variant">{statusLabel} • SAVED TO CLOUD</span>
             </div>
           </div>
           <nav className="hidden lg:flex items-center gap-4 ml-4">

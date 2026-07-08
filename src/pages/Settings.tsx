@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { useSettingsStore } from '@/stores'
+import { useMe } from '@/hooks/useQueries'
 
 interface Provider {
   name: string
@@ -56,7 +57,9 @@ const INFRASTRUCTURE_NAV: [string, string][] = [
 const MCP_HEADERS = ['SKILL NAME', 'SOURCE TYPE', 'PERMISSION', 'STATUS', 'ACTION']
 
 export default function Settings() {
-  const { settings, updateSettings } = useSettingsStore((s) => ({ settings: s.settings, updateSettings: s.updateSettings }))
+  const settings = useSettingsStore((s) => s.settings)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
+  const { data: me } = useMe()
 
   return (
     <div className="flex-1 flex flex-col min-h-screen">
@@ -70,6 +73,12 @@ export default function Settings() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          {me && (
+            <div className="text-right hidden sm:block">
+              <p className="font-label-md text-label-md text-primary leading-tight">{me.name}</p>
+              <p className="font-label-sm text-label-sm text-on-surface-variant">{me.role}</p>
+            </div>
+          )}
           <Button variant="ghost" size="icon" className="p-2 text-on-surface-variant hover:text-ai-vibrant hover:bg-transparent transition-all"><Icon name="notifications" /></Button>
           <Button className="bg-primary text-on-primary px-4 py-1.5 font-label-md text-label-md rounded hover:opacity-90">Share</Button>
         </div>

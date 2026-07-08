@@ -1,11 +1,12 @@
-import { Link } from '@tanstack/react-router'
+import { useState } from 'react'
+import { Link, useNavigate } from '@tanstack/react-router'
 import TopBar from '../layout/TopBar'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { Input } from '../components/ui/input'
-import { useDocuments, useAnalytics } from '../hooks/useQueries'
+import { useDocuments, useAnalytics, useCreateProject, useGenerateDocument, useAgents } from '../hooks/useQueries'
 import { useWorkspaceStore } from '../stores'
 
 const ACTIVITY = [
@@ -14,16 +15,28 @@ const ACTIVITY = [
   { icon: 'edit', bg: 'bg-status-review/10', c: 'text-status-review', t: <><span className="font-bold">Marcus Thorne</span> is currently editing <span className="text-ai-vibrant font-semibold">Project Phoenix Scope</span></>, time: 'Active now' },
 ]
 
-const AGENTS = [
-  { name: 'AGENT_DRAFT_01', state: 'IDLE', progress: 100, color: 'bg-status-final' },
-  { name: 'AGENT_ANALYZE_04', state: 'THINKING', progress: 66, color: 'bg-ai-vibrant' },
-  { name: 'AGENT_LEGAL_COMP', state: 'SLEEPING', progress: 0, color: 'bg-white/5' },
-]
-
 export default function WorkspaceDashboard() {
+  const navigate = useNavigate()
   const { data: documents = [] } = useDocuments()
   const { data: analytics } = useAnalytics()
+  const { data: agents = [] } = useAgents()
   const setActiveView = useWorkspaceStore((s) => s.setActiveView)
+  const createProject = useCreateProject()
+  const generateDoc = useGenerateDocument()
+  const [prompt, setPrompt] = useState('')
+
+  async function handleGenerate() {
+    if (!prompt.trim()) return
+    try {
+      // First create a project from the prompt, then dispatch generation.
+      const project = await createProject.mutateAsync({ name: prompt.slice(0, 80), brief: prompt })
+      await generateDoc.mutateAsync({ projectId: project.id, prompt })
+      setActiveView('editor')
+      navigate({ to: '/editor' })
+    } catch {
+      /* shown via pending/error states */
+    }
+  }
 
   return (
     <>
@@ -39,9 +52,16 @@ export default function WorkspaceDashboard() {
               <Input
                 className="w-full bg-white/10 border border-white/20 rounded-lg py-4 pl-5 pr-32 text-body-md placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-ai-vibrant/50 backdrop-blur-md"
                 placeholder="e.g., Draft a master service agreement for a logistics partner..."
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleGenerate() }}
               />
-              <Button className="absolute right-2 bg-ai-vibrant hover:bg-secondary text-white px-6 py-2 rounded-md font-bold flex items-center gap-2 transition-all">
-                Generate
+              <Button
+                onClick={handleGenerate}
+                disabled={createProject.isPending || generateDoc.isPending || !prompt.trim()}
+                className="absolute right-2 bg-ai-vibrant hover:bg-secondary text-white px-6 py-2 rounded-md font-bold flex items-center gap-2 transition-all"
+              >
+                {createProject.isPending || generateDoc.isPending ? 'Generating…' : 'Generate'}
                 <Icon name="bolt" className="text-[18px]" />
               </Button>
             </div>
@@ -114,21 +134,28 @@ export default function WorkspaceDashboard() {
                 AI AGENT ORCHESTRATOR
               </h4>
               <div className="space-y-4 flex-1">
-                {AGENTS.map((a) => (
+                {agents.length === 0 && (
+                  <p className="text-label-sm opacity-50">No agents configured.</p>
+                )}
+                {agents.map((a) => (
                   <div key={a.name}>
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-label-sm text-label-sm">{a.name}</span>
-                      <span className={`text-[10px] ${a.color} text-white px-1.5 rounded`}>{a.state}</span>
+                      <span className={`text-[10px] ${a.enabled ? 'bg-status-final' : 'bg-white/5'} text-white px-1.5 rounded`}>
+                        {a.enabled ? 'ACTIVE' : 'OFF'}
+                      </span>
                     </div>
                     <div className="h-1 w-full bg-white/10 rounded-full">
-                      <div className={`h-full ${a.color} rounded-full transition-all duration-1000`} style={{ width: `${a.progress}%` }} />
+                      <div className={`h-full ${a.enabled ? 'bg-status-final' : 'bg-white/10'} rounded-full`} style={{ width: a.enabled ? '100%' : '0%' }} />
                     </div>
                   </div>
                 ))}
               </div>
-              <Button variant="outline" className="mt-6 w-full border-white/20 text-white hover:bg-white/10">
-                Manage Agents
-              </Button>
+              <Link to="/agents" onClick={() => setActiveView('agents')}>
+                <Button variant="outline" className="mt-6 w-full border-white/20 text-white hover:bg-white/10">
+                  Manage Agents
+                </Button>
+              </Link>
             </div>
           </div>
         </section>

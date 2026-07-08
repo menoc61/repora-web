@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
+import { useAgents, usePatchAgent } from '../hooks/useQueries'
 
 type AgentState = 'ACTIVE' | 'IDLE' | 'DEPLOYING'
 
@@ -21,11 +22,39 @@ interface ChatMessage {
   thinking?: boolean
 }
 
-const AGENTS: Agent[] = [
-  { name: 'Legal Researcher', icon: 'gavel', state: 'ACTIVE', dot: 'bg-status-final', desc: 'Optimized for case law synthesis and regulatory compliance mapping across EU/US jurisdictions.', tags: ['Claude 3.5', 'MCP: Westlaw'], border: 'border-secondary bg-surface-variant/30' },
-  { name: 'Engineering Lead', icon: 'terminal', state: 'IDLE', dot: 'bg-outline', desc: 'Architecture review, PR debugging, and technical documentation orchestration.', tags: ['Ollama Local', 'MCP: Github'], border: 'border-outline-variant' },
-  { name: 'Marketing Copywriter', icon: 'campaign', state: 'DEPLOYING', dot: 'bg-status-review', desc: 'Brand-aligned content generation across multi-channel campaigns with tone-of-voice locks.', tags: ['GPT-4o', 'MCP: Analytics'], border: 'border-outline-variant' },
-]
+const AGENT_META: Record<string, { icon: string; desc: string; tags: string[] }> = {
+  Planner: { icon: 'architecture', desc: 'Turns briefs into structured outlines.', tags: ['Local', 'Outline'] },
+  Writer: { icon: 'edit_note', desc: 'Drafts prose sections with citations.', tags: ['Local', 'Prose'] },
+  Reviewer: { icon: 'fact_check', desc: 'Consistency + quality review pass.', tags: ['BYOK', 'Quality'] },
+  UML: { icon: 'schema', desc: 'Generates PlantUML diagrams from requirements.', tags: ['Local', 'Diagrams'] },
+  Tables: { icon: 'table_chart', desc: 'Builds requirement matrices and tables.', tags: ['Local', 'Tables'] },
+}
+
+function buildAgents(backend: { name: string; provider: string; enabled: boolean; model_id?: string }[]): Agent[] {
+  if (backend.length === 0) {
+    return Object.entries(AGENT_META).map(([name, m], i) => ({
+      name,
+      icon: m.icon,
+      state: 'IDLE',
+      dot: 'bg-outline',
+      desc: m.desc,
+      tags: m.tags,
+      border: i === 0 ? 'border-secondary bg-surface-variant/30' : 'border-outline-variant',
+    }))
+  }
+  return backend.map((a, i) => {
+    const meta = AGENT_META[a.name] ?? { icon: 'smart_toy', desc: `${a.name} agent`, tags: [a.provider] }
+    return {
+      name: a.name,
+      icon: meta.icon,
+      state: (a.enabled ? 'ACTIVE' : 'IDLE') as AgentState,
+      dot: a.enabled ? 'bg-status-final' : 'bg-outline',
+      desc: meta.desc,
+      tags: a.model_id ? [...meta.tags, a.model_id] : meta.tags,
+      border: i === 0 ? 'border-secondary bg-surface-variant/30' : 'border-outline-variant',
+    }
+  })
+}
 
 const CHAT: ChatMessage[] = [
   { from: 'agent', text: 'System initialized. I am ready to process your legal inquiries. How can I assist with your research today?' },
@@ -35,6 +64,9 @@ const CHAT: ChatMessage[] = [
 
 export default function AgentWorkshop() {
   const [selected, setSelected] = useState<number>(0)
+  const { data: backendAgents = [] } = useAgents()
+  const patchAgent = usePatchAgent()
+  const AGENTS = buildAgents(backendAgents)
 
   const handleSelect = (i: number) => setSelected(i)
 
@@ -83,10 +115,18 @@ export default function AgentWorkshop() {
                   <div className="w-10 h-10 bg-secondary/10 rounded-lg flex items-center justify-center">
                     <Icon name={a.icon} className="text-secondary" fill={selected === i} />
                   </div>
-                  <span className={`font-label-sm text-label-sm flex items-center gap-1 ${a.state === 'ACTIVE' ? 'text-status-final' : a.state === 'DEPLOYING' ? 'text-status-review' : 'text-on-surface-variant'}`}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const backend = backendAgents[i]
+                      if (backend) patchAgent.mutate({ name: backend.name, patch: { enabled: !backend.enabled } })
+                    }}
+                    className={`font-label-sm text-label-sm flex items-center gap-1 ${a.state === 'ACTIVE' ? 'text-status-final' : a.state === 'DEPLOYING' ? 'text-status-review' : 'text-on-surface-variant'}`}
+                    title="Toggle agent"
+                  >
                     <span className={`w-1.5 h-1.5 rounded-full ${a.dot} ${a.state === 'DEPLOYING' ? 'animate-pulse' : ''}`} />
                     {a.state}
-                  </span>
+                  </button>
                 </div>
                 <h3 className="font-headline-md text-[18px] mb-1">{a.name}</h3>
                 <p className="text-body-sm text-on-surface-variant line-clamp-2">{a.desc}</p>

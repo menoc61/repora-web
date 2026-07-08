@@ -52,10 +52,10 @@ export default function Analytics() {
   const { data: analytics } = useAnalytics()
 
   const METRICS: Metric[] = [
-    { label: 'Token Consumption', icon: 'toll', value: analytics ? `${(analytics.totalDocuments * 4800).toLocaleString()}M` : '1.2M', trend: 'trending_up', trendText: '+12.4% vs last period', good: true },
-    { label: 'Avg Gen Time', icon: 'timer', value: analytics ? `${(analytics.efficiencyIndex / 22).toFixed(1)}s` : '4.2s', trend: 'trending_down', trendText: '-0.8s (Improved)', good: true },
-    { label: 'Agent Efficiency', icon: 'psychology', value: analytics ? analytics.collaborationScore.toFixed(1) : '94.8', bar: analytics ? analytics.collaborationScore : 94.8 },
-    { label: 'Generated Docs', icon: 'description', value: analytics ? analytics.totalDocuments.toLocaleString() : '18,432', trend: 'check_circle', trendText: '99.2% Success rate', good: true },
+    { label: 'Documents', icon: 'description', value: analytics ? analytics.totalDocuments.toLocaleString() : '—', trend: 'check_circle', trendText: 'Generated', good: true },
+    { label: 'Active Agents', icon: 'psychology', value: analytics ? analytics.activeAgents.toLocaleString() : '—', trend: 'trending_up', trendText: 'Orchestrator online', good: true },
+    { label: 'Collaboration', icon: 'hub', value: analytics ? `${analytics.collaborationScore.toFixed(1)}%` : '—', trend: 'trending_up', trendText: 'Cross-agent score', good: true, bar: analytics ? analytics.collaborationScore : 0 },
+    { label: 'Efficiency', icon: 'bolt', value: analytics ? `${analytics.efficiencyIndex.toFixed(1)}` : '—', trend: 'trending_up', trendText: 'Orchestrator index', good: true },
   ]
 
   return (

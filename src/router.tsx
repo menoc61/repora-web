@@ -4,9 +4,12 @@ import {
   createRouter,
   Outlet,
   RouterProvider,
+  redirect,
+  useRouterState,
 } from '@tanstack/react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Sidebar from './layout/Sidebar'
+import { useAuthStore } from './stores'
 import WorkspaceDashboard from './pages/WorkspaceDashboard'
 import DocumentLibrary from './pages/DocumentLibrary'
 import TemplateGallery from './pages/TemplateGallery'
@@ -19,23 +22,60 @@ import Settings from './pages/Settings'
 import Infrastructure from './pages/Infrastructure'
 import Sharing from './pages/Sharing'
 import VersionHistory from './pages/VersionHistory'
+import LoginPage from './pages/LoginPage'
+import SignupPage from './pages/SignupPage'
 
-export const queryClient = new QueryClient()
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
 
-const rootRoute = createRootRoute({
-  component: () => (
+const PUBLIC_PATHS = new Set(['/login', '/signup'])
+
+function requireAuth() {
+  if (!useAuthStore.getState().isAuthenticated) {
+    throw redirect({ to: '/login' })
+  }
+}
+
+function RootLayout() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isPublic = PUBLIC_PATHS.has(pathname)
+  return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-surface-studio text-on-surface">
-        <Sidebar />
-        <div className="ml-sidebar-width min-h-screen flex flex-col">
+        {isPublic ? null : <Sidebar />}
+        <div className={isPublic ? '' : 'ml-sidebar-width min-h-screen flex flex-col'}>
           <Outlet />
         </div>
       </div>
     </QueryClientProvider>
-  ),
+  )
+}
+
+const rootRoute = createRootRoute({
+  component: RootLayout,
 })
 
-const routes = [
+// Public routes — no auth guard, no sidebar (handled via layout check in component)
+const loginRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/login',
+  component: LoginPage,
+})
+const signupRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/signup',
+  component: SignupPage,
+})
+
+// Protected routes — require auth
+const protectedRoutes = [
   { path: '/', component: WorkspaceDashboard },
   { path: '/workspace', component: WorkspaceDashboard },
   { path: '/library', component: DocumentLibrary },
@@ -51,15 +91,18 @@ const routes = [
   { path: '/history', component: VersionHistory },
 ]
 
-const routeTree = rootRoute.addChildren(
-  routes.map((r) =>
+const routeTree = rootRoute.addChildren([
+  loginRoute,
+  signupRoute,
+  ...protectedRoutes.map((r) =>
     createRoute({
       getParentRoute: () => rootRoute,
       path: r.path,
       component: r.component,
+      beforeLoad: () => requireAuth(),
     }),
   ),
-)
+])
 
 export const router = createRouter({ routeTree })
 export type Router = typeof router

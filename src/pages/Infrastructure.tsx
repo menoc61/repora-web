@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
+import { useHealth } from '../hooks/useQueries'
 
 interface LogEntry {
   type: string
@@ -48,6 +49,8 @@ export default function Infrastructure() {
   const [logs, setLogs] = useState<LogEntry[]>(LOG_ENTRIES)
   const logRef = useRef<HTMLDivElement>(null)
   const [logIndex, setLogIndex] = useState(0)
+  const { data: health } = useHealth()
+  const status = health?.status === 'ok' ? 'OPERATIONAL' : 'UNKNOWN'
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -90,7 +93,7 @@ export default function Infrastructure() {
               <div className="w-3 h-3 rounded-full bg-status-final animate-pulse" />
               <div>
                 <h2 className="font-headline-md text-headline-md leading-tight">Instance Node: Repora-Alpha-01</h2>
-                <p className="text-on-surface-variant text-body-sm">Operational • Uptime: 14d 2h 44m • Location: US-East-Self-Host</p>
+                <p className="text-on-surface-variant text-body-sm">{status} • Uptime: 14d 2h 44m • Location: US-East-Self-Host</p>
               </div>
             </div>
             <div className="flex gap-2">
