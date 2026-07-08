@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Repora | Sovereign Intelligence Document Editor</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Geist:wght@600;700;800;900&amp;family=JetBrains+Mono:wght@500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        :root {
+            --sidebar-width: 280px;
+            --inspector-width: 320px;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F8FAFC;
+            overflow: hidden;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .cursor-presence {
+            pointer-events: none;
+            transition: all 0.1s ease-out;
+        }
+        .block-hover:hover {
+            background-color: #F1F5F9;
+        }
+        .ai-wave-active {
+            animation: wave-pulse 2s infinite ease-in-out;
+        }
+        @keyframes wave-pulse {
+            0% { opacity: 0.4; transform: scaleX(0.95); }
+            50% { opacity: 1; transform: scaleX(1.05); }
+            100% { opacity: 0.4; transform: scaleX(0.95); }
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed": "#001a42",
+                        "surface-container-highest": "#e4e2e4",
+                        "surface": "#fcf8fa",
+                        "surface-tint": "#565e74",
+                        "background": "#fcf8fa",
+                        "on-surface": "#1b1b1d",
+                        "status-draft": "#94A3B8",
+                        "surface-container-lowest": "#ffffff",
+                        "inverse-on-surface": "#f3f0f2",
+                        "secondary-fixed-dim": "#adc6ff",
+                        "surface-container-high": "#eae7e9",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#0b1c30",
+                        "surface-variant": "#e4e2e4",
+                        "surface-studio": "#F8FAFC",
+                        "inverse-primary": "#bec6e0",
+                        "on-primary": "#ffffff",
+                        "surface-container": "#f0edef",
+                        "primary-container": "#131b2e",
+                        "ai-glow": "#DBEAFE",
+                        "outline": "#76777d",
+                        "ai-vibrant": "#2563EB",
+                        "secondary": "#0058be",
+                        "on-background": "#1b1b1d",
+                        "tertiary": "#000000",
+                        "outline-variant": "#c6c6cd",
+                        "status-final": "#10B981",
+                        "status-review": "#F59E0B",
+                        "primary": "#000000"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "inspector-width": "320px",
+                        "sidebar-width": "280px",
+                        "margin-desktop": "32px",
+                        "unit": "4px",
+                        "container-max": "1200px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-md": ["Geist"],
+                        "label-md": ["JetBrains Mono"],
+                        "label-sm": ["JetBrains Mono"],
+                        "headline-lg": ["Geist"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "label-md": ["13px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                        "label-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface-studio text-on-surface antialiased">
+<!-- SIDE NAVIGATION (SideNavBar) -->
+<aside class="fixed left-0 top-0 h-screen w-sidebar-width bg-surface border-r border-outline-variant flex flex-col h-full py-gutter px-4 z-50">
+<div class="mb-8 px-2">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Repora</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mt-1">Enterprise Documents</p>
+</div>
+<button class="mb-8 w-full bg-primary text-on-primary py-3 px-4 font-body-md text-body-md flex items-center justify-center gap-2 hover:bg-opacity-90 transition-all rounded-lg">
+<span class="material-symbols-outlined text-[20px]">add</span>
+            New Document
+        </button>
+<nav class="flex-1 space-y-1">
+<div class="flex items-center gap-3 py-2 px-2 text-ai-vibrant font-bold border-l-2 border-ai-vibrant pl-2 cursor-pointer">
+<span class="material-symbols-outlined">workspaces</span>
+<span class="font-body-md text-body-md">Workspace</span>
+</div>
+<div class="flex items-center gap-3 py-2 px-2 text-on-surface-variant pl-2 hover:bg-surface-container-high transition-colors cursor-pointer rounded">
+<span class="material-symbols-outlined">history</span>
+<span class="font-body-md text-body-md">Recent</span>
+</div>
+<div class="flex items-center gap-3 py-2 px-2 text-on-surface-variant pl-2 hover:bg-surface-container-high transition-colors cursor-pointer rounded">
+<span class="material-symbols-outlined">group</span>
+<span class="font-body-md text-body-md">Shared</span>
+</div>
+<div class="flex items-center gap-3 py-2 px-2 text-on-surface-variant pl-2 hover:bg-surface-container-high transition-colors cursor-pointer rounded">
+<span class="material-symbols-outlined">edit_note</span>
+<span class="font-body-md text-body-md">Drafts</span>
+</div>
+<div class="flex items-center gap-3 py-2 px-2 text-on-surface-variant pl-2 hover:bg-surface-container-high transition-colors cursor-pointer rounded">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-body-md text-body-md">Archive</span>
+</div>
+</nav>
+<div class="mt-auto pt-6 border-t border-outline-variant space-y-1">
+<div class="flex items-center gap-3 py-2 px-2 text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer rounded">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</div>
+<div class="flex items-center gap-3 py-2 px-2 text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer rounded">
+<span class="material-symbols-outlined">help_outline</span>
+<span class="font-body-md text-body-md">Support</span>
+</div>
+</div>
+</aside>
+<!-- TOP NAVIGATION (TopNavBar) -->
+<header class="fixed top-0 right-0 w-[calc(100%-var(--sidebar-width))] h-16 bg-surface-studio border-b border-outline-variant flex justify-between items-center px-gutter z-40">
+<div class="flex items-center gap-6">
+<div class="flex flex-col">
+<span class="font-body-md text-body-md font-bold">2024_Strategic_Expansion_Q3.v2</span>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-status-review"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">UNDER REVIEW • SAVED TO CLOUD</span>
+</div>
+</div>
+<nav class="hidden lg:flex items-center gap-4 ml-4">
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-ai-vibrant transition-all">File</button>
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-ai-vibrant transition-all">Edit</button>
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-ai-vibrant transition-all">View</button>
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-ai-vibrant transition-all">Insert</button>
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-ai-vibrant transition-all">Tools</button>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex -space-x-2 mr-4">
+<div class="w-8 h-8 rounded-full border-2 border-surface-studio overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Close-up professional portrait of a tech executive in a brightly lit modern office, blurred architectural background, high-end professional photography style, sharp focus on eyes, warm natural lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAtx4NvWOHe3L8WXUCHuGxhlkGlvtl3-51LjBjJZMYUexLXbrJ4c-wQqqtb6TaYWcEXy-56_iS7OvDEYiLey78HBOSnHuAubRo9i4PuxegCpoFpfp0_cNwLmjQWUxrHHiOmboyMg0kjdc5uBCbzR2Xw7S4m9OP6ZrRqVx68J6lApXMt0KHbhkOxBczGVTfV25pJjF7HGx4255Ph8JF8CtY3Okce-bmU8bSL7BhNEDwJ3f7zmxt5Z-ye"/>
+</div>
+<div class="w-8 h-8 rounded-full border-2 border-surface-studio bg-ai-vibrant flex items-center justify-center text-white font-label-sm">
+                    +3
+                </div>
+</div>
+<button class="flex items-center gap-2 px-4 py-1.5 border border-outline-variant rounded font-label-md text-label-md hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[18px]">export_notes</span>
+                Export
+            </button>
+<button class="flex items-center gap-2 px-4 py-1.5 bg-ai-vibrant text-white rounded font-label-md text-label-md hover:opacity-90 transition-all">
+<span class="material-symbols-outlined text-[18px]">share</span>
+                Share
+            </button>
+<div class="flex items-center gap-2 ml-2 pl-4 border-l border-outline-variant">
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">notifications</span></button>
+<button class="text-on-surface-variant hover:text-primary" title="Version History"><span class="material-symbols-outlined">history</span></button>
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">account_circle</span></button>
+</div>
+</div>
+</header>
+<!-- MAIN CONTENT LAYOUT -->
+<main class="pt-16 pl-[var(--sidebar-width)] pr-[var(--inspector-width)] h-screen flex">
+<!-- CENTRAL EDITOR CANVAS -->
+<section class="flex-1 bg-white overflow-y-auto hide-scrollbar relative">
+<div class="max-w-[800px] mx-auto py-20 px-12 min-h-full">
+<!-- Collaborative Cursors (Simulated) -->
+<div class="absolute top-[280px] left-[320px] cursor-presence flex flex-col items-start gap-1 z-10">
+<div class="w-[2px] h-6 bg-status-review"></div>
+<div class="bg-status-review text-white px-1.5 py-0.5 text-[10px] font-bold rounded-sm">Sarah M.</div>
+</div>
+<!-- Document Header -->
+<div class="mb-12">
+<h1 class="font-headline-lg text-headline-lg text-primary leading-tight mb-4" contenteditable="true">Strategic Growth Roadmap: 2024 Enterprise Markets</h1>
+<div class="flex items-center gap-4 text-on-surface-variant">
+<span class="font-label-sm text-label-sm bg-surface-container px-2 py-1 rounded">INTERNAL ONLY</span>
+<span class="font-label-sm text-label-sm">Modified 4 minutes ago by AI Orchestrator</span>
+</div>
+</div>
+<!-- Editor Blocks -->
+<div class="space-y-6 font-body-md text-body-md text-on-surface leading-relaxed">
+<div class="block-hover p-2 rounded group relative">
+<div class="absolute -left-8 top-3 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab">
+<span class="material-symbols-outlined text-outline">drag_indicator</span>
+</div>
+<p contenteditable="true">Following the consolidation of our regional hubs, the primary objective for Q3 remains the aggressive capture of market share within the High-Frequency Trading (HFT) and Decentralized Finance (DeFi) infrastructure sectors. Our proprietary data suggests a 14% gap in institutional-grade low-latency custody solutions.</p>
+</div>
+<div class="block-hover p-2 rounded group relative bg-ai-glow/20 border-l-2 border-ai-vibrant">
+<div class="absolute -left-8 top-3 opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-ai-vibrant">auto_awesome</span>
+</div>
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-[16px] text-ai-vibrant">psychology</span>
+<span class="font-label-sm text-label-sm text-ai-vibrant font-bold">AI ASSISTANT: REFINING BLOCK...</span>
+</div>
+<p class="italic text-on-surface-variant">"Generating comparative analysis for competitive pricing models in the APAC region to complement this section..."</p>
+<div class="mt-3 w-full bg-outline-variant h-1 rounded overflow-hidden">
+<div class="bg-ai-vibrant h-full ai-wave-active w-3/4"></div>
+</div>
+</div>
+<div class="block-hover p-2 rounded group relative">
+<h2 class="font-headline-md text-headline-md text-primary mt-8 mb-4" contenteditable="true">Core Market Drivers</h2>
+<ul class="list-disc pl-6 space-y-3" contenteditable="true">
+<li>Regulatory alignment across G7 jurisdictions regarding digital asset taxonomy.</li>
+<li>Increased demand for "Sovereign Intelligence" - local data processing without cross-border transit.</li>
+<li>Transition from legacy cloud providers to specialized high-performance AI computation clusters.</li>
+</ul>
+</div>
+<div class="mt-12 p-8 border-2 border-dashed border-outline-variant rounded-xl flex flex-col items-center justify-center text-on-surface-variant hover:border-ai-vibrant hover:bg-ai-glow/10 transition-all cursor-pointer group">
+<span class="material-symbols-outlined text-[32px] mb-2 group-hover:text-ai-vibrant">add_circle</span>
+<span class="font-label-md text-label-md">Click or drag to insert new block</span>
+</div>
+</div>
+</div>
+<!-- Inline AI Assist Toolbar -->
+<div class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-white shadow-xl border border-outline-variant rounded-full px-4 py-2 flex items-center gap-4 z-30">
+<button class="flex items-center gap-2 text-ai-vibrant font-bold text-label-md border-r border-outline-variant pr-4">
+<span class="material-symbols-outlined text-[18px]">auto_awesome</span>
+                    Ask AI
+                </button>
+<div class="flex items-center gap-3">
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">format_bold</span></button>
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">format_italic</span></button>
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">link</span></button>
+<button class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">list</span></button>
+</div>
+</div>
+</section>
+<!-- RIGHT INSPECTOR (AI Agent Orchestrator) -->
+<aside class="fixed right-0 top-16 h-[calc(100vh-64px)] w-inspector-width bg-surface border-l border-outline-variant flex flex-col z-40 overflow-hidden">
+<div class="p-gutter border-b border-outline-variant">
+<div class="flex items-center justify-between mb-4">
+<h3 class="font-label-md text-label-md font-bold uppercase tracking-widest">AI Orchestrator</h3>
+<span class="bg-ai-glow text-ai-vibrant font-label-sm text-label-sm px-2 py-0.5 rounded">3 ACTIVE</span>
+</div>
+<div class="space-y-4">
+<!-- Agent: Architect -->
+<div class="bg-white p-3 rounded border border-outline-variant shadow-sm">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-status-final"></div>
+<span class="font-label-sm text-label-sm font-bold">ARCHITECT</span>
+</div>
+<span class="font-label-sm text-[10px] text-on-surface-variant">IDLE</span>
+</div>
+<p class="text-[12px] text-on-surface-variant">Document structure optimized for executive readability.</p>
+</div>
+<!-- Agent: Writer -->
+<div class="bg-white p-3 rounded border-2 border-ai-vibrant shadow-md">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-ai-vibrant animate-pulse"></div>
+<span class="font-label-sm text-label-sm font-bold text-ai-vibrant">GENERATOR</span>
+</div>
+<span class="font-label-sm text-[10px] text-ai-vibrant">WRITING...</span>
+</div>
+<div class="space-y-1">
+<div class="h-1 bg-ai-glow rounded overflow-hidden">
+<div class="h-full bg-ai-vibrant ai-wave-active" style="width: 65%;"></div>
+</div>
+<p class="text-[12px] text-on-surface">Expanding section: APAC Regional Analysis...</p>
+</div>
+</div>
+<!-- Agent: Critic -->
+<div class="bg-white p-3 rounded border border-outline-variant shadow-sm opacity-80">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-status-review"></div>
+<span class="font-label-sm text-label-sm font-bold">CRITIC</span>
+</div>
+<span class="font-label-sm text-[10px] text-on-surface-variant">WAITING</span>
+</div>
+<p class="text-[12px] text-on-surface-variant">Queued: Fact-checking and citation audit.</p>
+</div>
+</div>
+</div>
+<!-- Outline / Map -->
+<div class="flex-1 overflow-y-auto p-gutter bg-surface-studio">
+<h3 class="font-label-md text-label-md font-bold uppercase tracking-widest mb-4">Document Outline</h3>
+<nav class="space-y-3">
+<div class="flex items-start gap-3 group cursor-pointer">
+<div class="w-4 h-4 border border-outline mt-1 rounded-sm flex items-center justify-center bg-status-final border-none">
+<span class="material-symbols-outlined text-[12px] text-white">check</span>
+</div>
+<span class="text-body-sm font-medium text-primary">Executive Summary</span>
+</div>
+<div class="flex items-start gap-3 group cursor-pointer">
+<div class="w-4 h-4 border border-ai-vibrant mt-1 rounded-sm flex items-center justify-center">
+<div class="w-1.5 h-1.5 bg-ai-vibrant rounded-full animate-pulse"></div>
+</div>
+<span class="text-body-sm font-medium text-ai-vibrant">Core Market Drivers</span>
+</div>
+<div class="ml-7 space-y-2 border-l border-outline-variant pl-4 py-1">
+<div class="text-body-sm text-on-surface-variant hover:text-primary">Regional Dynamics</div>
+<div class="text-body-sm text-on-surface-variant hover:text-primary">Regulatory Landscape</div>
+<div class="text-body-sm text-on-surface-variant hover:text-primary">Technological Shifts</div>
+</div>
+<div class="flex items-start gap-3 group cursor-pointer">
+<div class="w-4 h-4 border border-outline-variant mt-1 rounded-sm"></div>
+<span class="text-body-sm font-medium text-on-surface-variant">Fiscal Projections</span>
+</div>
+<div class="flex items-start gap-3 group cursor-pointer">
+<div class="w-4 h-4 border border-outline-variant mt-1 rounded-sm"></div>
+<span class="text-body-sm font-medium text-on-surface-variant">Risk Mitigation</span>
+</div>
+</nav>
+</div>
+<!-- Footer Stats -->
+<div class="p-4 border-t border-outline-variant bg-surface-container-lowest">
+<div class="flex justify-between items-center text-label-sm text-on-surface-variant">
+<span>1,248 WORDS</span>
+<span>AI EFFICIENCY: 82%</span>
+</div>
+</div>
+</aside>
+</main>
+<!-- MICRO-INTERACTIONS -->
+<script>
+        // Simple hover effect for block interaction
+        document.querySelectorAll('.block-hover').forEach(block => {
+            block.addEventListener('mouseenter', () => {
+                block.style.transition = 'transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                block.style.transform = 'translateX(4px)';
+            });
+            block.addEventListener('mouseleave', () => {
+                block.style.transform = 'translateX(0)';
+            });
+        });
+
+        // Simulate cursor movement for "Sarah M."
+        const cursor = document.querySelector('.cursor-presence');
+        if (cursor) {
+            setInterval(() => {
+                const xOffset = Math.sin(Date.now() / 1000) * 10;
+                const yOffset = Math.cos(Date.now() / 1500) * 5;
+                cursor.style.transform = `translate(${xOffset}px, ${yOffset}px)`;
+            }, 50);
+        }
+
+        // Toggle Version History (Dummy)
+        const historyBtn = document.querySelector('[title="Version History"]');
+        historyBtn.addEventListener('click', () => {
+            alert("Opening Repora Sovereign History... (Immutable Blockchain Ledger)");
+        });
+    </script>
+</body></html>

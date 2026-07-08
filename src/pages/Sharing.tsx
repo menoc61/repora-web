@@ -1,0 +1,217 @@
+import Icon from '../components/Icon'
+import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from '../components/ui/select'
+import { useCollaborators } from '../hooks/useQueries'
+import type { Collaborator } from '../schemas'
+
+const ROLES = ['Editor', 'Admin', 'Reviewer', 'Viewer']
+
+interface CollaboratorRow {
+  name: string
+  email?: string
+  role: string
+  badge: string
+  icon?: string
+  avatar?: null
+  bg: string
+  pending?: boolean
+}
+
+const COLLABORATORS: CollaboratorRow[] = [
+  { name: 'Alex Chen (You)', email: 'alex.chen@repora.ai', role: 'Owner', badge: 'border border-outline-variant text-on-tertiary-container', icon: 'verified_user', avatar: null, bg: 'bg-primary-fixed' },
+  { name: 'Sarah Miller', email: 's.miller@repora.ai', role: 'Admin', badge: 'bg-secondary-fixed/50 text-secondary', avatar: null, bg: 'bg-surface-container-highest' },
+  { name: 'james.vance@partner.com', role: 'Editor', badge: 'bg-surface-variant text-on-surface-variant', pending: true, icon: 'mail', bg: 'border-2 border-dashed border-outline' },
+  { name: 'Marcus Holloway', email: 'marcus.h@engineering.co', role: 'Reviewer', badge: 'border border-outline-variant text-on-tertiary-container', avatar: null, bg: 'bg-surface-container-highest' },
+]
+
+const ROLE_STYLES: Record<string, { badge: string; icon?: string; bg: string }> = {
+  owner: { badge: 'border border-outline-variant text-on-tertiary-container', icon: 'verified_user', bg: 'bg-primary-fixed' },
+  admin: { badge: 'bg-secondary-fixed/50 text-secondary', bg: 'bg-surface-container-highest' },
+  editor: { badge: 'bg-surface-variant text-on-surface-variant', bg: 'bg-surface-container-highest' },
+  reviewer: { badge: 'border border-outline-variant text-on-tertiary-container', bg: 'bg-surface-container-highest' },
+  viewer: { badge: 'bg-surface-variant text-on-surface-variant', bg: 'bg-surface-container-highest' },
+}
+
+function toRow(c: Collaborator): CollaboratorRow {
+  const style = ROLE_STYLES[c.role] ?? ROLE_STYLES.viewer
+  return {
+    name: c.name,
+    email: c.email,
+    role: c.role.charAt(0).toUpperCase() + c.role.slice(1),
+    badge: style.badge,
+    icon: style.icon,
+    avatar: null,
+    bg: style.bg,
+  }
+}
+
+export default function Sharing() {
+  const { data: collaborators = [] } = useCollaborators()
+  const rows: CollaboratorRow[] = collaborators.length > 0
+    ? collaborators.map(toRow)
+    : COLLABORATORS
+
+  return (
+    <div className="min-h-screen bg-surface-studio">
+      <main className="max-w-4xl mx-auto py-12 px-margin-desktop">
+        <div className="flex items-center gap-2 mb-6 text-on-surface-variant font-label-md text-label-md">
+          <Icon name="arrow_back" className="text-sm" />
+          <span>Back to &quot;Q4 Strategy Sovereign Analysis&quot;</span>
+        </div>
+
+        <div className="mb-10">
+          <h2 className="font-headline-lg text-headline-lg text-primary mb-2">Secure Sharing & Access Control</h2>
+          <p className="text-on-surface-variant font-body-md max-w-2xl">Manage high-stakes document permissions, track active collaborators, and configure sovereign security protocols for external sharing.</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+          <div className="lg:col-span-2 space-y-gutter">
+            <section className="bg-white border border-outline-variant rounded-xl p-6 shadow-sm">
+              <h3 className="font-headline-md text-headline-md text-primary mb-4 flex items-center gap-2">
+                <Icon name="person_add" className="text-secondary" />
+                Invite Collaborators
+              </h3>
+              <div className="flex flex-col gap-4">
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Input className="w-full px-4 py-3 bg-surface-studio border border-outline-variant rounded-lg text-body-md focus:ring-2 focus:ring-secondary outline-none" placeholder="Enter email addresses..." type="email" />
+                  </div>
+                  <div className="relative min-w-[140px]">
+                    <Select defaultValue={ROLES[0]}>
+                      <SelectTrigger className="w-full px-4 py-3 bg-surface-studio border border-outline-variant rounded-lg text-body-md focus:ring-2 focus:ring-secondary outline-none">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ROLES.map((r) => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <input className="rounded border-outline text-secondary focus:ring-secondary" id="notify" type="checkbox" />
+                    <label className="text-body-sm text-on-surface-variant" htmlFor="notify">Notify recipients via email</label>
+                  </div>
+                  <Button className="bg-primary text-white px-8 py-3 rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity">Send Invite</Button>
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white border border-outline-variant rounded-xl overflow-hidden shadow-sm">
+              <div className="p-6 border-b border-outline-variant flex justify-between items-center">
+                <h3 className="font-headline-md text-headline-md text-primary">Current Collaborators</h3>
+                <span className="px-2 py-1 bg-surface-variant/50 text-on-surface-variant font-label-sm text-label-sm rounded uppercase tracking-tighter">4 Active</span>
+              </div>
+              <div className="divide-y divide-outline-variant">
+                {rows.map((c) => (
+                  <div key={c.name} className={`p-4 flex items-center justify-between hover:bg-surface-studio transition-colors ${c.pending ? 'opacity-75' : ''}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full ${c.bg} flex items-center justify-center ${c.pending ? 'border-2 border-dashed border-outline' : ''}`}>
+                        {c.icon ? <Icon name={c.icon} className="text-primary" fill /> : <Icon name="person" className="text-outline" />}
+                      </div>
+                      <div>
+                        <p className="font-body-md font-semibold text-primary">{c.name}</p>
+                        <p className={`font-label-sm text-label-sm ${c.pending ? 'text-status-review' : 'text-on-surface-variant'}`}>
+                          {c.pending ? 'Pending Invitation • Sent 2h ago' : c.email}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className={`font-label-sm text-label-sm uppercase px-2 py-1 rounded ${c.badge}`}>{c.role}</span>
+                      {c.pending ? (
+                        <Button variant="link" className="text-secondary font-label-md text-label-md p-0 h-auto">Resend</Button>
+                      ) : (
+                        <Icon name="more_vert" className="text-outline cursor-pointer" />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <div className="space-y-gutter">
+            <section className="bg-primary-container text-on-primary-container rounded-xl p-6 shadow-lg relative overflow-hidden">
+              <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+              <div className="relative z-10">
+                <h3 className="font-headline-md text-headline-md text-white mb-4 flex items-center gap-2">
+                  <Icon name="link" className="text-ai-vibrant" />
+                  External Access
+                </h3>
+                <p className="text-on-primary-container text-body-sm mb-6">Create a unique, encrypted gateway for users outside your organization.</p>
+                <Button className="w-full py-3 bg-ai-vibrant text-white font-label-md text-label-md rounded-lg flex items-center justify-center gap-2 hover:bg-ai-vibrant/90 transition-all mb-6">
+                  <Icon name="shield" />
+                  Generate Secure Link
+                </Button>
+                <div className="space-y-4 border-t border-on-primary-container/20 pt-6">
+                  {[
+                    { label: 'Password Protection', desc: 'Mandatory login for link holders', checked: true },
+                    { label: 'Expiration Date', desc: 'Link expires in 7 days', checked: false },
+                    { label: 'NDA Gate', desc: 'Require e-signature to view', checked: true },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="font-label-md text-label-md text-white">{item.label}</span>
+                        <span className="text-[10px] text-on-primary-container/70">{item.desc}</span>
+                      </div>
+                      <Toggle checked={item.checked} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-white border border-outline-variant rounded-xl p-6 shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <Icon name="auto_awesome" className="text-secondary" fill />
+                <h3 className="font-label-md text-label-md text-primary uppercase tracking-widest">Sovereign Audit</h3>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-body-sm text-on-surface-variant p-2 bg-surface-studio rounded">
+                  <Icon name="check_circle" className="text-status-final text-lg" />
+                  <span>No unauthorized access attempts in last 24h.</span>
+                </div>
+                <div className="flex items-center gap-3 text-body-sm text-on-surface-variant p-2 bg-surface-studio rounded">
+                  <Icon name="info" className="text-status-review text-lg" />
+                  <span>1 external link is currently active.</span>
+                </div>
+              </div>
+              <Button variant="link" className="mt-4 w-full text-center text-secondary font-label-md text-label-md hover:underline p-0 h-auto">View Access Logs</Button>
+            </section>
+          </div>
+        </div>
+
+        <footer className="mt-12 flex items-center justify-center gap-8 border-t border-outline-variant pt-8 opacity-60 hover:opacity-100 transition-all duration-500 grayscale hover:grayscale-0">
+          {[
+            { icon: 'verified', text: 'SOC-2 COMPLIANT' },
+            { icon: 'lock', text: 'AES-256 ENCRYPTION' },
+            { icon: 'gpp_good', text: 'ISO 27001 CERTIFIED' },
+          ].map((item) => (
+            <div key={item.text} className="flex items-center gap-2">
+              <Icon name={item.icon} />
+              <span className="font-label-sm text-label-sm">{item.text}</span>
+            </div>
+          ))}
+        </footer>
+      </main>
+    </div>
+  )
+}
+
+function Toggle({ checked }: { checked: boolean }) {
+  return (
+    <label className="relative inline-flex items-center cursor-pointer">
+      <input type="checkbox" defaultChecked={checked} className="sr-only peer" />
+      <div className="w-11 h-6 bg-on-primary-container/30 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ai-vibrant" />
+    </label>
+  )
+}

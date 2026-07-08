@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Repora | Document Library</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist:wght@600;700;800;900&family=JetBrains+Mono:wght@500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:wght@100..900&family=JetBrains+Mono:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary-fixed": "#001a42",
+                    "surface-container-highest": "#e4e2e4",
+                    "surface": "#fcf8fa",
+                    "surface-tint": "#565e74",
+                    "background": "#fcf8fa",
+                    "on-surface": "#1b1b1d",
+                    "status-draft": "#94A3B8",
+                    "surface-container-lowest": "#ffffff",
+                    "inverse-on-surface": "#f3f0f2",
+                    "secondary-fixed-dim": "#adc6ff",
+                    "surface-container-high": "#eae7e9",
+                    "error": "#ba1a1a",
+                    "tertiary-container": "#0b1c30",
+                    "surface-variant": "#e4e2e4",
+                    "surface-dim": "#dcd9db",
+                    "on-primary-container": "#7c839b",
+                    "secondary-fixed": "#d8e2ff",
+                    "surface-studio": "#F8FAFC",
+                    "inverse-primary": "#bec6e0",
+                    "primary-fixed-dim": "#bec6e0",
+                    "surface-bright": "#fcf8fa",
+                    "status-review": "#F59E0B",
+                    "on-primary": "#ffffff",
+                    "surface-container": "#f0edef",
+                    "primary-fixed": "#dae2fd",
+                    "primary-container": "#131b2e",
+                    "ai-glow": "#DBEAFE",
+                    "outline": "#76777d",
+                    "tertiary-fixed": "#d3e4fe",
+                    "on-primary-fixed": "#131b2e",
+                    "on-error-container": "#93000a",
+                    "on-surface-variant": "#45464d",
+                    "on-tertiary-fixed": "#0b1c30",
+                    "error-container": "#ffdad6",
+                    "inverse-surface": "#303032",
+                    "ai-vibrant": "#2563EB",
+                    "secondary": "#0058be",
+                    "on-tertiary": "#ffffff",
+                    "on-background": "#1b1b1d",
+                    "tertiary": "#000000",
+                    "outline-variant": "#c6c6cd",
+                    "status-final": "#10B981",
+                    "surface-container-low": "#f6f3f5",
+                    "secondary-container": "#2170e4",
+                    "on-secondary-fixed-variant": "#004395",
+                    "primary": "#000000",
+                    "on-primary-fixed-variant": "#3f465c",
+                    "on-secondary": "#ffffff",
+                    "on-secondary-container": "#fefcff",
+                    "on-error": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "gutter": "24px",
+                    "inspector-width": "320px",
+                    "sidebar-width": "280px",
+                    "margin-desktop": "32px",
+                    "unit": "4px",
+                    "container-max": "1200px"
+            },
+            "fontFamily": {
+                    "body-md": ["Inter"],
+                    "headline-lg-mobile": ["Geist"],
+                    "body-lg": ["Inter"],
+                    "headline-md": ["Geist"],
+                    "label-md": ["JetBrains Mono"],
+                    "display-lg": ["Geist"],
+                    "body-sm": ["Inter"],
+                    "label-sm": ["JetBrains Mono"],
+                    "headline-lg": ["Geist"]
+            },
+            "fontSize": {
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "label-md": ["13px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "label-sm": ["11px", {"lineHeight": "14px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { @apply bg-surface-studio text-on-surface font-body-md; overflow-x: hidden; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; font-size: 20px; }
+        .sidebar-active { @apply text-ai-vibrant font-bold border-l-2 border-ai-vibrant pl-2; }
+        .sidebar-inactive { @apply text-on-surface-variant pl-2; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #CBD5E1; }
+        .table-row-hover:hover { background-color: #F8FAFC; }
+    </style>
+</head>
+<body class="flex min-h-screen">
+<!-- SideNavBar Anchor -->
+<aside class="fixed left-0 top-0 h-screen w-sidebar-width bg-surface border-r border-outline-variant flex flex-col py-gutter px-4 z-50">
+<div class="mb-8 px-2 flex items-center gap-3">
+<div class="w-10 h-10 bg-primary flex items-center justify-center rounded">
+<span class="material-symbols-outlined text-on-primary">workspaces</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Repora</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant opacity-70">Enterprise Documents</p>
+</div>
+</div>
+<button class="mb-8 w-full py-3 bg-primary text-on-primary font-label-md text-label-md rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined">add</span>
+            New Document
+        </button>
+<nav class="flex-grow space-y-1">
+<!-- Active: Workspace (determined by content) -->
+<a class="flex items-center gap-3 py-2 text-ai-vibrant font-bold border-l-2 border-ai-vibrant pl-2 transition-colors" href="#">
+<span class="material-symbols-outlined">workspaces</span>
+<span class="font-body-md text-body-md">Workspace</span>
+</a>
+<a class="flex items-center gap-3 py-2 text-on-surface-variant pl-2 hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-body-md text-body-md">Recent</span>
+</a>
+<a class="flex items-center gap-3 py-2 text-on-surface-variant pl-2 hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-body-md text-body-md">Shared</span>
+</a>
+<a class="flex items-center gap-3 py-2 text-on-surface-variant pl-2 hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">edit_note</span>
+<span class="font-body-md text-body-md">Drafts</span>
+</a>
+<a class="flex items-center gap-3 py-2 text-on-surface-variant pl-2 hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-body-md text-body-md">Archive</span>
+</a>
+</nav>
+<div class="mt-auto pt-4 border-t border-outline-variant space-y-1">
+<a class="flex items-center gap-3 py-2 text-on-surface-variant pl-2 hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+<a class="flex items-center gap-3 py-2 text-on-surface-variant pl-2 hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">help_outline</span>
+<span class="font-body-md text-body-md">Support</span>
+</a>
+<div class="pt-4 flex items-center gap-3 px-2">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-highest">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a corporate executive in a crisp white shirt against a neutral grey studio background. The lighting is soft and directional, highlighting facial details with clarity and a sophisticated tone suitable for a high-end enterprise document management application." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAljA-ZP2tx5uhecSKky1icmmbX34OwoXm-xlLC5-T4R326xZlLBV_SEf6xgkdK1X0d-3r00ZdXAfpTmWV5DVhYO5YkZ3AoaNsphBMsJmUI9RRgBiQk256s5mLDVjZUFaUB0mL9h4O4Y4kyfYPXsDgKtKhorFfg1WGxUCHbDOPOpW6MvqYYfHDS3rqL0f6Iz7hunZivRMnFREqDPI55Q44UvCfxmKaPPeA1kWZSPQ_Z3M24K60EK1qN"/>
+</div>
+<div class="flex-grow overflow-hidden">
+<p class="font-label-md text-label-md font-bold truncate">Alex Chen</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant truncate">Legal Department</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-[280px] flex-grow min-h-screen flex flex-col">
+<!-- TopNavBar Anchor -->
+<header class="h-16 bg-surface-studio border-b border-outline-variant flex justify-between items-center px-gutter sticky top-0 z-40">
+<div class="flex items-center gap-6">
+<h2 class="font-headline-md text-headline-md font-black text-primary">Workspace</h2>
+<div class="relative w-80 group">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-1.5 font-body-sm text-body-sm focus:ring-2 focus:ring-ai-vibrant focus:border-transparent transition-all" placeholder="Search enterprise documents..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2 border-r border-outline-variant pr-4 mr-2">
+<button class="px-3 py-1.5 font-label-md text-label-md text-on-surface-variant hover:text-ai-vibrant transition-all">Share</button>
+<button class="px-3 py-1.5 font-label-md text-label-md text-on-surface-variant hover:text-ai-vibrant transition-all">Export</button>
+</div>
+<button class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-ai-vibrant transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-ai-vibrant transition-colors">
+<span class="material-symbols-outlined">history</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-ai-vibrant transition-colors">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Document Library Content -->
+<div class="p-gutter max-w-[1400px] mx-auto w-full flex flex-col gap-6">
+<!-- Page Header & Global Stats -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<nav class="flex items-center gap-2 mb-2 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
+<span>Documents</span>
+<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<span class="text-ai-vibrant font-bold">Library</span>
+</nav>
+<h1 class="font-headline-lg text-headline-lg text-primary">Enterprise Repository</h1>
+</div>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 px-4 py-2 border border-outline-variant rounded-lg font-label-md text-label-md hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">download</span>
+                        Bulk Export
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined">add</span>
+                        Create Document
+                    </button>
+</div>
+</div>
+<!-- Advanced Filter Bar -->
+<div class="bg-surface p-4 rounded-xl border border-outline-variant shadow-sm flex flex-wrap items-center gap-4">
+<div class="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border border-outline-variant">
+<span class="material-symbols-outlined text-on-surface-variant scale-90">filter_list</span>
+<span class="font-label-md text-label-md font-bold">Filter By:</span>
+</div>
+<div class="flex flex-wrap gap-2">
+<!-- Department Filter -->
+<select class="bg-surface-container-low border border-outline-variant rounded-lg px-3 py-1.5 font-label-md text-label-md focus:ring-1 focus:ring-ai-vibrant outline-none">
+<option>Department: All</option>
+<option>Legal</option>
+<option>Finance</option>
+<option>Engineering</option>
+<option>Human Resources</option>
+</select>
+<!-- Status Filter -->
+<select class="bg-surface-container-low border border-outline-variant rounded-lg px-3 py-1.5 font-label-md text-label-md focus:ring-1 focus:ring-ai-vibrant outline-none">
+<option>Status: All States</option>
+<option>Draft</option>
+<option>Under Review</option>
+<option>Finalized</option>
+<option>Archived</option>
+</select>
+<!-- Owner Filter -->
+<select class="bg-surface-container-low border border-outline-variant rounded-lg px-3 py-1.5 font-label-md text-label-md focus:ring-1 focus:ring-ai-vibrant outline-none">
+<option>Owner: Everyone</option>
+<option>Assigned to Me</option>
+<option>Team Lead</option>
+</select>
+</div>
+<div class="h-6 w-px bg-outline-variant mx-2 hidden lg:block"></div>
+<div class="flex items-center gap-4 ml-auto">
+<div class="flex items-center gap-1 font-label-sm text-label-sm text-on-surface-variant">
+<span>Showing</span>
+<span class="font-bold text-primary">128</span>
+<span>Documents</span>
+</div>
+<button class="text-ai-vibrant font-label-md text-label-md hover:underline">Clear Filters</button>
+</div>
+</div>
+<!-- Document Table -->
+<div class="bg-surface rounded-xl border border-outline-variant shadow-sm overflow-hidden flex flex-col">
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full border-collapse text-left">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant">
+<th class="px-6 py-4 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">
+<div class="flex items-center gap-2">
+                                        Document Name
+                                        <span class="material-symbols-outlined text-[16px]">expand_more</span>
+</div>
+</th>
+<th class="px-6 py-4 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Status</th>
+<th class="px-6 py-4 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Department</th>
+<th class="px-6 py-4 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Owner</th>
+<th class="px-6 py-4 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest text-right">Modified</th>
+<th class="px-6 py-4 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Table Row 1 -->
+<tr class="table-row-hover group transition-colors">
+<td class="px-6 py-5">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded bg-red-50 flex items-center justify-center text-red-600">
+<span class="material-symbols-outlined">picture_as_pdf</span>
+</div>
+<div>
+<div class="font-body-md text-body-md font-bold text-primary">Q3 Fiscal Compliance Audit.pdf</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">v2.4 • 4.2 MB</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="px-2 py-1 rounded bg-status-review/10 text-status-review font-label-sm text-label-sm border border-status-review/20">Under Review</span>
+</td>
+<td class="px-6 py-5">
+<div class="font-label-md text-label-md text-on-surface">Finance</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A portrait of a male business professional with dark hair and glasses, wearing a sharp grey suit. The background is a blurred office setting with cool blue and slate tones, consistent with a modern corporate environment. Professional, high-trust photography style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWO6-HHgikF_3Ym2KJ2iKpnPtnVXIgUCw51wonxCGcvbgijMcVnuP_MpgaM3PyN7onoJYwdMS5DV8JdPkbrMb8vrTyEqyqzE3MC-O-nzr7p01amOXQDqg-B837AIrBdtZHY5DwWpnNG3j-vtqLomwC4cbOuEqhLKa4tEfhC3BDXZOc7Vc3-VOlr_ry5iJrsOnc4QavNRIJCri8iQQ1HI67-ho_AYGzb0CjccdpKH-xBLaBaJNVZurJ"/>
+</div>
+<span class="font-body-sm text-body-sm">Marcus Thorne</span>
+</div>
+</td>
+<td class="px-6 py-5 text-right font-label-sm text-label-sm text-on-surface-variant">2 hours ago</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Export">
+<span class="material-symbols-outlined">ios_share</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Permissions">
+<span class="material-symbols-outlined">manage_accounts</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Audit Log">
+<span class="material-symbols-outlined">history_edu</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Table Row 2 -->
+<tr class="table-row-hover group transition-colors">
+<td class="px-6 py-5">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded bg-blue-50 flex items-center justify-center text-blue-600">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div>
+<div class="font-body-md text-body-md font-bold text-primary">Master Service Agreement - Repora AI.docx</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">v1.1 • 1.8 MB</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="px-2 py-1 rounded bg-status-final/10 text-status-final font-label-sm text-label-sm border border-status-final/20">Finalized</span>
+</td>
+<td class="px-6 py-5">
+<div class="font-label-md text-label-md text-on-surface">Legal</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A portrait of a professional woman with blonde hair in a navy blazer. She has a confident and friendly expression. The lighting is bright and clean, set against a minimalist white office wall. The image is polished and suitable for an enterprise identity profile." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDYjfdVv8t6O4DwNvyhieSx_Rbb3P4cV0SJGFu3lP5Yr7ztiUzZWrEaZ0QjZiMrLlPeJ739U8CosRthzh-MFqt1E0hmmBN3f7gqtpMTv6g0rIRRA3TfNzBqsuF8wA1lKvDHOpkGtV6JMf9MAFDLQURburnHOEkq3ZNbXLOgy7DJCCpNBSYShlYDr9aCziULu3hn2eHFqHVNT5zweqKNYLGNUE8dwS8iA1RmeIf25T_UacwrQTxsSWHs"/>
+</div>
+<span class="font-body-sm text-body-sm">Sarah Jenkins</span>
+</div>
+</td>
+<td class="px-6 py-5 text-right font-label-sm text-label-sm text-on-surface-variant">May 12, 2024</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Export">
+<span class="material-symbols-outlined">ios_share</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Permissions">
+<span class="material-symbols-outlined">manage_accounts</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Audit Log">
+<span class="material-symbols-outlined">history_edu</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Table Row 3 -->
+<tr class="table-row-hover group transition-colors">
+<td class="px-6 py-5">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded bg-slate-100 flex items-center justify-center text-slate-600">
+<span class="material-symbols-outlined">article</span>
+</div>
+<div>
+<div class="font-body-md text-body-md font-bold text-primary">Core API Documentation - Engine v4</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">Draft • 542 KB</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="px-2 py-1 rounded bg-status-draft/10 text-status-draft font-label-sm text-label-sm border border-status-draft/20">Draft</span>
+</td>
+<td class="px-6 py-5">
+<div class="font-label-md text-label-md text-on-surface">Engineering</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest overflow-hidden">
+<div class="w-full h-full flex items-center justify-center bg-ai-vibrant text-[10px] text-white font-bold">EK</div>
+</div>
+<span class="font-body-sm text-body-sm">Eric Kim</span>
+</div>
+</td>
+<td class="px-6 py-5 text-right font-label-sm text-label-sm text-on-surface-variant">Yesterday</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Export">
+<span class="material-symbols-outlined">ios_share</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Permissions">
+<span class="material-symbols-outlined">manage_accounts</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Audit Log">
+<span class="material-symbols-outlined">history_edu</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Table Row 4 -->
+<tr class="table-row-hover group transition-colors">
+<td class="px-6 py-5">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded bg-green-50 flex items-center justify-center text-green-600">
+<span class="material-symbols-outlined">table_chart</span>
+</div>
+<div>
+<div class="font-body-md text-body-md font-bold text-primary">Q1 Hiring Forecast & Resource Plan</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">v3.0 • 1.2 MB</div>
+</div>
+</div>
+</td>
+<td class="px-6 py-5">
+<span class="px-2 py-1 rounded bg-status-final/10 text-status-final font-label-sm text-label-sm border border-status-final/20">Finalized</span>
+</td>
+<td class="px-6 py-5">
+<div class="font-label-md text-label-md text-on-surface">HR</div>
+</td>
+<td class="px-6 py-5">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded-full bg-surface-container-highest overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A portrait of a male professional with a warm smile, wearing a casual navy sweater over a collared shirt. He has short brown hair and is positioned in a bright, airy office space with blurred green plants in the background. The aesthetic is clean, professional, and accessible." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCWnNwoJ4P2io0apZN2Twl3Kco7in9BFpJHXaYzUfcVgEDEih-MwJ7fnb0mVqD4PxKxfjj8xXn7qL4CD1l6_yUI5PKi2hDw7nZTY8Xte7S3hcnihq7AATtl6qTRZYPhtqs_A5UsgFjFobUz_wNffvFug3eQVVsGGZCxNaGXdzKnn_DOpRD_MgYZzwmKYQzJqea8FG8iLh7-7TyIOWNX_K5GLdihAftnqTdUQGGhCMuZD-HGOuQB_O4r"/>
+</div>
+<span class="font-body-sm text-body-sm">David Miller</span>
+</div>
+</td>
+<td class="px-6 py-5 text-right font-label-sm text-label-sm text-on-surface-variant">4 days ago</td>
+<td class="px-6 py-5 text-right">
+<div class="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Export">
+<span class="material-symbols-outlined">ios_share</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Permissions">
+<span class="material-symbols-outlined">manage_accounts</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Audit Log">
+<span class="material-symbols-outlined">history_edu</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Table Pagination -->
+<div class="px-6 py-4 border-t border-outline-variant bg-surface-container-lowest flex items-center justify-between">
+<div class="font-label-sm text-label-sm text-on-surface-variant">
+                        Page 1 of 13
+                    </div>
+<div class="flex items-center gap-1">
+<button class="p-1 rounded hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded bg-ai-vibrant text-white font-label-md text-label-md">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface-variant font-label-md text-label-md">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface-variant font-label-md text-label-md">3</button>
+<span class="px-1 text-on-surface-variant">...</span>
+<button class="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface-variant font-label-md text-label-md">13</button>
+<button class="p-1 rounded hover:bg-surface-container-high text-on-surface-variant">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Bento Widgets Section -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+<!-- AI Assistant Activity -->
+<div class="col-span-1 md:col-span-2 bg-surface p-6 rounded-xl border border-outline-variant shadow-sm flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-ai-vibrant" style="font-variation-settings: 'FILL' 1;">bolt</span>
+<h3 class="font-headline-md text-headline-md">AI Insights & Activity</h3>
+</div>
+<button class="text-ai-vibrant font-label-sm text-label-sm uppercase font-bold hover:underline">Full Log</button>
+</div>
+<div class="space-y-4">
+<div class="flex items-start gap-4 p-3 rounded-lg bg-ai-glow/30 border border-ai-vibrant/10">
+<div class="w-8 h-8 rounded bg-ai-vibrant/20 flex items-center justify-center text-ai-vibrant">
+<span class="material-symbols-outlined scale-75">auto_awesome</span>
+</div>
+<div class="flex-grow">
+<p class="font-body-sm text-body-sm"><span class="font-bold">Repora AI</span> summarized "Q3 Fiscal Compliance Audit" for <span class="text-ai-vibrant font-medium">@sarah.j</span></p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">2 mins ago</p>
+</div>
+</div>
+<div class="flex items-start gap-4 p-3 rounded-lg hover:bg-surface-container-low transition-colors">
+<div class="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined scale-75">update</span>
+</div>
+<div class="flex-grow">
+<p class="font-body-sm text-body-sm">Automated version control applied to 12 documents in <span class="font-medium text-primary">Legal</span> folder</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">1 hour ago</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Storage & Health -->
+<div class="bg-primary text-on-primary p-6 rounded-xl shadow-lg flex flex-col justify-between">
+<div>
+<h3 class="font-headline-md text-headline-md opacity-80">Workspace Usage</h3>
+<div class="mt-4 flex items-end gap-2">
+<span class="text-4xl font-black">74.2</span>
+<span class="text-xl opacity-60 pb-1">GB / 100GB</span>
+</div>
+<div class="mt-4 w-full h-2 bg-on-primary/20 rounded-full overflow-hidden">
+<div class="h-full bg-ai-vibrant" style="width: 74%"></div>
+</div>
+</div>
+<div class="mt-6 flex flex-col gap-2">
+<div class="flex justify-between font-label-sm text-label-sm opacity-60">
+<span>Documents Total</span>
+<span>14,208</span>
+</div>
+<div class="flex justify-between font-label-sm text-label-sm opacity-60">
+<span>Uptime Status</span>
+<span class="text-green-400">99.98%</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Context Menu Logic (Simple JS example for interactions) -->
+<script>
+        document.querySelectorAll('.table-row-hover').forEach(row => {
+            row.addEventListener('click', (e) => {
+                // Prevent row click if clicking action buttons
+                if (e.target.closest('button')) return;
+                
+                // Add "active" visualization logic here if needed
+                console.log('Document clicked:', row.querySelector('.font-bold').innerText);
+            });
+        });
+
+        // Search highlight micro-interaction
+        const searchInput = document.querySelector('input[type="text"]');
+        searchInput.addEventListener('focus', () => {
+            searchInput.parentElement.classList.add('ring-2', 'ring-ai-vibrant/20');
+        });
+        searchInput.addEventListener('blur', () => {
+            searchInput.parentElement.classList.remove('ring-2', 'ring-ai-vibrant/20');
+        });
+    </script>
+</body></html>

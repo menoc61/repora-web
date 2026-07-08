@@ -1,0 +1,16 @@
+{
+  "name": "Repora — Sovereign Document Intelligence",
+  "short_name": "Repora",
+  "description": "Enterprise AI collaborative document platform with sovereign intelligence orchestration, multi-agent drafting, and secure sharing.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fcf8fa",
+  "theme_color": "#000000",
+  "orientation": "any",
+  "categories": ["productivity", "enterprise", "ai", "documents"],
+  "lang": "en-US",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
