@@ -1,9 +1,11 @@
 import { streamText, isStepCount } from 'ai'
 import { AGENT_REGISTRY } from './agents/registry'
-import { getLanguageModel } from './providers/interface'
+import { getLanguageModel, modelSupportsTools, setDefaultModel, defaultModel } from './providers/interface'
 import type { ProviderType } from './providers/interface'
-import { generateOutline, type GeneratedSection } from '../services/outline.service'
 import { config } from '../config'
+
+// Re-export the orchestrator pipeline (refactored into pipeline/ directory)
+export { orchestrateGeneration } from './pipeline/orchestrate'
 
 export type HermesEvent = {
   type: 'agent_status'
@@ -33,10 +35,25 @@ export type HermesEvent = {
   title?: string
   [key: string]: unknown
 } | {
+  type: 'context_updated'
+  agent: string
+  key: string
+  value: unknown
+  [key: string]: unknown
+} | {
+  type: 'generation_error'
+  agent: string
+  message: string
+  error_type?: string
+  section_id?: string
+  [key: string]: unknown
+} | {
   type: 'done'
   document_id?: string
   [key: string]: unknown
 }
+
+// -- Model discovery ---------------------------------------------------------
 
 let discoveredModel = 'llama3.1:8b'
 
@@ -48,14 +65,17 @@ export async function discoverOllamaModel(): Promise<string> {
     const data = (await res.json()) as { models?: Array<{ name: string }> }
     if (data.models && data.models.length > 0) {
       discoveredModel = data.models[0].name
+      setDefaultModel(discoveredModel)
     }
   } catch { /* use default */ }
   return discoveredModel
 }
 
 export function getDefaultModel(): string {
-  return discoveredModel
+  return defaultModel
 }
+
+// -- Agent runner ------------------------------------------------------------
 
 export async function* runAgent(
   agentName: string,
@@ -68,34 +88,76 @@ export async function* runAgent(
 
   yield { type: 'agent_status', agent: agentName, status: 'thinking' }
 
-  const modelId = agentDef.defaultProvider === 'ollama' ? discoveredModel : agentDef.defaultModel
+  // For ollama we use the discovered model; for other providers use the agent default.
+  const modelId = agentDef.defaultProvider === 'ollama'
+    ? discoveredModel
+    : agentDef.defaultModel
+
+  // G5: BYOK boundary check — when provider is llama_cpp or ollama, no API key is sent.
+  // The getLanguageModel fn routes to local provider when no apiKey is provided.
   const model = getLanguageModel(agentDef.defaultProvider as ProviderType, modelId, apiKey)
 
-  const stream = await streamText({
-    model,
-    system: agentDef.systemPrompt,
-    prompt,
-    tools: agentDef.tools as Parameters<typeof streamText>[0]['tools'],
-    stopWhen: isStepCount(5),
-  })
+  // Check if the model name suggests tool-calling support. If not, skip tools
+  // to avoid errors. If the heuristic is wrong and the model DOES support tools,
+  // the agent still runs but without tool invocation — a safe degradation.
+  const supportsTools = modelSupportsTools(modelId)
+  const hasTools = Object.keys(agentDef.tools).length > 0
+  const tools = supportsTools && hasTools
+    ? (agentDef.tools as Parameters<typeof streamText>[0]['tools'])
+    : undefined
 
-  for await (const event of stream.fullStream) {
-    switch (event.type) {
-      case 'text-delta':
-        yield { type: 'token', token: event.text, agent: agentName }
-        break
-      case 'tool-call':
-        yield { type: 'tool_call', agent: agentName, tool: event.toolName, args: event.input }
-        break
-      case 'tool-result':
-        yield { type: 'tool_result', agent: agentName, tool: event.toolName, result: event.output }
-        break
+  // G6: maxSteps exhaustion handled by SDK stopWhen — stops after maxSteps LLM calls.
+  const maxSteps = supportsTools ? 10 : 3
+
+  try {
+    const stream = await streamText({
+      model,
+      system: agentDef.systemPrompt,
+      prompt,
+      tools,
+      stopWhen: isStepCount(maxSteps),
+    })
+
+    for await (const event of stream.fullStream) {
+      switch (event.type) {
+        case 'text-delta':
+          yield { type: 'token', token: event.text, agent: agentName }
+          break
+        case 'tool-call':
+          yield { type: 'tool_call', agent: agentName, tool: event.toolName, args: event.input }
+          break
+        case 'tool-result':
+          yield { type: 'tool_result', agent: agentName, tool: event.toolName, result: event.output }
+          break
+      }
+    }
+  } catch (err) {
+    // If the first attempt with tools failed (model doesn't actually support them),
+    // retry with plain text generation (no tools).
+    if (tools && (err as Error).message?.includes('tool')) {
+      const fallbackStream = await streamText({
+        model,
+        system: agentDef.systemPrompt,
+        prompt,
+        stopWhen: isStepCount(3),
+      })
+      for await (const event of fallbackStream.fullStream) {
+        switch (event.type) {
+          case 'text-delta':
+            yield { type: 'token', token: event.text, agent: agentName }
+            break
+        }
+      }
+    } else {
+      throw err
     }
   }
 
   yield { type: 'agent_status', agent: agentName, status: 'done' }
   yield { type: 'done', agent: agentName }
 }
+
+// -- Generation tracking -----------------------------------------------------
 
 const activeGenerations = new Map<string, Promise<AsyncGenerator<HermesEvent>>>()
 
@@ -111,53 +173,7 @@ export function clearActiveGeneration(documentId: string) {
   activeGenerations.delete(documentId)
 }
 
-export async function orchestrateGeneration(projectId: string, prompt: string, documentId: string): Promise<AsyncGenerator<HermesEvent>> {
-  async function* orchestrate(): AsyncGenerator<HermesEvent> {
-    try {
-      yield { type: 'agent_status', agent: 'Planner', status: 'structuring' }
-      const sections: GeneratedSection[] = await generateOutline(prompt, documentId)
-      const sectionCount = sections.length
-      yield { type: 'agent_status', agent: 'Planner', status: 'done' }
-      yield { type: 'agent_status', agent: 'System', status: 'outline_created', sections_created: sectionCount }
-
-      if (sectionCount > 0) {
-        yield { type: 'agent_status', agent: 'Writer', status: 'thinking' }
-        for (let i = 0; i < sections.length; i++) {
-          const section = sections[i]
-          yield {
-            type: 'agent_status',
-            agent: 'Writer',
-            status: 'writing',
-            section: `${i + 1}/${sectionCount}`,
-            section_title: section.title,
-          }
-
-          const sectionPrompt = `Write the section titled "${section.title}" (sectionId: "${section.id}") for document ${documentId}. Call the writeSection tool with sectionId="${section.id}" and your prose content. This is part of a professional specification document ("cahier des charges"). Write clear, detailed, professional prose in French.`
-          const writerGen = runAgent('Writer', sectionPrompt, { projectId, documentId, sectionId: section.id })
-          for await (const event of writerGen) {
-            yield event
-          }
-
-          yield { type: 'section_complete', section_id: section.id, title: section.title }
-        }
-        yield { type: 'agent_status', agent: 'Writer', status: 'done' }
-      }
-
-      yield { type: 'agent_status', agent: 'Reviewer', status: 'thinking' }
-      const reviewerGen = runAgent('Reviewer', "Relis le document complet. Verifie la coherence, la completude, l'alignement terminologique et la qualite. Note tout probleme en francais.", { projectId, documentId })
-      for await (const event of reviewerGen) {
-        yield event
-      }
-      yield { type: 'agent_status', agent: 'Reviewer', status: 'done' }
-
-      yield { type: 'done' as const, document_id: documentId }
-    } finally {
-      clearActiveGeneration(documentId)
-    }
-  }
-
-  return orchestrate()
-}
+import { orchestrateGeneration } from './pipeline/orchestrate'
 
 export function initiateGeneration(projectId: string, prompt: string, documentId: string): void {
   const gen = orchestrateGeneration(projectId, prompt, documentId)
