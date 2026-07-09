@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { Link, useSearch } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -9,10 +10,26 @@ import {
   SelectContent,
   SelectItem,
 } from '../components/ui/select'
-import { useCollaborators, useInvite, useGenerateLink, useResendInvite, useAccessLogs } from '../hooks/useQueries'
+import {
+  useCollaborators,
+  useInvite,
+  useGenerateLink,
+  useResendInvite,
+  useAccessLogs,
+  useUpdateCollaborator,
+  useRemoveCollaborator,
+  useUpdateShareSettings,
+} from '../hooks/useQueries'
 import type { Collaborator } from '../schemas'
 
 const ROLES = ['Editeur', 'Admin', 'Reviseur', 'Observateur']
+
+const ROLE_MAP: Record<string, string> = {
+  Editeur: 'editor',
+  Admin: 'admin',
+  Reviseur: 'reviewer',
+  Observateur: 'viewer',
+}
 
 interface CollaboratorRow {
   name: string
@@ -54,15 +71,28 @@ function toRow(c: Collaborator): CollaboratorRow {
 }
 
 export default function Sharing() {
+  const search = useSearch({ from: '/sharing' })
+  const docId = search.id
   const { data: collaborators = [] } = useCollaborators()
   const inviteMutation = useInvite()
   const resendMutation = useResendInvite()
   const generateLinkMutation = useGenerateLink()
+  const updateCollabMutation = useUpdateCollaborator()
+  const removeCollabMutation = useRemoveCollaborator()
+  const updateShareSettings = useUpdateShareSettings()
   const { data: accessLogs } = useAccessLogs()
   const [email, setEmail] = useState('')
   const [role, setRole] = useState(ROLES[0])
   const [generatedLink, setGeneratedLink] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const [showAccessLogs, setShowAccessLogs] = useState(false)
+  const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null)
+  const [securityToggles, setSecurityToggles] = useState({
+    passwordProtect: true,
+    expiration: false,
+    nda: true,
+  })
+  const [editRoleOpen, setEditRoleOpen] = useState<number | null>(null)
   const emailRef = useRef<HTMLInputElement>(null)
 
   const rows: CollaboratorRow[] = collaborators.length > 0
@@ -71,7 +101,7 @@ export default function Sharing() {
 
   const handleSendInvite = () => {
     if (!email.trim()) return
-    inviteMutation.mutate({ email: email.trim(), role: role.toLowerCase() }, {
+    inviteMutation.mutate({ email: email.trim(), role: ROLE_MAP[role] ?? 'editor' }, {
       onSuccess: () => setEmail(''),
     })
   }
@@ -80,25 +110,66 @@ export default function Sharing() {
     resendMutation.mutate(emailAddr)
   }
 
-  const handleGenerateLink = (docId?: string) => {
+  const handleGenerateLink = () => {
     generateLinkMutation.mutate(docId ?? 'current', {
       onSuccess: (data: any) => {
-        setGeneratedLink(data?.url ?? data?.token ?? 'Lien genere')
+        const url = data?.url ?? data?.token ?? window.location.origin + '/validate/generated'
+        setGeneratedLink(url)
       },
     })
+  }
+
+  const handleCopyLink = async () => {
+    if (!generatedLink) return
+    try {
+      await navigator.clipboard.writeText(generatedLink)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2500)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  const handleEditRole = (rowIndex: number, newRole: string) => {
+    const row = rows[rowIndex]
+    if (row?.email && row.role !== 'Proprietaire') {
+      updateCollabMutation.mutate({ email: row.email, role: ROLE_MAP[newRole] ?? 'editor' })
+    }
+    setEditRoleOpen(null)
+    setOpenDropdownIndex(null)
+  }
+
+  const handleRemove = (rowIndex: number) => {
+    const row = rows[rowIndex]
+    if (row?.email && row.role !== 'Proprietaire') {
+      removeCollabMutation.mutate(row.email)
+    }
+    setOpenDropdownIndex(null)
+  }
+
+  const handleSecurityToggle = (key: 'passwordProtect' | 'expiration' | 'nda') => {
+    const newToggles = { ...securityToggles, [key]: !securityToggles[key] }
+    setSecurityToggles(newToggles)
+    if (docId) {
+      updateShareSettings.mutate({ documentId: docId, ...newToggles })
+    }
   }
 
   const handleViewAccessLogs = () => {
     setShowAccessLogs(true)
   }
 
+  const toggleDropdown = (index: number) => {
+    setOpenDropdownIndex(openDropdownIndex === index ? null : index)
+  }
+
   return (
     <div className="min-h-screen bg-surface-studio">
       <main className="max-w-4xl mx-auto py-12 px-margin-desktop">
-        <div className="flex items-center gap-2 mb-6 text-on-surface-variant font-label-md text-label-md">
+        <Link to={docId ? "/editor" : "/library"} search={docId ? { id: docId } : {}} className="flex items-center gap-2 mb-6 text-on-surface-variant font-label-md text-label-md hover:text-ai-vibrant transition-colors">
           <Icon name="arrow_back" className="text-sm" />
-          <span>Retour a &quot;Q4 Strategy Sovereign Analysis&quot;</span>
-        </div>
+          <span>{docId ? "Retour au document" : "Retour a la bibliotheque"}</span>
+        </Link>
 
         <div className="mb-10">
           <h2 className="font-headline-lg text-headline-lg text-primary mb-2">Partage securise et controle d&apos;acces</h2>
@@ -147,7 +218,7 @@ export default function Sharing() {
                     onClick={handleSendInvite}
                     disabled={inviteMutation.isPending || !email.trim()}
                   >
-                    {inviteMutation.isPending ? 'Envoi...' : 'Envoyer l\'invitation'}
+                    {inviteMutation.isPending ? 'Envoi...' : "Envoyer l'invitation"}
                   </Button>
                 </div>
               </div>
@@ -156,10 +227,10 @@ export default function Sharing() {
             <section className="bg-white border border-outline-variant rounded-xl overflow-hidden shadow-sm">
               <div className="p-6 border-b border-outline-variant flex justify-between items-center">
                 <h3 className="font-headline-md text-headline-md text-primary">Collaborateurs actuels</h3>
-                <span className="px-2 py-1 bg-surface-variant/50 text-on-surface-variant font-label-sm text-label-sm rounded uppercase tracking-tighter">4 actifs</span>
+                <span className="px-2 py-1 bg-surface-variant/50 text-on-surface-variant font-label-sm text-label-sm rounded uppercase tracking-tighter">{rows.length} actifs</span>
               </div>
               <div className="divide-y divide-outline-variant">
-                {rows.map((c) => (
+                {rows.map((c, index) => (
                   <div key={c.name} className={`p-4 flex items-center justify-between hover:bg-surface-studio transition-colors ${c.pending ? 'opacity-75' : ''}`}>
                     <div className="flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-full ${c.bg} flex items-center justify-center ${c.pending ? 'border-2 border-dashed border-outline' : ''}`}>
@@ -172,12 +243,36 @@ export default function Sharing() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 relative">
                       <span className={`font-label-sm text-label-sm uppercase px-2 py-1 rounded ${c.badge}`}>{c.role}</span>
                       {c.pending ? (
-                        <Button variant="link" className="text-secondary font-label-md text-label-md p-0 h-auto" onClick={() => handleResend(c.email ?? '')}>{resendMutation.isPending ? 'Envoi...' : 'Renvoyer'}</Button>
-                      ) : (
-                        <Icon name="more_vert" className="text-outline cursor-pointer" />
+                        <Button variant="link" className="text-secondary font-label-md text-label-md p-0 h-auto" onClick={() => handleResend(c.email ?? '')}>
+                          {resendMutation.isPending && resendMutation.variables === c.email ? 'Envoi...' : 'Renvoyer'}
+                        </Button>
+                      ) : c.role === 'Proprietaire' ? null : (
+                        <div className="relative">
+                          <button className="cursor-pointer" onClick={() => toggleDropdown(index)}><Icon name="more_vert" className="text-outline" /></button>
+                          {openDropdownIndex === index && (
+                            <div className="absolute right-0 top-8 bg-white border border-outline-variant rounded-lg shadow-lg py-1 z-50 min-w-[180px]">
+                              <button
+                                className="w-full text-left px-4 py-2 text-body-sm hover:bg-surface-studio flex items-center gap-2"
+                                onClick={() => { setEditRoleOpen(index); setOpenDropdownIndex(null) }}
+                                disabled={updateCollabMutation.isPending}
+                              >
+                                <Icon name="edit" className="text-sm" />
+                                Modifier le role
+                              </button>
+                              <button
+                                className="w-full text-left px-4 py-2 text-body-sm hover:bg-surface-studio flex items-center gap-2 text-error"
+                                onClick={() => handleRemove(index)}
+                                disabled={removeCollabMutation.isPending}
+                              >
+                                <Icon name="person_remove" className="text-sm" />
+                                Retirer
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
@@ -195,28 +290,42 @@ export default function Sharing() {
                   Acces externe
                 </h3>
                 <p className="text-on-primary-container text-body-sm mb-6">Creez une passerelle unique et chiffree pour les utilisateurs hors de votre organisation.</p>
-                <Button className="w-full py-3 bg-ai-vibrant text-white font-label-md text-label-md rounded-lg flex items-center justify-center gap-2 hover:bg-ai-vibrant/90 transition-all mb-6" onClick={() => handleGenerateLink()} disabled={generateLinkMutation.isPending}>
+                <Button
+                  className="w-full py-3 bg-ai-vibrant text-white font-label-md text-label-md rounded-lg flex items-center justify-center gap-2 hover:bg-ai-vibrant/90 transition-all mb-6"
+                  onClick={handleGenerateLink}
+                  disabled={generateLinkMutation.isPending}
+                >
                   <Icon name="shield" />
                   {generateLinkMutation.isPending ? 'Generation...' : 'Generer un lien securise'}
                 </Button>
                 {generatedLink && (
-                  <div className="mb-6 p-3 bg-surface-studio rounded-lg border border-outline-variant break-all">
-                    <p className="font-label-sm text-label-sm text-on-surface-variant mb-1">Lien genere :</p>
-                    <code className="text-body-sm text-secondary">{generatedLink}</code>
+                  <div className="mb-6 space-y-2">
+                    <div className="p-3 bg-surface-studio rounded-lg border border-outline-variant break-all">
+                      <p className="font-label-sm text-label-sm text-on-surface-variant mb-1">Lien genere :</p>
+                      <code className="text-body-sm text-secondary">{generatedLink}</code>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className={`w-full py-2 rounded-lg font-label-md text-label-md flex items-center justify-center gap-2 transition-all ${copied ? 'bg-status-final/10 text-status-final border-status-final' : 'border-outline-variant text-on-surface-variant hover:bg-surface-studio'}`}
+                      onClick={handleCopyLink}
+                    >
+                      <Icon name={copied ? 'check_circle' : 'content_copy'} className="text-[16px]" />
+                      {copied ? 'Copie !' : 'Copier le lien'}
+                    </Button>
                   </div>
                 )}
                 <div className="space-y-4 border-t border-on-primary-container/20 pt-6">
                   {[
-                    { label: 'Protection par mot de passe', desc: 'Connexion obligatoire pour les detenteurs de lien', checked: true },
-                    { label: 'Date d\'expiration', desc: 'Le lien expire dans 7 jours', checked: false },
-                    { label: 'Clause NDA', desc: 'Signature electronique requise pour voir', checked: true },
+                    { key: 'passwordProtect' as const, label: 'Protection par mot de passe', desc: 'Connexion obligatoire pour les detenteurs de lien', checked: securityToggles.passwordProtect },
+                    { key: 'expiration' as const, label: "Date d'expiration", desc: 'Le lien expire dans 7 jours', checked: securityToggles.expiration },
+                    { key: 'nda' as const, label: 'Clause NDA', desc: 'Signature electronique requise pour voir', checked: securityToggles.nda },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between">
                       <div className="flex flex-col">
                         <span className="font-label-md text-label-md text-white">{item.label}</span>
                         <span className="text-[10px] text-on-primary-container/70">{item.desc}</span>
                       </div>
-                      <Toggle checked={item.checked} />
+                      <Toggle checked={item.checked} onChange={() => handleSecurityToggle(item.key)} />
                     </div>
                   ))}
                 </div>
@@ -267,6 +376,30 @@ export default function Sharing() {
           </div>
         )}
 
+        {editRoleOpen !== null && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setEditRoleOpen(null)}>
+            <div className="bg-white p-6 rounded-xl w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <h3 className="font-headline-md text-headline-md mb-4">Modifier le role</h3>
+              <p className="text-body-sm text-on-surface-variant mb-4">
+                {rows[editRoleOpen]?.name} ({rows[editRoleOpen]?.email})
+              </p>
+              <div className="space-y-2 mb-6">
+                {ROLES.map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => handleEditRole(editRoleOpen, r)}
+                    disabled={updateCollabMutation.isPending}
+                    className={`w-full text-left px-4 py-3 rounded-lg border transition-all font-body-sm ${r === rows[editRoleOpen]?.role ? 'bg-secondary/10 border-secondary text-secondary' : 'border-outline-variant hover:bg-surface-studio text-on-surface'}`}
+                  >
+                    {r}
+                  </button>
+                ))}
+              </div>
+              <Button variant="outline" className="w-full" onClick={() => setEditRoleOpen(null)}>Annuler</Button>
+            </div>
+          </div>
+        )}
+
         <footer className="mt-12 flex items-center justify-center gap-8 border-t border-outline-variant pt-8 opacity-60 hover:opacity-100 transition-all duration-500 grayscale hover:grayscale-0">
           {[
             { icon: 'verified', text: 'CONFORME SOC-2' },
@@ -284,10 +417,10 @@ export default function Sharing() {
   )
 }
 
-function Toggle({ checked }: { checked: boolean }) {
+function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
   return (
     <label className="relative inline-flex items-center cursor-pointer">
-      <input type="checkbox" defaultChecked={checked} className="sr-only peer" />
+      <input type="checkbox" checked={checked} onChange={onChange} className="sr-only peer" />
       <div className="w-11 h-6 bg-on-primary-container/30 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-ai-vibrant" />
     </label>
   )

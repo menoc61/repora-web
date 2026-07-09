@@ -20,8 +20,9 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select'
-import { useDocuments, useExportDocument } from '@/hooks/useQueries'
+import { useDocuments, useExportDocument, useCreateProject, useGenerateDocument } from '@/hooks/useQueries'
 import type { Document, DocumentFilters } from '@/schemas'
+import { useWorkspaceStore } from '@/stores'
 
 const STATUS_LABELS: Record<Document['status'], string> = {
   draft: 'Brouillon',
@@ -54,26 +55,36 @@ const PAGE_SIZE = 10
 
 export default function DocumentLibrary() {
   const navigate = useNavigate()
-  const [department, setDepartment] = useState<string>('all')
+  const setActiveView = useWorkspaceStore((s) => s.setActiveView)
   const [status, setStatus] = useState<string>('all')
-  const [owner, setOwner] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const exportMutation = useExportDocument()
+  const createProject = useCreateProject()
+  const generateDoc = useGenerateDocument()
 
   const filters: DocumentFilters = {
-    ...(department !== 'all' ? { department } : {}),
     ...(status !== 'all' ? { status } : {}),
     ...(search ? { search } : {}),
   }
   const { data: documents = [] } = useDocuments(filters)
 
-  const ownerFiltered = owner === 'all' ? documents : documents.filter((d) => d.author.name === 'Repora AI')
-
-  const totalPages = Math.max(1, Math.ceil(ownerFiltered.length / PAGE_SIZE))
-  const pagedDocs = ownerFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(documents.length / PAGE_SIZE))
+  const pagedDocs = documents.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const currentPage = totalPages > 0 ? Math.min(page, totalPages) : 1
+  const isCreatingNew = createProject.isPending || generateDoc.isPending
+
+  async function handleNewDocument() {
+    try {
+      const project = await createProject.mutateAsync({ name: 'Nouveau document', brief: '' })
+      const result = await generateDoc.mutateAsync({ projectId: project.id })
+      setActiveView('editor')
+      navigate({ to: '/editor', search: { id: result.document_id } })
+    } catch {
+      /* affiche via les etats pending/error */
+    }
+  }
 
   const handleBulkExport = () => {
     const ids = selectedIds.size > 0 ? [...selectedIds] : pagedDocs.map((d) => d.id)
@@ -101,6 +112,8 @@ export default function DocumentLibrary() {
     })
   }
 
+  const activities = Array.isArray(activityData) ? activityData : []
+
   return (
     <>
       <TopBar title="Espace de travail" tabs={[]} />
@@ -119,10 +132,23 @@ export default function DocumentLibrary() {
               <Icon name="download" />
               {exportMutation.isPending ? 'Exportation...' : 'Export groupe'}
             </Button>
-            <Link to="/editor" search={{ id: undefined }} className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity">
-              <Icon name="add" />
-              Creer un document
-            </Link>
+            <Button
+              onClick={handleNewDocument}
+              disabled={isCreatingNew}
+              className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity"
+            >
+              {isCreatingNew ? (
+                <>
+                  <Icon name="progress_activity" className="animate-spin" />
+                  Creation...
+                </>
+              ) : (
+                <>
+                  <Icon name="add" />
+                  Creer un document
+                </>
+              )}
+            </Button>
           </div>
         </div>
 
@@ -251,10 +277,10 @@ export default function DocumentLibrary() {
                         <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Exporter" onClick={() => handleExportSingle(r)}>
                           <Icon name="ios_share" />
                         </button>
-                        <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Permissions">
+                        <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Permissions" onClick={() => navigate({ to: '/sharing', search: { id: r.id } })}>
                           <Icon name="manage_accounts" />
                         </button>
-                        <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Journal d'audit">
+                        <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Journal d'audit" onClick={() => navigate({ to: '/history', search: { id: r.id } })}>
                           <Icon name="history_edu" />
                         </button>
                       </div>
@@ -298,27 +324,24 @@ export default function DocumentLibrary() {
                 <Icon name="bolt" className="text-ai-vibrant" fill />
                 <h3 className="font-headline-md text-headline-md">Insights et activite IA</h3>
               </div>
-              <button className="text-ai-vibrant font-label-sm text-label-sm uppercase font-bold hover:underline">Journal complet</button>
+              <button className="text-ai-vibrant font-label-sm text-label-sm uppercase font-bold hover:underline" onClick={() => navigate({ to: '/infrastructure' })}>Journal complet</button>
             </div>
             <div className="space-y-4">
-              <div className="flex items-start gap-4 p-3 rounded-lg bg-ai-glow/30 border border-ai-vibrant/10">
-                <div className="w-8 h-8 rounded bg-ai-vibrant/20 flex items-center justify-center text-ai-vibrant">
-                  <Icon name="auto_awesome" className="scale-75" />
-                </div>
-                <div className="flex-grow">
-                  <p className="font-body-sm text-body-sm"><span className="font-bold">Repora AI</span> a resume &quot;Audit de conformite fiscale T3&quot; pour <span className="text-ai-vibrant font-medium">@sarah.j</span></p>
-                  <p className="font-label-sm text-label-sm text-on-surface-variant">Il y a 2 min</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-4 p-3 rounded-lg hover:bg-surface-container-low transition-colors">
-                <div className="w-8 h-8 rounded bg-surface-container-high flex items-center justify-center text-on-surface-variant">
-                  <Icon name="update" className="scale-75" />
-                </div>
-                <div className="flex-grow">
-                  <p className="font-body-sm text-body-sm">Controle de version automatise applique a 12 documents dans le dossier <span className="font-medium text-primary">Juridique</span></p>
-                  <p className="font-label-sm text-label-sm text-on-surface-variant">Il y a 1 heure</p>
-                </div>
-              </div>
+              {activities.length > 0 ? (
+                activities.slice(0, 5).map((entry: any, i: number) => (
+                  <div key={i} className={`flex items-start gap-4 p-3 rounded-lg ${i === 0 ? 'bg-ai-glow/30 border border-ai-vibrant/10' : 'hover:bg-surface-container-low transition-colors'}`}>
+                    <div className={`w-8 h-8 rounded flex items-center justify-center ${i === 0 ? 'bg-ai-vibrant/20 text-ai-vibrant' : 'bg-surface-container-high text-on-surface-variant'}`}>
+                      <Icon name={i === 0 ? 'auto_awesome' : 'update'} className="scale-75" />
+                    </div>
+                    <div className="flex-grow">
+                      <p className="font-body-sm text-body-sm">{entry.message ?? entry.action ?? entry.description ?? 'Activite recente'}</p>
+                      <p className="font-label-sm text-label-sm text-on-surface-variant">{entry.timestamp ?? entry.time ?? entry.createdAt ?? ''}</p>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="font-body-sm text-body-sm text-on-surface-variant italic">Aucune activite recente.</p>
+              )}
             </div>
           </div>
 
@@ -326,21 +349,21 @@ export default function DocumentLibrary() {
             <div>
               <h3 className="font-headline-md text-headline-md opacity-80">Utilisation espace</h3>
               <div className="mt-4 flex items-end gap-2">
-                <span className="text-4xl font-black">74.2</span>
-                <span className="text-xl opacity-60 pb-1">GB / 100GB</span>
+                <span className="text-4xl font-black">{metrics?.totalDocuments ?? 0}</span>
+                <span className="text-xl opacity-60 pb-1">documents</span>
               </div>
               <div className="mt-4 w-full h-2 bg-on-primary/20 rounded-full overflow-hidden">
-                <div className="h-full bg-ai-vibrant" style={{ width: '74%' }} />
+                <div className="h-full bg-ai-vibrant" style={{ width: `${Math.min(100, (metrics?.aiUtilization ?? 0))}%` }} />
               </div>
             </div>
             <div className="mt-6 flex flex-col gap-2">
               <div className="flex justify-between font-label-sm text-label-sm opacity-60">
-                <span>Total documents</span>
-                <span>14 208</span>
+                <span>Agents actifs</span>
+                <span>{metrics?.activeAgents ?? 0}</span>
               </div>
               <div className="flex justify-between font-label-sm text-label-sm opacity-60">
-                <span>Disponibilite</span>
-                <span className="text-green-400">99.98%</span>
+                <span>Score de collaboration</span>
+                <span className="text-green-400">{metrics?.collaborationScore ?? 0}%</span>
               </div>
             </div>
           </div>

@@ -6,7 +6,7 @@ import StatusBadge from '../components/StatusBadge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { Input } from '../components/ui/input'
-import { useDocuments, useAnalytics, useCreateProject, useAgents, useActivity } from '../hooks/useQueries'
+import { useDocuments, useActivity, useCreateProject } from '../hooks/useQueries'
 import { useWorkspaceStore } from '../stores'
 import type { HermesGenerationError } from '../hooks/useQueries'
 
@@ -81,8 +81,6 @@ function mapActivityItem(item: BackendActivityItem): UIActivityItem {
 export default function WorkspaceDashboard() {
   const navigate = useNavigate()
   const { data: documents = [] } = useDocuments()
-  const { data: analytics } = useAnalytics()
-  const { data: agents = [] } = useAgents()
   const { data: activity = [], isLoading: activityLoading } = useActivity()
   const setActiveView = useWorkspaceStore((s) => s.setActiveView)
   const createProject = useCreateProject()

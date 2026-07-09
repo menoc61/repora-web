@@ -15,10 +15,7 @@ import ToastContainer from './components/Toast'
 import WorkspaceDashboard from './pages/WorkspaceDashboard'
 import DocumentLibrary from './pages/DocumentLibrary'
 import TemplateGallery from './pages/TemplateGallery'
-import AgentWorkshop from './pages/AgentWorkshop'
 import Editor from './pages/Editor'
-import Analytics from './pages/Analytics'
-import CollaborationHub from './pages/CollaborationHub'
 import ExportPreview from './pages/ExportPreview'
 import Settings from './pages/Settings'
 import Infrastructure from './pages/Infrastructure'
@@ -128,9 +125,6 @@ const protectedRoutes = [
   { path: '/workspace', component: WorkspaceDashboard },
   { path: '/library', component: DocumentLibrary },
   { path: '/templates', component: TemplateGallery },
-  { path: '/agents', component: AgentWorkshop },
-  { path: '/analytics', component: Analytics },
-  { path: '/collaboration', component: CollaborationHub },
   { path: '/settings', component: Settings },
   { path: '/infrastructure', component: Infrastructure },
   { path: '/sharing', component: Sharing },

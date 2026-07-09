@@ -3,7 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { useHealth, useInfraHealth, useRestartServices, useEnableAgent, useLogs } from '../hooks/useQueries'
+import { useHealth, useInfraHealth, useRestartServices, useLogs } from '../hooks/useQueries'
 
 interface LogEntry {
   type: string
