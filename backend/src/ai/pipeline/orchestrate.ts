@@ -7,6 +7,7 @@ import { evaluateWriterOutput, rescopeHandoff, adjustContext } from './negotiate
 import { db } from '../../db'
 import { requirements } from '../../db/schema'
 import { eq } from 'drizzle-orm'
+import { broadcastNotification } from '../../collaboration/ws'
 
 // JSON extraction helpers (moved from hermes.ts — needed by the Planner stage)
 function extractJson(text: string): Record<string, unknown> | null {
@@ -63,6 +64,13 @@ export async function orchestrateGeneration(
     try {
       // Create shared context for pipeline stages
       const ctx: GenerationContext = createContext(documentId, projectId)
+
+      broadcastNotification({
+        type: 'generation_started',
+        title: 'Generation lancee',
+        message: 'Le pipeline Hermes demarre la generation du cahier des charges.',
+        data: { documentId, projectId },
+      })
 
       // ==================================================================
       // STEP 0: TEMPLATE SEEDING — if a template is provided, inject its
@@ -370,6 +378,13 @@ Check: consistency between sections, terminology alignment, completeness (no emp
         yield event
       }
       yield { type: 'agent_status', agent: 'Reviewer', status: 'done' }
+
+      broadcastNotification({
+        type: 'generation_complete',
+        title: 'Generation terminee',
+        message: 'Le pipeline Hermes a termine la generation. Le document est pret.',
+        data: { documentId },
+      })
 
       yield { type: 'done' as const, document_id: documentId }
     } finally {

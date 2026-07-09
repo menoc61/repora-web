@@ -230,7 +230,7 @@ Mapped directly from the thesis's functional module list (§II.2.1):
 Docker-first, one-command startup:
 
 ```bash
-git clone <repo-url> && cd repora-web && docker compose up
+git clone https://github.com/menoc61/repora-web.git && cd repora-web && docker compose up
 ```
 
 Services auto-start with migrations + seed (idempotent):

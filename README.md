@@ -18,7 +18,7 @@ Repora automatise la redaction, la structuration, la generation de diagrammes UM
 ollama pull llama3.1:8b
 
 # 2. Cloner et lancer Repora
-git clone <repo-url> repora-web
+git clone https://github.com/menoc61/repora-web.git repora-web
 cd repora-web
 docker compose up
 ```

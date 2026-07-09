@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm'
 import { AppError } from '../middleware/error'
 import { getDocumentByValidationToken } from '../services/document.service'
 import { logAudit } from '../services/audit.service'
+import { broadcastNotification } from '../collaboration/ws'
 
 export const validationRouter = Router()
 
@@ -49,6 +50,14 @@ validationRouter.post('/:token/decision', async (req, res, next) => {
       action: `document.${decision}`,
       target: validation.documentId,
       metadata: { decision, section_reasons: section_reasons ?? null, validationId: validation.id },
+    })
+    broadcastNotification({
+      type: 'validation',
+      title: decision === 'approved' ? 'Document approuve' : 'Document rejete',
+      message: decision === 'approved'
+        ? 'Le client a approuve le document. Il est pret pour la suite.'
+        : 'Le client a rejete le document. Consultez les motifs de rejet.',
+      data: { documentId: validation.documentId, decision },
     })
     res.json({ ok: true })
   } catch (err) { next(err) }

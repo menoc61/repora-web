@@ -10,6 +10,8 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Sidebar from './layout/Sidebar'
 import { useAuthStore } from './stores'
+import { useNotificationSocket } from './hooks/useNotificationSocket'
+import ToastContainer from './components/Toast'
 import WorkspaceDashboard from './pages/WorkspaceDashboard'
 import DocumentLibrary from './pages/DocumentLibrary'
 import TemplateGallery from './pages/TemplateGallery'
@@ -54,6 +56,8 @@ function isPublicPath(pathname: string) {
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isPublic = isPublicPath(pathname)
+  const authenticated = useAuthStore((s) => s.isAuthenticated)
+  useNotificationSocket()
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-surface-studio text-on-surface">
@@ -61,6 +65,7 @@ function RootLayout() {
         <div className={isPublic ? '' : 'ml-sidebar-width min-h-screen flex flex-col'}>
           <Outlet />
         </div>
+        <ToastContainer />
       </div>
     </QueryClientProvider>
   )

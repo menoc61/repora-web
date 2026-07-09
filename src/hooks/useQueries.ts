@@ -816,7 +816,10 @@ export function useDeleteApiKey() {
 export function useVersions(documentId: string | undefined) {
   return useQuery({
     queryKey: ['versions', documentId],
-    queryFn: async () => api.get<{ versions: Record<string, unknown>[] }>(`/documents/${documentId}/versions`),
+    queryFn: async () => {
+      const result = await api.get<unknown[]>(`/documents/${documentId}/versions`)
+      return { versions: Array.isArray(result) ? result : [] }
+    },
     enabled: !!documentId,
   })
 }
