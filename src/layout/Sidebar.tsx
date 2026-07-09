@@ -2,7 +2,6 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { useCreateProject } from '../hooks/useQueries'
-import { useWorkspaceStore } from '../stores'
 
 const NAV = [
   { to: '/workspace', label: 'Tableau de bord', icon: 'dashboard' },
@@ -19,8 +18,6 @@ const NAV = [
 export default function Sidebar() {
   const navigate = useNavigate()
   const createProject = useCreateProject()
-  const generateDoc = useGenerateDocument()
-  const setActiveView = useWorkspaceStore((s) => s.setActiveView)
 
   async function handleNewDocument() {
     try {
@@ -46,7 +43,7 @@ export default function Sidebar() {
 
       <Button
         onClick={handleNewDocument}
-        disabled={createProject.isPending || generateDoc.isPending}
+        disabled={createProject.isPending}
         className="mb-8 w-full bg-ai-vibrant text-white hover:bg-secondary transition-colors active:scale-95 flex items-center justify-center gap-2"
       >
         <Icon name="add" />
