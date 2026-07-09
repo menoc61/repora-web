@@ -1,4 +1,10 @@
-import { z } from 'zod'
+import type { Tool } from 'ai'
+
+// Tool imports from dedicated tool files
+import { getProjectContext, getDocumentContent, writeSection, saveOutline } from '../tools/document'
+import { saveDiagram } from '../tools/diagram'
+import { flagIssue, suggestFix, approveSection, updateDocumentStatus } from '../tools/review'
+import { saveRequirementSection, getRequirements } from '../tools/tables'
 
 export interface AgentDefinition {
   name: string
@@ -6,51 +12,10 @@ export interface AgentDefinition {
   systemPrompt: string
   defaultModel: string
   defaultProvider: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  tools: Record<string, any>
+  tools: Record<string, Tool>
 }
 
-const dynamicTool: <T extends Record<string, z.ZodTypeAny>>(opts: {
-  description?: string
-  inputSchema: z.ZodObject<T>
-  execute: (input: z.infer<z.ZodObject<T>>) => Promise<Record<string, unknown>>
-}) => Record<string, unknown> = (opts) => opts as unknown as Record<string, unknown>
-
-const getProjectContext = dynamicTool({
-  description: 'Get project brief and requirements',
-  inputSchema: z.object({ projectId: z.string() }),
-  execute: async ({ projectId }) => {
-    const { db } = await import('../../db')
-    const { projects } = await import('../../db/schema')
-    const { eq } = await import('drizzle-orm')
-    const [project] = await db.select({ brief: projects.brief }).from(projects).where(eq(projects.id, projectId)).limit(1)
-    return { brief: project?.brief || 'No brief found', requirements: [] }
-  },
-})
-
-const saveOutline = dynamicTool({
-  description: 'Save document outline',
-  inputSchema: z.object({ documentId: z.string(), outline: z.any() }),
-  execute: async ({ documentId, outline }) => {
-    const { db } = await import('../../db')
-    const { documents } = await import('../../db/schema')
-    const { eq } = await import('drizzle-orm')
-    await db.update(documents).set({ outline }).where(eq(documents.id, documentId))
-    return { ok: true }
-  },
-})
-
-const writeSection = dynamicTool({
-  description: 'Write content for a document section',
-  inputSchema: z.object({ sectionId: z.string(), content: z.string() }),
-  execute: async ({ sectionId, content }) => {
-    const { db } = await import('../../db')
-    const { sections } = await import('../../db/schema')
-    const { eq } = await import('drizzle-orm')
-    await db.update(sections).set({ content, status: 'draft' }).where(eq(sections.id, sectionId))
-    return { ok: true }
-  },
-})
+// --- Agent registry ---
 
 export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   Planner: {
@@ -83,8 +48,8 @@ A good "cahier des charges" typically has these chapters:
 6. References et Glossaire
 
 Write all titles in French. Be thorough but concise.`,
-    defaultModel: 'llama3.1:8b',
-    defaultProvider: 'ollama',
+    defaultModel: 'llama3.1-8b',
+    defaultProvider: 'llama_cpp',
     tools: {},
   },
   Writer: {
@@ -95,32 +60,82 @@ Write all titles in French. Be thorough but concise.`,
 You MUST save your completed content using the writeSection tool with the sectionId provided in the prompt and your written content.
 
 Write in a professional, clear style suitable for a technical specification document ("cahier des charges"). Use proper paragraphs, structured lists where appropriate, and maintain consistency in terminology.`,
-    defaultModel: 'llama3.1:8b',
-    defaultProvider: 'ollama',
+    defaultModel: 'llama3.1-8b',
+    defaultProvider: 'llama_cpp',
     tools: { getProjectContext, writeSection },
   },
   UML: {
     name: 'UML',
-    description: 'Generates UML diagrams from requirements',
-    systemPrompt: 'You are a UML diagram specialist. Generate PlantUML source code for diagrams based on requirements.',
-    defaultModel: 'llama3.1:8b',
-    defaultProvider: 'ollama',
-    tools: { getProjectContext },
+    description: 'Generates UML diagrams from document requirements',
+    systemPrompt: `You are a UML diagram specialist. Based on the document content and project context, generate PlantUML source code for relevant diagrams.
+
+For each diagram, use the saveDiagram tool with:
+  - projectId: the project ID from the prompt
+  - type: one of "use_case", "sequence", "activity", "class", "deployment"
+  - plantumlSource: valid PlantUML source code with @startuml/@enduml
+
+Generate diagrams appropriate for a technical specification:
+  - Use case diagram: actors and their use cases
+  - Sequence diagram: key interactions between system components
+  - Activity diagram: main business process flows
+  - Class diagram: domain model entities and relationships
+  - Deployment diagram: system infrastructure layout`,
+    defaultModel: 'llama3.1-8b',
+    defaultProvider: 'llama_cpp',
+    tools: { getProjectContext, getDocumentContent, saveDiagram },
   },
   Tables: {
     name: 'Tables',
     description: 'Generates structured requirement tables',
-    systemPrompt: 'You are a requirements analyst. Generate structured requirement matrices and specification tables.',
-    defaultModel: 'llama3.1:8b',
-    defaultProvider: 'ollama',
-    tools: { getProjectContext },
+    systemPrompt: `You are a requirements analyst. Based on the document content and project context, generate structured requirement matrices and specification tables.
+
+For each table, use saveRequirementSection with:
+  - documentId: the document ID
+  - title: descriptive title for the table
+  - content: the table in markdown table format
+  - order: use numbers starting from 100
+
+Use getRequirements to access all project requirements for matrix population.
+
+Generate comprehensive tables:
+  1. Functional requirements matrix (ID, Title, Description, Priority, Actor)
+  2. Non-functional requirements matrix (ID, Category, Description, Metric)
+  3. Use case descriptions if applicable
+  4. Glossary / terminology table`,
+    defaultModel: 'llama3.1-8b',
+    defaultProvider: 'llama_cpp',
+    tools: { getProjectContext, getDocumentContent, saveRequirementSection, getRequirements },
   },
   Reviewer: {
     name: 'Reviewer',
-    description: 'Reviews document for consistency and quality',
-    systemPrompt: 'You are a quality assurance reviewer. Check document consistency, terminology alignment, and completeness.',
-    defaultModel: 'llama3.1:8b',
-    defaultProvider: 'ollama',
-    tools: { getProjectContext },
+    description: 'Reviews document for consistency, completeness, and quality with write-back to comments and sections',
+    systemPrompt: `You are a quality assurance reviewer. Your job is to audit every section of a generated specification document.
+
+WORKFLOW:
+  1. Call getDocumentContent to retrieve ALL sections
+  2. For EACH section, choose ONE action:
+     - approveSection(sectionId) — if the section is acceptable
+     - flagIssue(sectionId, message) — if you find problems (inconsistency, gap, error)
+     - suggestFix(sectionId, text) — if you have a concrete improvement suggestion
+  3. After reviewing all sections, call updateDocumentStatus(documentId, "reviewed")
+
+REVIEW CRITERIA:
+  - Consistency: no contradictions between sections
+  - Terminology: same terms used consistently throughout
+  - Completeness: all outline sections are populated with substantive content
+  - Quality: professional tone, proper structure, no placeholder or empty content
+  - Context: content must align with the project brief from getProjectContext
+
+Be thorough. Every section must be explicitly acted upon (approved, flagged, or fixed).`,
+    defaultModel: 'llama3.1-8b',
+    defaultProvider: 'llama_cpp',
+    tools: {
+      getProjectContext,
+      getDocumentContent,
+      flagIssue,
+      suggestFix,
+      approveSection,
+      updateDocumentStatus,
+    },
   },
 }
