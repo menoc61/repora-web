@@ -10,7 +10,7 @@ interface TopBarProps {
   searchPlaceholder?: string
 }
 
-export default function TopBar({ title, tabs = [], right = null, searchPlaceholder = 'Search documents...' }: TopBarProps) {
+export default function TopBar({ title, tabs = [], right = null, searchPlaceholder = 'Rechercher des documents...' }: TopBarProps) {
   return (
     <header className="sticky top-0 w-full bg-surface-studio z-40 border-b border-outline-variant">
       <div className="flex justify-between items-center h-16 px-gutter">
@@ -46,8 +46,8 @@ export default function TopBar({ title, tabs = [], right = null, searchPlacehold
         <div className="flex items-center gap-4">
           {right || (
             <div className="flex items-center gap-2 mr-4">
-              <Button variant="outline" size="sm">Export</Button>
-              <Button size="sm" className="bg-ai-vibrant text-white hover:opacity-90">Share</Button>
+              <Button variant="outline" size="sm">Exporter</Button>
+              <Button size="sm" className="bg-ai-vibrant text-white hover:opacity-90">Partager</Button>
             </div>
           )}
           <button className="text-on-surface-variant hover:text-primary transition-colors">

@@ -15,6 +15,15 @@ const dotVariants = cva('w-2 h-2 rounded-full', {
   defaultVariants: { state: 'idle' },
 })
 
+const STATE_LABELS: Record<string, string> = {
+  final: 'final',
+  review: 'revue',
+  draft: 'brouillon',
+  ai: 'ia',
+  idle: 'inactif',
+  thinking: 'reflexion',
+}
+
 interface AgentStatusProps extends VariantProps<typeof dotVariants> {
   name: string
   progress?: number
@@ -30,7 +39,7 @@ export function AgentStatus({ name, state = 'idle', progress, children, classNam
           <div className={dotVariants({ state })} />
           <span className="font-label-sm text-label-sm font-bold">{name}</span>
         </div>
-        <span className="font-label-sm text-[10px] text-on-surface-variant uppercase">{state}</span>
+        <span className="font-label-sm text-[10px] text-on-surface-variant uppercase">{STATE_LABELS[state as string] || state}</span>
       </div>
       {progress !== undefined ? (
         <div className="h-1 bg-surface-variant rounded-full overflow-hidden">

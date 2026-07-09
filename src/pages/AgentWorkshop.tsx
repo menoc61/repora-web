@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { useAgents, usePatchAgent } from '../hooks/useQueries'
 
-type AgentState = 'ACTIVE' | 'IDLE' | 'DEPLOYING'
+type AgentState = 'ACTIF' | 'INACTIF' | 'DEPLOIEMENT'
 
 interface Agent {
   name: string
@@ -23,11 +23,11 @@ interface ChatMessage {
 }
 
 const AGENT_META: Record<string, { icon: string; desc: string; tags: string[] }> = {
-  Planner: { icon: 'architecture', desc: 'Turns briefs into structured outlines.', tags: ['Local', 'Outline'] },
-  Writer: { icon: 'edit_note', desc: 'Drafts prose sections with citations.', tags: ['Local', 'Prose'] },
-  Reviewer: { icon: 'fact_check', desc: 'Consistency + quality review pass.', tags: ['BYOK', 'Quality'] },
-  UML: { icon: 'schema', desc: 'Generates PlantUML diagrams from requirements.', tags: ['Local', 'Diagrams'] },
-  Tables: { icon: 'table_chart', desc: 'Builds requirement matrices and tables.', tags: ['Local', 'Tables'] },
+  Planner: { icon: 'architecture', desc: 'Transforme les briefs en plans structures.', tags: ['Local', 'Plan'] },
+  Writer: { icon: 'edit_note', desc: 'Redige les sections en prose avec citations.', tags: ['Local', 'Prose'] },
+  Reviewer: { icon: 'fact_check', desc: 'Verification de coherence et qualite.', tags: ['BYOK', 'Qualite'] },
+  UML: { icon: 'schema', desc: 'Genere des diagrammes PlantUML a partir des exigences.', tags: ['Local', 'Diagrammes'] },
+  Tables: { icon: 'table_chart', desc: 'Construit des matrices d\'exigences et des tableaux.', tags: ['Local', 'Tableaux'] },
 }
 
 function buildAgents(backend: { name: string; provider: string; enabled: boolean; model_id?: string }[]): Agent[] {
@@ -35,7 +35,7 @@ function buildAgents(backend: { name: string; provider: string; enabled: boolean
     return Object.entries(AGENT_META).map(([name, m], i) => ({
       name,
       icon: m.icon,
-      state: 'IDLE',
+      state: 'INACTIF',
       dot: 'bg-outline',
       desc: m.desc,
       tags: m.tags,
@@ -43,11 +43,11 @@ function buildAgents(backend: { name: string; provider: string; enabled: boolean
     }))
   }
   return backend.map((a, i) => {
-    const meta = AGENT_META[a.name] ?? { icon: 'smart_toy', desc: `${a.name} agent`, tags: [a.provider] }
+    const meta = AGENT_META[a.name] ?? { icon: 'smart_toy', desc: `Agent ${a.name}`, tags: [a.provider] }
     return {
       name: a.name,
       icon: meta.icon,
-      state: (a.enabled ? 'ACTIVE' : 'IDLE') as AgentState,
+      state: (a.enabled ? 'ACTIF' : 'INACTIF') as AgentState,
       dot: a.enabled ? 'bg-status-final' : 'bg-outline',
       desc: meta.desc,
       tags: a.model_id ? [...meta.tags, a.model_id] : meta.tags,
@@ -57,9 +57,9 @@ function buildAgents(backend: { name: string; provider: string; enabled: boolean
 }
 
 const CHAT: ChatMessage[] = [
-  { from: 'agent', text: 'System initialized. I am ready to process your legal inquiries. How can I assist with your research today?' },
-  { from: 'user', text: 'Compare current GDPR requirements with the new proposed Data Act regarding IoT device portability.' },
-  { from: 'agent', thinking: true, text: 'Under GDPR Article 20, data portability focuses on "structured, commonly used, and machine-readable" formats...' },
+  { from: 'agent', text: 'Systeme initialise. Je suis pret a traiter vos demandes juridiques. Comment puis-je vous aider dans vos recherches aujourd\'hui ?' },
+  { from: 'user', text: 'Comparer les exigences actuelles du RGPD avec le nouveau reglement sur les donnees concernant la portabilite des appareils IoT.' },
+  { from: 'agent', thinking: true, text: 'Selon l\'Article 20 du RGPD, la portabilite des donnees se concentre sur les formats "structures, couramment utilises et lisibles par machine"...' },
 ]
 
 export default function AgentWorkshop() {
@@ -76,16 +76,16 @@ export default function AgentWorkshop() {
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-3 border border-outline-variant rounded-full px-3 py-1.5 bg-surface-container-low w-64">
             <Icon name="search" className="text-outline" />
-            <Input className="bg-transparent border-none focus-visible:ring-0 text-body-sm w-full p-0" placeholder="Search templates..." />
+            <Input className="bg-transparent border-none focus-visible:ring-0 text-body-sm w-full p-0" placeholder="Rechercher des modeles..." />
           </div>
           <nav className="hidden md:flex items-center gap-6">
-            <a className="font-label-md text-label-md text-on-surface-variant hover:text-primary" href="#">History</a>
-            <a className="font-label-md text-label-md text-on-surface-variant hover:text-primary" href="#">Analytics</a>
+            <a className="font-label-md text-label-md text-on-surface-variant hover:text-primary" href="#">Historique</a>
+            <a className="font-label-md text-label-md text-on-surface-variant hover:text-primary" href="#">Analyses</a>
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <Button variant="ghost" className="px-4 py-1.5 border border-outline-variant text-body-sm font-medium rounded-lg hover:bg-surface-variant transition-all">Export</Button>
-          <Button variant="ghost" className="px-4 py-1.5 bg-primary text-on-primary text-body-sm font-medium rounded-lg hover:opacity-90 transition-all">Share</Button>
+          <Button variant="ghost" className="px-4 py-1.5 border border-outline-variant text-body-sm font-medium rounded-lg hover:bg-surface-variant transition-all">Exporter</Button>
+          <Button variant="ghost" className="px-4 py-1.5 bg-primary text-on-primary text-body-sm font-medium rounded-lg hover:opacity-90 transition-all">Partager</Button>
           <Icon name="notifications" className="ml-2" />
           <div className="w-8 h-8 rounded-full border border-outline-variant bg-secondary-container flex items-center justify-center text-white text-[10px] font-bold">AC</div>
         </div>
@@ -96,12 +96,12 @@ export default function AgentWorkshop() {
         <div className="w-[380px] border-r border-outline-variant bg-surface flex flex-col">
           <div className="p-6 border-b border-outline-variant">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-headline-md text-headline-md">Agent Gallery</h2>
+              <h2 className="font-headline-md text-headline-md">Galerie d&apos;agents</h2>
               <span className="px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded font-label-sm text-label-sm">8 TOTAL</span>
             </div>
             <div className="flex gap-2">
-              <button className="flex-1 py-1 px-3 bg-surface-variant/50 text-body-sm rounded border border-outline-variant">All Agents</button>
-              <button className="flex-1 py-1 px-3 text-body-sm text-on-surface-variant hover:bg-surface-variant/30 rounded">By Department</button>
+              <button className="flex-1 py-1 px-3 bg-surface-variant/50 text-body-sm rounded border border-outline-variant">Tous les agents</button>
+              <button className="flex-1 py-1 px-3 text-body-sm text-on-surface-variant hover:bg-surface-variant/30 rounded">Par departement</button>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3 hide-scrollbar">
@@ -121,10 +121,10 @@ export default function AgentWorkshop() {
                       const backend = backendAgents[i]
                       if (backend) patchAgent.mutate({ name: backend.name, patch: { enabled: !backend.enabled } })
                     }}
-                    className={`font-label-sm text-label-sm flex items-center gap-1 ${a.state === 'ACTIVE' ? 'text-status-final' : a.state === 'DEPLOYING' ? 'text-status-review' : 'text-on-surface-variant'}`}
-                    title="Toggle agent"
+                    className={`font-label-sm text-label-sm flex items-center gap-1 ${a.state === 'ACTIF' ? 'text-status-final' : a.state === 'DEPLOIEMENT' ? 'text-status-review' : 'text-on-surface-variant'}`}
+                    title="Basculer l'agent"
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full ${a.dot} ${a.state === 'DEPLOYING' ? 'animate-pulse' : ''}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${a.dot} ${a.state === 'DEPLOIEMENT' ? 'animate-pulse' : ''}`} />
                     {a.state}
                   </button>
                 </div>
@@ -145,28 +145,28 @@ export default function AgentWorkshop() {
           <div className="max-w-[800px] mx-auto py-10 px-8">
             <div className="mb-8">
               <nav className="flex gap-2 text-label-sm font-label-sm text-on-surface-variant mb-4 uppercase tracking-widest">
-                <span>Workshop</span><span>/</span><span className="text-secondary">{AGENTS[selected].name}</span>
+                <span>Atelier</span><span>/</span><span className="text-secondary">{AGENTS[selected].name}</span>
               </nav>
-              <h2 className="font-headline-lg text-headline-lg mb-2">Agent Configuration</h2>
-              <p className="text-body-md text-on-surface-variant">Define the core cognitive parameters and tool access for the {AGENTS[selected].name} template.</p>
+              <h2 className="font-headline-lg text-headline-lg mb-2">Configuration de l&apos;agent</h2>
+              <p className="text-body-md text-on-surface-variant">Definissez les parametres cognitifs fondamentaux et l&apos;acces aux outils pour le modele {AGENTS[selected].name}.</p>
             </div>
             <div className="space-y-8">
               <section>
-                <h3 className="font-label-md text-label-md uppercase tracking-wider text-outline mb-4">Core Identity</h3>
+                <h3 className="font-label-md text-label-md uppercase tracking-wider text-outline mb-4">Identite fondamentale</h3>
                 <div className="bg-surface p-6 border border-outline-variant rounded-xl space-y-6">
                   <div>
-                    <label className="block font-body-md font-semibold mb-2">System Instructions</label>
+                    <label className="block font-body-md font-semibold mb-2">Instructions systeme</label>
                     <textarea className="w-full bg-surface-studio border border-outline-variant rounded-lg p-4 font-body-sm focus:ring-2 focus:ring-secondary/20 focus:border-secondary transition-all outline-none" rows={6}>
-                      You are a high-fidelity Legal Research assistant for a multinational enterprise. Your primary task is to synthesize case law, identify regulatory risks, and draft summary memos.
+                      Vous etes un assistant de recherche juridique haute fidelite pour une entreprise multinationale. Votre tache principale est de synthetiser la jurisprudence, d&apos;identifier les risques reglementaires et de rediger des memos de synthese.
                     </textarea>
                   </div>
                 </div>
               </section>
               <section>
-                <h3 className="font-label-md text-label-md uppercase tracking-wider text-outline mb-4">Intelligence Orchestration</h3>
+                <h3 className="font-label-md text-label-md uppercase tracking-wider text-outline mb-4">Orchestration de l&apos;intelligence</h3>
                 <div className="grid grid-cols-2 gap-6">
                   <div className="bg-surface p-6 border border-outline-variant rounded-xl">
-                    <label className="block font-body-md font-semibold mb-4">LLM Provider</label>
+                    <label className="block font-body-md font-semibold mb-4">Fournisseur LLM</label>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between p-3 border-2 border-secondary bg-secondary/5 rounded-lg">
                         <div className="flex items-center gap-3">
@@ -184,16 +184,16 @@ export default function AgentWorkshop() {
                     </div>
                   </div>
                   <div className="bg-surface p-6 border border-outline-variant rounded-xl">
-                    <label className="block font-body-md font-semibold mb-4">MCP Skills & Tools</label>
+                    <label className="block font-body-md font-semibold mb-4">Competences et outils MCP</label>
                     <div className="flex flex-wrap gap-2">
                       <div className="px-3 py-1.5 bg-primary-fixed text-on-primary-fixed rounded-lg text-body-sm flex items-center gap-2">
-                        <Icon name="menu_book" className="text-[16px]" /> Westlaw API <Icon name="close" className="text-[14px] hover:text-error" />
+                        <Icon name="menu_book" className="text-[16px]" /> API Westlaw <Icon name="close" className="text-[14px] hover:text-error" />
                       </div>
                       <div className="px-3 py-1.5 bg-primary-fixed text-on-primary-fixed rounded-lg text-body-sm flex items-center gap-2">
-                        <Icon name="folder_zip" className="text-[16px]" /> Internal PDF RAG <Icon name="close" className="text-[14px] hover:text-error" />
+                        <Icon name="folder_zip" className="text-[16px]" /> RAG PDF interne <Icon name="close" className="text-[14px] hover:text-error" />
                       </div>
                       <Button variant="ghost" className="px-3 py-1.5 border border-dashed border-outline-variant rounded-lg text-body-sm text-outline flex items-center gap-2 hover:bg-surface-variant transition-all">
-                        <Icon name="add" className="text-[16px]" /> Connect Tool
+                        <Icon name="add" className="text-[16px]" /> Connecter un outil
                       </Button>
                     </div>
                   </div>
@@ -208,9 +208,9 @@ export default function AgentWorkshop() {
           <div className="p-6 border-b border-outline-variant">
             <div className="flex items-center gap-2 mb-2">
               <div className="w-2 h-2 rounded-full bg-status-final animate-pulse" />
-              <h2 className="font-headline-md text-[18px]">Test Sandbox</h2>
+              <h2 className="font-headline-md text-[18px]">Bac a sable de test</h2>
             </div>
-            <p className="text-[12px] text-on-surface-variant font-body-sm">Simulate behavior before deployment.</p>
+            <p className="text-[12px] text-on-surface-variant font-body-sm">Simuler le comportement avant le deploiement.</p>
           </div>
           <div className="flex-1 p-4 overflow-y-auto space-y-4 hide-scrollbar">
             {CHAT.map((m, i) => (
@@ -221,7 +221,7 @@ export default function AgentWorkshop() {
                 <div className={`p-3 rounded-lg text-body-sm ${m.from === 'user' ? 'bg-primary text-on-primary max-w-[80%]' : 'bg-surface-variant/50'}`}>
                   {m.thinking && (
                     <div className="flex items-center gap-2 mb-2 text-[10px] font-label-sm text-secondary animate-pulse">
-                      <Icon name="search" className="text-[12px]" /> QUERYING WESTLAW...
+                      <Icon name="search" className="text-[12px]" /> RECHERCHE WESTLAW...
                     </div>
                   )}
                   {m.text}
@@ -231,7 +231,7 @@ export default function AgentWorkshop() {
           </div>
           <div className="p-4 border-t border-outline-variant">
             <div className="relative">
-              <Input className="w-full bg-surface-studio border border-outline-variant rounded-full py-3 pl-5 pr-12 text-body-sm focus-visible:ring-2 focus-visible:ring-secondary/20 focus-visible:border-secondary outline-none transition-all" placeholder="Type a message..." />
+              <Input className="w-full bg-surface-studio border border-outline-variant rounded-full py-3 pl-5 pr-12 text-body-sm focus-visible:ring-2 focus-visible:ring-secondary/20 focus-visible:border-secondary outline-none transition-all" placeholder="Saisir un message..." />
               <button className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-secondary text-on-secondary rounded-full flex items-center justify-center hover:opacity-90">
                 <Icon name="arrow_upward" className="text-[18px]" />
               </button>
@@ -242,7 +242,7 @@ export default function AgentWorkshop() {
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50">
           <Button variant="ghost" className="flex items-center gap-3 px-8 py-4 bg-secondary text-on-secondary rounded-full shadow-2xl hover:scale-[1.02] active:scale-95 transition-all group">
             <Icon name="rocket_launch" className="group-hover:rotate-12 transition-transform" />
-            <span className="font-headline-md text-[18px] font-bold">Deploy to Workspace</span>
+            <span className="font-headline-md text-[18px] font-bold">Deployer vers l&apos;espace de travail</span>
           </Button>
         </div>
       </div>

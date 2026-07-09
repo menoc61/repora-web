@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth'
 import { getDocument, createValidationToken } from '../services/document.service'
+import { exportDocument } from '../services/export.service'
 import { logAudit } from '../services/audit.service'
 import { getActiveGeneration, clearActiveGeneration } from '../ai/hermes'
 
@@ -54,12 +55,13 @@ documentRouter.post('/:id/validation-token', requireAuth, async (req, res, next)
 documentRouter.get('/:id/export', requireAuth, async (req, res, next) => {
   try {
     const format = (req.query.format as string) || 'pdf'
-    const doc = await getDocument(req.params.id as string)
-    const content = doc.sections.map(s => s.content).join('\n\n')
-    const filename = `document-${req.params.id.slice(0, 8)}.${format}`
-
-    res.setHeader('Content-Type', format === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/pdf')
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-    res.send(Buffer.from(content))
-  } catch (err) { next(err) }
-})
+    if (!['pdf', 'docx', 'md'].includes(format)) {
+      res.status(400).json({ error: { code: 'invalid_format', message: 'Format must be pdf, docx, or md' } })
+      return
+    }
+    const result = await exportDocument(req.params.id as string, format as 'pdf' | 'docx' | 'md')
+    res.setHeader('Content-Type', result.mimeType)
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`)
+    res.send(result.buffer)
+    await logAudit({ userId: req.user!.userId, action: 'document.exported', target: req.params.id as string, metadata: { format } })
+  } catch (err) { next(err) }})

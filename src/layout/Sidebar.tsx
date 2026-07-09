@@ -3,13 +3,13 @@ import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 
 const NAV = [
-  { to: '/workspace', label: 'Workspace', icon: 'workspaces' },
-  { to: '/library', label: 'Library', icon: 'inventory_2' },
-  { to: '/templates', label: 'Templates', icon: 'style' },
-  { to: '/analytics', label: 'Analytics', icon: 'insights' },
+  { to: '/workspace', label: 'Espace', icon: 'workspaces' },
+  { to: '/library', label: 'Bibliotheque', icon: 'inventory_2' },
+  { to: '/templates', label: 'Modeles', icon: 'style' },
+  { to: '/analytics', label: 'Analyses', icon: 'insights' },
   { to: '/collaboration', label: 'Collaboration', icon: 'groups' },
   { to: '/infrastructure', label: 'Infrastructure', icon: 'dns' },
-  { to: '/sharing', label: 'Sharing', icon: 'settings' },
+  { to: '/sharing', label: 'Partage', icon: 'settings' },
 ]
 
 export default function Sidebar() {
@@ -21,14 +21,14 @@ export default function Sidebar() {
         </div>
         <div>
           <h1 className="font-headline-md text-headline-md font-bold text-primary">Repora</h1>
-          <p className="font-label-sm text-label-sm text-on-surface-variant opacity-60">Enterprise Documents</p>
+          <p className="font-label-sm text-label-sm text-on-surface-variant opacity-60">Documents techniques</p>
         </div>
       </div>
 
       <Link to="/workspace" className="mb-8 w-full">
         <Button className="w-full bg-ai-vibrant text-white hover:bg-secondary transition-colors active:scale-95 flex items-center justify-center gap-2">
           <Icon name="add" />
-          New Document
+          Nouveau document
         </Button>
       </Link>
 
@@ -53,11 +53,11 @@ export default function Sidebar() {
           activeProps={{ className: 'text-ai-vibrant font-bold border-l-2 border-ai-vibrant' }}
         >
           <Icon name="settings" />
-          <span className="font-body-md">Settings</span>
+          <span className="font-body-md">Parametres</span>
         </Link>
         <a className="flex items-center gap-3 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors pl-2" href="#">
           <Icon name="help_outline" />
-          <span className="font-body-md">Support</span>
+          <span className="font-body-md">Assistance</span>
         </a>
       </div>
     </aside>

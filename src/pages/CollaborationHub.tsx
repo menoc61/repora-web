@@ -35,21 +35,21 @@ interface TemplateItem {
 }
 
 const ACTIVE: ActiveDoc[] = [
-  { title: '2024 Legal Framework - Section IV', icon: 'description', avatars: ['JD', 'AM', 'SK'], note: '+2 AI Agents drafting', status: 'review', meta: 'Under Review', time: '4m ago' },
-  { title: 'Infrastructure Scaling Protocol v2', icon: 'terminal', avatars: ['RE', 'TL'], note: 'Synchronizing changes...', status: 'active', meta: 'Active Edit', time: '12m ago' },
-  { title: 'AI Orchestration Governance Policy', icon: 'auto_awesome', avatars: ['AI'], note: 'Repora Agent optimizing blocks', status: 'autonomous', meta: 'Autonomous', time: 'Active now' },
+  { title: '2024 Cadre juridique - Section IV', icon: 'description', avatars: ['JD', 'AM', 'SK'], note: '+2 agents IA en redaction', status: 'review', meta: 'En revision', time: 'Il y a 4m' },
+  { title: 'Protocole de scalabilite infrastructure v2', icon: 'terminal', avatars: ['RE', 'TL'], note: 'Synchronisation en cours...', status: 'active', meta: 'Edition active', time: 'Il y a 12m' },
+  { title: 'Politique de gouvernance IA', icon: 'auto_awesome', avatars: ['AI'], note: 'Agent Repora optimise les blocs', status: 'autonomous', meta: 'Autonome', time: 'Actif maintenant' },
 ]
 
 const FEED: FeedItem[] = [
-  { icon: 'comment', bg: 'bg-secondary text-white', t: <><span className="font-bold">Sarah K.</span> left a comment on <a className="text-secondary hover:underline" href="#">Quarterly Security Audit</a></>, sub: '"The sovereign encryption protocols in Section 2.1 need a final validation from the DevSecOps agent."', time: '24 minutes ago' },
-  { icon: 'check_circle', bg: 'bg-status-final text-white', t: <><span className="font-bold">Repora AI</span> completed an automated review of <a className="text-secondary hover:underline" href="#">Compliance Standards 2024</a></>, time: '1 hour ago • 0 conflicts found' },
-  { icon: 'edit_document', bg: 'bg-ai-vibrant text-white', t: <><span className="font-bold">Marcus Chen</span> and 3 others pushed 12 edits to <a className="text-secondary hover:underline" href="#">Product Roadmap</a></>, time: '2 hours ago' },
+  { icon: 'comment', bg: 'bg-secondary text-white', t: <><span className="font-bold">Sarah K.</span> a laisse un commentaire sur <a className="text-secondary hover:underline" href="#">Audit de securite trimestriel</a></>, sub: '&quot;Les protocoles de chiffrement souverain de la Section 2.1 necessitent une validation finale de l&apos;agent DevSecOps.&quot;', time: 'Il y a 24 minutes' },
+  { icon: 'check_circle', bg: 'bg-status-final text-white', t: <><span className="font-bold">Repora AI</span> a termine une revue automatisee de <a className="text-secondary hover:underline" href="#">Normes de conformite 2024</a></>, time: 'Il y a 1 heure • 0 conflits trouves' },
+  { icon: 'edit_document', bg: 'bg-ai-vibrant text-white', t: <><span className="font-bold">Marcus Chen</span> et 3 autres ont pousse 12 modifications sur <a className="text-secondary hover:underline" href="#">Feuille de route produit</a></>, time: 'Il y a 2 heures' },
 ]
 
 const TEMPLATES: TemplateItem[] = [
-  { title: 'IP Assignment Master', icon: 'balance', dept: 'Legal', count: 'Used by 42 teams' },
-  { title: 'System Architecture V2', icon: 'architecture', dept: 'Eng', count: 'Used by 18 teams' },
-  { title: 'SOC2 Compliance Log', icon: 'verified_user', dept: 'Security', count: 'Used by 12 teams' },
+  { title: 'Cession de propriete intellectuelle', icon: 'balance', dept: 'Juridique', count: 'Utilise par 42 equipes' },
+  { title: 'Architecture systeme V2', icon: 'architecture', dept: 'Ingenierie', count: 'Utilise par 18 equipes' },
+  { title: 'Journal de conformite SOC2', icon: 'verified_user', dept: 'Securite', count: 'Utilise par 12 equipes' },
 ]
 
 const ICON_BY_DEPT: Record<string, string> = {
@@ -63,35 +63,35 @@ const getInitials = (name: string): string =>
 
 const noteFor = (status: ActiveStatus): string => {
   switch (status) {
-    case 'autonomous': return 'Repora Agent optimizing blocks'
-    case 'active': return 'Synchronizing changes...'
-    case 'review': return '+2 AI Agents drafting'
-    case 'final': return 'Finalized and locked'
-    case 'draft': return 'Initial draft in progress'
+    case 'autonomous': return 'Agent Repora optimise les blocs'
+    case 'active': return 'Synchronisation en cours...'
+    case 'review': return '+2 agents IA en redaction'
+    case 'final': return 'Finalise et verrouille'
+    case 'draft': return 'Brouillon initial en cours'
     default: return ''
   }
 }
 
 const metaFor = (status: ActiveStatus): string => {
   switch (status) {
-    case 'review': return 'Under Review'
-    case 'active': return 'Active Edit'
-    case 'autonomous': return 'Autonomous'
+    case 'review': return 'En revision'
+    case 'active': return 'Edition active'
+    case 'autonomous': return 'Autonome'
     case 'final': return 'Final'
-    case 'draft': return 'Draft'
+    case 'draft': return 'Brouillon'
     default: return ''
   }
 }
 
 const timeFor = (iso?: string): string => {
-  if (!iso) return 'Active now'
+  if (!iso) return 'Actif maintenant'
   const diff = Date.now() - new Date(iso).getTime()
   const minutes = Math.floor(diff / 60000)
-  if (minutes < 1) return 'Active now'
-  if (minutes < 60) return `${minutes}m ago`
+  if (minutes < 1) return 'Actif maintenant'
+  if (minutes < 60) return `Il y a ${minutes}m`
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
+  if (hours < 24) return `Il y a ${hours}h`
+  return `Il y a ${Math.floor(hours / 24)}j`
 }
 
 const toActiveDoc = (doc: Document): ActiveDoc => {
@@ -118,7 +118,7 @@ export default function CollaborationHub() {
 
   const efficiencyIndex = analytics?.efficiencyIndex ?? 94.2
   const aiUtilization = analytics?.aiUtilization ?? 68
-  const topContributor = analytics?.topContributor ?? 'Autonomous Orchestrator'
+  const topContributor = analytics?.topContributor ?? 'Orchestrateur autonome'
 
   const handleDeployAgent = () => {}
   const handleBrowseTemplates = () => {}
@@ -133,14 +133,14 @@ export default function CollaborationHub() {
             <Icon name="search" className="text-outline mr-2" />
             <Input
               className="bg-transparent border-none focus-visible:ring-0 text-body-sm p-0 h-auto w-full"
-              placeholder="Search workspace..."
+              placeholder="Rechercher espace de travail..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <nav className="hidden md:flex gap-6">
-            <a className="font-label-md text-label-md text-on-surface-variant hover:text-secondary" href="#">Workspace</a>
-            <a className="font-label-md text-label-md text-on-surface-variant hover:text-secondary" href="#">Library</a>
+            <a className="font-label-md text-label-md text-on-surface-variant hover:text-secondary" href="#">Espace de travail</a>
+            <a className="font-label-md text-label-md text-on-surface-variant hover:text-secondary" href="#">Bibliotheque</a>
             <a className="font-label-md text-label-md text-primary border-b-2 border-secondary pb-1" href="#">Agents</a>
           </nav>
         </div>
@@ -151,7 +151,7 @@ export default function CollaborationHub() {
             onClick={handleDeployAgent}
             className="rounded-full bg-primary text-on-primary font-label-md text-label-md px-6 py-2 hover:opacity-80 transition-opacity"
           >
-            Deploy Agent
+            Deployer un agent
           </Button>
         </div>
       </div>
@@ -162,11 +162,11 @@ export default function CollaborationHub() {
             <div className="absolute top-0 left-0 w-1 h-full bg-secondary" />
             <div className="flex justify-between items-end">
               <div>
-                <h2 className="font-headline-lg text-headline-lg mb-2">Team Collaboration Pulse</h2>
-                <p className="text-on-surface-variant font-body-md max-w-lg">Sovereign intelligence is coordinating 14 parallel streams. Collaboration density is up 22% this week across Engineering and Legal departments.</p>
+                <h2 className="font-headline-lg text-headline-lg mb-2">Pouls de collaboration d&apos;equipe</h2>
+                <p className="text-on-surface-variant font-body-md max-w-lg">L&apos;intelligence souveraine coordonne 14 flux paralleles. La densite de collaboration est en hausse de 22% cette semaine dans les departements Ingenierie et Juridique.</p>
               </div>
               <div className="hidden lg:block text-right">
-                <div className="font-label-sm text-label-sm text-secondary mb-1 uppercase">Active Agents</div>
+                <div className="font-label-sm text-label-sm text-secondary mb-1 uppercase">Agents actifs</div>
                 <div className="flex gap-1 justify-end">
                   {[6, 8, 5, 10, 7].map((h, i) => (
                     <div key={i} className={`w-1.5 ${h === 10 ? 'h-10 animate-pulse' : `h-${h}`} bg-secondary-container rounded-full`} style={{ height: `${h * 4}px` }} />
@@ -176,7 +176,7 @@ export default function CollaborationHub() {
             </div>
           </div>
           <div className="bg-surface border border-outline-variant rounded-xl p-6 flex flex-col justify-between">
-            <div className="font-label-sm text-label-sm text-on-surface-variant uppercase">Workspace Uptime</div>
+            <div className="font-label-sm text-label-sm text-on-surface-variant uppercase">Disponibilite espace</div>
             <div className="font-display-lg text-headline-lg text-status-final">99.98%</div>
             <div className="w-full h-1 bg-surface-container-highest rounded-full overflow-hidden">
               <div className="collab-wave w-full h-full" />
@@ -188,8 +188,8 @@ export default function CollaborationHub() {
           <section className="col-span-12 lg:col-span-8 space-y-gutter">
             <div className="bg-surface border border-outline-variant rounded-xl overflow-hidden">
               <div className="px-6 py-4 border-b border-outline-variant flex justify-between items-center">
-                <div className="flex items-center gap-2"><Icon name="flash_on" className="text-secondary" /><h3 className="font-headline-md text-headline-md">Active Now</h3></div>
-                <div className="text-label-sm text-on-surface-variant">8 DOCUMENTS CURRENTLY EDITED</div>
+                <div className="flex items-center gap-2"><Icon name="flash_on" className="text-secondary" /><h3 className="font-headline-md text-headline-md">Actif maintenant</h3></div>
+                <div className="text-label-sm text-on-surface-variant">8 DOCUMENTS ACTUELLEMENT MODIFIES</div>
               </div>
               <div className="divide-y divide-outline-variant">
                 {activeDocs.map((d) => (
@@ -210,7 +210,7 @@ export default function CollaborationHub() {
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <StatusBadge status={d.status}>{d.meta}</StatusBadge>
-                      <div className="font-label-sm text-[10px] text-outline">Modified {d.time}</div>
+                      <div className="font-label-sm text-[10px] text-outline">Modifie {d.time}</div>
                     </div>
                   </Link>
                 ))}
@@ -218,7 +218,7 @@ export default function CollaborationHub() {
             </div>
 
             <div className="bg-surface border border-outline-variant rounded-xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-outline-variant flex items-center gap-2"><Icon name="history" className="text-secondary" /><h3 className="font-headline-md text-headline-md">Global Activity Feed</h3></div>
+              <div className="px-6 py-4 border-b border-outline-variant flex items-center gap-2"><Icon name="history" className="text-secondary" /><h3 className="font-headline-md text-headline-md">Flux d&apos;activite global</h3></div>
               <div className="p-6 space-y-6">
                 {FEED.map((f, i) => (
                   <div key={i} className="flex gap-4">
@@ -236,14 +236,14 @@ export default function CollaborationHub() {
                 onClick={handleLoadOlder}
                 className="w-full py-4 bg-surface-container-low text-label-md font-bold text-on-surface-variant hover:bg-surface-container-highest transition-colors border-t border-outline-variant rounded-none"
               >
-                LOAD OLDER ACTIVITY
+                CHARGER ACTIVITE PLUS ANCIENNE
               </Button>
             </div>
           </section>
 
           <aside className="col-span-12 lg:col-span-4 space-y-gutter">
             <div className="bg-surface border border-outline-variant rounded-xl p-6">
-              <div className="flex justify-between items-center mb-6"><h3 className="font-headline-md text-headline-md">Trending Templates</h3><Icon name="trending_up" className="text-outline" /></div>
+              <div className="flex justify-between items-center mb-6"><h3 className="font-headline-md text-headline-md">Modeles tendance</h3><Icon name="trending_up" className="text-outline" /></div>
               <div className="space-y-4">
                 {TEMPLATES.map((t) => (
                   <Link key={t.title} to="/templates" className="p-4 rounded-xl border border-outline-variant hover:border-secondary transition-colors group cursor-pointer flex gap-3 items-center bg-surface-studio">
@@ -257,37 +257,37 @@ export default function CollaborationHub() {
                 onClick={handleBrowseTemplates}
                 className="w-full mt-6 py-2 text-secondary font-label-md text-label-md hover:underline"
               >
-                Browse all templates →
+                Parcourir tous les modeles →
               </Button>
             </div>
 
             <div className="bg-primary text-on-primary rounded-xl p-6 relative overflow-hidden shadow-xl">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16" />
-              <h3 className="font-headline-md text-headline-md mb-4 relative z-10">Team Insights</h3>
+              <h3 className="font-headline-md text-headline-md mb-4 relative z-10">Insights d&apos;equipe</h3>
               <div className="space-y-6 relative z-10">
-                <div><div className="flex justify-between text-label-sm mb-2 opacity-80 uppercase">Efficiency Index</div><div className="text-2xl font-bold">{efficiencyIndex}</div>
-                  <div className="flex items-center gap-2 mt-1 text-status-final"><Icon name="arrow_upward" className="text-[16px]" /><span className="text-xs">8% vs last month</span></div></div>
+                <div><div className="flex justify-between text-label-sm mb-2 opacity-80 uppercase">Indice d&apos;efficacite</div><div className="text-2xl font-bold">{efficiencyIndex}</div>
+                  <div className="flex items-center gap-2 mt-1 text-status-final"><Icon name="arrow_upward" className="text-[16px]" /><span className="text-xs">8% vs mois dernier</span></div></div>
                 <div className="pt-4 border-t border-white/10">
-                  <div className="flex justify-between text-label-sm mb-2 opacity-80 uppercase">AI Utilization</div>
+                  <div className="flex justify-between text-label-sm mb-2 opacity-80 uppercase">Utilisation IA</div>
                   <div className="flex items-center gap-4"><div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden"><div className="bg-secondary-container h-full" style={{ width: `${aiUtilization}%` }} /></div><span className="font-bold">{aiUtilization}%</span></div>
                 </div>
                 <div className="pt-4 border-t border-white/10">
-                  <div className="text-label-sm mb-2 opacity-80 uppercase">Top Contributor</div>
-                  <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-secondary-fixed-dim text-secondary text-[10px] flex items-center justify-center font-black">AI</div><div className="font-bold">{topContributor}</div></div>
+                  <div className="text-label-sm mb-2 opacity-80 uppercase">Top contributeur</div>
+                  <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-full bg-secondary-fixed-dim text-secondary text-[10px] flex items-center justify-center font-black">IA</div><div className="font-bold">{topContributor}</div></div>
                 </div>
               </div>
             </div>
 
             <div className="bg-surface-studio border border-outline-variant border-dashed rounded-xl p-6 flex flex-col items-center text-center">
               <div className="w-16 h-16 rounded-full bg-ai-glow flex items-center justify-center mb-4"><Icon name="hub" className="text-secondary text-[32px]" /></div>
-              <h4 className="font-bold mb-2">Knowledge Graph</h4>
-              <p className="text-body-sm text-on-surface-variant mb-4">Visualize how your team's documents are interconnected through sovereign intelligence.</p>
+              <h4 className="font-bold mb-2">Graphe de connaissances</h4>
+              <p className="text-body-sm text-on-surface-variant mb-4">Visualisez comment les documents de votre equipe sont interconnectes grace a l&apos;intelligence souveraine.</p>
               <Button
                 variant="outline"
                 onClick={handleExploreGraph}
                 className="bg-surface border border-outline-variant font-label-md text-label-md px-6 py-2 rounded-lg hover:bg-surface-container-high transition-colors"
               >
-                Explore Graph
+                Explorer le graphe
               </Button>
             </div>
           </aside>

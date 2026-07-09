@@ -34,28 +34,28 @@ interface TableRowData {
 }
 
 const AGENTS: Agent[] = [
-  { name: 'LegalArchitect', state: 'Writing...', dot: 'bg-status-final', icon: 'gavel', prog: 75 },
-  { name: 'EngSovereign', state: 'Thinking...', dot: 'bg-status-review', icon: 'code', prog: 20 },
-  { name: 'FinanceOracle', state: 'Idle', dot: 'bg-status-draft', icon: 'account_balance' },
+  { name: 'LegalArchitect', state: 'Redaction...', dot: 'bg-status-final', icon: 'gavel', prog: 75 },
+  { name: 'EngSovereign', state: 'Reflexion...', dot: 'bg-status-review', icon: 'code', prog: 20 },
+  { name: 'FinanceOracle', state: 'Inactif', dot: 'bg-status-draft', icon: 'account_balance' },
 ]
 
 const TABLE: TableRowData[] = [
-  { name: 'Legal Policy Reviewer', model: 'Llama-3-70B Optimized', icon: 'balance', success: '99.8%', thru: '452 docs/hr', eff: '0.12 t/doc', tier: 'Platinum', tierCls: 'bg-status-final/10 text-status-final' },
-  { name: 'Technical Architect', model: 'GPT-4o Enterprise', icon: 'code_blocks', success: '98.4%', thru: '312 docs/hr', eff: '0.45 t/doc', tier: 'Gold', tierCls: 'bg-status-final/10 text-status-final' },
-  { name: 'Financial Forecaster', model: 'Claude 3.5 Sonnet', icon: 'analytics', success: '92.1%', thru: '189 docs/hr', eff: '0.82 t/doc', tier: 'Silver', tierCls: 'bg-status-review/10 text-status-review' },
-  { name: 'Global Content Localizer', model: 'Gemini 1.5 Pro', icon: 'translate', success: '97.9%', thru: '1,240 docs/hr', eff: '0.08 t/doc', tier: 'Gold', tierCls: 'bg-status-final/10 text-status-final' },
+  { name: 'Reviseur politique juridique', model: 'Llama-3-70B Optimise', icon: 'balance', success: '99.8%', thru: '452 docs/h', eff: '0.12 t/doc', tier: 'Platine', tierCls: 'bg-status-final/10 text-status-final' },
+  { name: 'Architecte technique', model: 'GPT-4o Enterprise', icon: 'code_blocks', success: '98.4%', thru: '312 docs/h', eff: '0.45 t/doc', tier: 'Or', tierCls: 'bg-status-final/10 text-status-final' },
+  { name: 'Previsionniste financier', model: 'Claude 3.5 Sonnet', icon: 'analytics', success: '92.1%', thru: '189 docs/h', eff: '0.82 t/doc', tier: 'Argent', tierCls: 'bg-status-review/10 text-status-review' },
+  { name: 'Localisateur de contenu global', model: 'Gemini 1.5 Pro', icon: 'translate', success: '97.9%', thru: '1 240 docs/h', eff: '0.08 t/doc', tier: 'Or', tierCls: 'bg-status-final/10 text-status-final' },
 ]
 
-const RANGES = ['24 Hours', '7 Days', '30 Days'] as const
+const RANGES = ['24 Heures', '7 Jours', '30 Jours'] as const
 
 export default function Analytics() {
   const { data: analytics } = useAnalytics()
 
   const METRICS: Metric[] = [
-    { label: 'Documents', icon: 'description', value: analytics ? analytics.totalDocuments.toLocaleString() : '—', trend: 'check_circle', trendText: 'Generated', good: true },
-    { label: 'Active Agents', icon: 'psychology', value: analytics ? analytics.activeAgents.toLocaleString() : '—', trend: 'trending_up', trendText: 'Orchestrator online', good: true },
-    { label: 'Collaboration', icon: 'hub', value: analytics ? `${analytics.collaborationScore.toFixed(1)}%` : '—', trend: 'trending_up', trendText: 'Cross-agent score', good: true, bar: analytics ? analytics.collaborationScore : 0 },
-    { label: 'Efficiency', icon: 'bolt', value: analytics ? `${analytics.efficiencyIndex.toFixed(1)}` : '—', trend: 'trending_up', trendText: 'Orchestrator index', good: true },
+    { label: 'Documents', icon: 'description', value: analytics ? analytics.totalDocuments.toLocaleString() : '—', trend: 'check_circle', trendText: 'Generes', good: true },
+    { label: 'Agents actifs', icon: 'psychology', value: analytics ? analytics.activeAgents.toLocaleString() : '—', trend: 'trending_up', trendText: 'Orchestrateur en ligne', good: true },
+    { label: 'Collaboration', icon: 'hub', value: analytics ? `${analytics.collaborationScore.toFixed(1)}%` : '—', trend: 'trending_up', trendText: 'Score inter-agents', good: true, bar: analytics ? analytics.collaborationScore : 0 },
+    { label: 'Efficacite', icon: 'bolt', value: analytics ? `${analytics.efficiencyIndex.toFixed(1)}` : '—', trend: 'trending_up', trendText: 'Indice orchestrateur', good: true },
   ]
 
   return (
@@ -64,16 +64,16 @@ export default function Analytics() {
         <div className="flex items-center gap-8">
           <div className="relative">
             <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
-            <Input className="bg-surface border border-outline-variant rounded-full pl-10 pr-4 py-1.5 text-body-sm focus:ring-2 focus:ring-secondary focus:outline-none w-64" placeholder="Search infrastructure..." />
+            <Input className="bg-surface border border-outline-variant rounded-full pl-10 pr-4 py-1.5 text-body-sm focus:ring-2 focus:ring-secondary focus:outline-none w-64" placeholder="Rechercher infrastructure..." />
           </div>
           <nav className="hidden md:flex items-center gap-6">
-            <a className="text-on-surface-variant hover:text-secondary" href="#">Workspace</a>
-            <a className="text-on-surface-variant hover:text-secondary" href="#">Library</a>
+            <a className="text-on-surface-variant hover:text-secondary" href="#">Espace de travail</a>
+            <a className="text-on-surface-variant hover:text-secondary" href="#">Bibliotheque</a>
             <a className="text-on-surface-variant hover:text-secondary" href="#">Agents</a>
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <Button className="bg-secondary/10 text-secondary hover:bg-secondary hover:text-white px-4 py-2 rounded font-label-md text-label-md transition-all">Deploy Agent</Button>
+          <Button className="bg-secondary/10 text-secondary hover:bg-secondary hover:text-white px-4 py-2 rounded font-label-md text-label-md transition-all">Deployer un agent</Button>
           <button className="p-2 text-on-surface-variant hover:text-secondary relative">
             <Icon name="notifications" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full" />
@@ -85,8 +85,8 @@ export default function Analytics() {
       <div className="p-gutter max-w-screen-xl mx-auto w-full space-y-gutter">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h2 className="font-headline-lg text-headline-lg text-on-surface">Intelligence Analytics</h2>
-            <p className="text-body-md text-on-surface-variant">Real-time monitoring of AI orchestration performance and token efficiency.</p>
+            <h2 className="font-headline-lg text-headline-lg text-on-surface">Analyses d&apos;intelligence</h2>
+            <p className="text-body-md text-on-surface-variant">Surveillance en temps reel des performances d&apos;orchestration IA et de l&apos;efficacite des jetons.</p>
           </div>
           <div className="flex items-center gap-2 bg-surface p-1 rounded-lg border border-outline-variant">
             {RANGES.map((t, i) => (
@@ -124,12 +124,12 @@ export default function Analytics() {
           <div className="lg:col-span-2 bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter">
             <div className="flex items-center justify-between mb-gutter">
               <div>
-                <h3 className="font-headline-md text-headline-md text-on-surface">AI Activity Over Time</h3>
-                <p className="text-body-sm text-on-surface-variant">Inference requests vs token depth per hour</p>
+                <h3 className="font-headline-md text-headline-md text-on-surface">Activite IA dans le temps</h3>
+                <p className="text-body-sm text-on-surface-variant">Requetes d&apos;inference vs profondeur de jetons par heure</p>
               </div>
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-ai-vibrant" /><span className="text-label-sm font-label-sm text-on-surface-variant">Requests</span></div>
-                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-outline-variant" /><span className="text-label-sm font-label-sm text-on-surface-variant">Baseline</span></div>
+                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-ai-vibrant" /><span className="text-label-sm font-label-sm text-on-surface-variant">Requetes</span></div>
+                <div className="flex items-center gap-2"><span className="w-3 h-3 rounded-full bg-outline-variant" /><span className="text-label-sm font-label-sm text-on-surface-variant">Reference</span></div>
               </div>
             </div>
             <div className="relative w-full h-[300px] mt-8 chart-gradient rounded">
@@ -147,13 +147,13 @@ export default function Analytics() {
                 <path d="M0,220 C50,180 100,100 150,120 C200,140 250,220 300,200 C350,180 400,60 450,40 C500,20 550,120 600,150 C650,180 700,100 750,110 L800,90" fill="none" stroke="#2563EB" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
               </svg>
               <div className="absolute left-[470px] top-[-10px] bg-inverse-surface text-inverse-on-surface p-3 rounded shadow-xl text-label-sm font-label-sm flex flex-col">
-                <span>14:00 PM</span><span className="font-bold">2.4k Requests</span><span className="text-blue-300">Peak Performance</span>
+                <span>14:00</span><span className="font-bold">2.4k Requetes</span><span className="text-blue-300">Performance maximale</span>
               </div>
             </div>
           </div>
 
           <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-gutter overflow-hidden flex flex-col">
-            <h3 className="font-headline-md text-headline-md text-on-surface mb-gutter">Live Agents</h3>
+            <h3 className="font-headline-md text-headline-md text-on-surface mb-gutter">Agents en direct</h3>
             <div className="space-y-4 flex-1">
               {AGENTS.map((a) => (
                 <div key={a.name} className="flex items-center justify-between p-3 bg-surface-studio rounded border border-outline-variant">
@@ -166,32 +166,32 @@ export default function Analytics() {
                     </div>
                     <div>
                       <div className="font-label-md text-label-md text-on-surface">{a.name}</div>
-                      <div className={`text-label-sm font-label-sm ${a.state === 'Writing...' ? 'text-status-final' : a.state === 'Thinking...' ? 'text-status-review' : 'text-on-surface-variant'}`}>{a.state}</div>
+                      <div className={`text-label-sm font-label-sm ${a.state === 'Redaction...' ? 'text-status-final' : a.state === 'Reflexion...' ? 'text-status-review' : 'text-on-surface-variant'}`}>{a.state}</div>
                     </div>
                   </div>
                   {a.prog !== undefined && (
                     <div className="text-right">
                       <div className="w-16 bg-surface-variant h-1 rounded-full mt-1">
-                        <div className={`bg-ai-vibrant h-full ${a.state === 'Thinking...' ? 'animate-pulse' : ''}`} style={{ width: `${a.prog}%` }} />
+                        <div className={`bg-ai-vibrant h-full ${a.state === 'Reflexion...' ? 'animate-pulse' : ''}`} style={{ width: `${a.prog}%` }} />
                       </div>
                     </div>
                   )}
                 </div>
               ))}
             </div>
-            <Button variant="outline" className="mt-gutter w-full py-3 text-label-md font-label-md text-secondary hover:bg-secondary/5 rounded border border-dashed border-secondary transition-colors">Add Custom Agent</Button>
+            <Button variant="outline" className="mt-gutter w-full py-3 text-label-md font-label-md text-secondary hover:bg-secondary/5 rounded border border-dashed border-secondary transition-colors">Ajouter un agent personnalise</Button>
           </div>
         </div>
 
         <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden">
           <div className="p-gutter border-b border-outline-variant flex items-center justify-between">
-            <h3 className="font-headline-md text-headline-md text-on-surface">Top Performing Agents</h3>
-            <Button variant="ghost" className="flex items-center gap-2 text-label-md font-label-md text-secondary hover:underline">View Detailed Audit Logs <Icon name="open_in_new" className="text-sm" /></Button>
+            <h3 className="font-headline-md text-headline-md text-on-surface">Agents les plus performants</h3>
+            <Button variant="ghost" className="flex items-center gap-2 text-label-md font-label-md text-secondary hover:underline">Voir les journaux d&apos;audit detailles <Icon name="open_in_new" className="text-sm" /></Button>
           </div>
           <Table className="w-full text-left border-collapse">
             <TableHeader>
               <TableRow className="bg-surface-studio border-b border-outline-variant">
-                {['Agent Identity', 'Success Rate', 'Throughput', 'Token Efficiency', 'Status'].map((h) => (
+                {['Identite de l\'agent', 'Taux de reussite', 'Debit', 'Efficacite des jetons', 'Statut'].map((h) => (
                   <TableHead key={h} className="px-gutter py-4 font-label-sm text-label-sm text-on-surface-variant uppercase">{h}</TableHead>
                 ))}
               </TableRow>
@@ -223,25 +223,25 @@ export default function Analytics() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-gutter">
           <div className="bg-primary-container text-on-primary-container p-gutter rounded-xl flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2 mb-4"><Icon name="verified" className="text-secondary" /><span className="font-label-sm text-label-sm uppercase tracking-widest text-on-primary-container/80">Sovereign Protocol</span></div>
-              <h4 className="font-headline-md text-headline-md mb-2 text-white">Advanced Safety Guardrails</h4>
-              <p className="text-body-md text-on-primary-container/90">All generated documents undergo parallel ethical alignment checks and deterministic formatting verification before finalization.</p>
+              <div className="flex items-center gap-2 mb-4"><Icon name="verified" className="text-secondary" /><span className="font-label-sm text-label-sm uppercase tracking-widest text-on-primary-container/80">Protocole souverain</span></div>
+              <h4 className="font-headline-md text-headline-md mb-2 text-white">Garde-fous de securite avances</h4>
+              <p className="text-body-md text-on-primary-container/90">Tous les documents generes sont soumis a des verifications paralleles d&apos;alignement ethique et de verification de formatage deterministe avant finalisation.</p>
             </div>
             <div className="flex items-center gap-4 mt-8">
-              <Button className="bg-white text-primary px-6 py-3 rounded font-label-md text-label-md hover:bg-white/90 transition-colors">Safety Audit</Button>
+              <Button className="bg-white text-primary px-6 py-3 rounded font-label-md text-label-md hover:bg-white/90 transition-colors">Audit de securite</Button>
               <Button variant="outline" className="text-white border border-white/20 px-6 py-3 rounded font-label-md text-label-md hover:bg-white/10 transition-colors">Configuration</Button>
             </div>
           </div>
           <div className="bg-surface-studio border border-outline-variant rounded-xl p-6 flex flex-col justify-center">
-            <h4 className="font-headline-md text-headline-md text-on-surface mb-2">Orchestration Center</h4>
-            <p className="text-body-sm text-on-surface-variant">Global monitoring node: US-East-1 Cluster</p>
+            <h4 className="font-headline-md text-headline-md text-on-surface mb-2">Centre d&apos;orchestration</h4>
+            <p className="text-body-sm text-on-surface-variant">Noeud de surveillance global : Cluster US-East-1</p>
           </div>
         </div>
 
         <footer className="mt-auto border-t border-outline-variant bg-surface px-gutter py-4 flex justify-between items-center text-label-sm font-label-sm text-on-surface-variant">
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2"><span className="w-2 h-2 bg-status-final rounded-full animate-pulse" /><span>Systems Operational</span></div>
-            <div className="flex items-center gap-2"><Icon name="bolt" className="text-[16px]" /><span>Latency: 24ms</span></div>
+            <div className="flex items-center gap-2"><span className="w-2 h-2 bg-status-final rounded-full animate-pulse" /><span>Systemes operationnels</span></div>
+            <div className="flex items-center gap-2"><Icon name="bolt" className="text-[16px]" /><span>Latence : 24ms</span></div>
           </div>
           <div className="flex items-center gap-4"><span>API v2.4.1</span><span className="opacity-30">|</span><span>© 2024 Repora Intelligence</span></div>
         </footer>

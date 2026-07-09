@@ -23,12 +23,12 @@ import { useDocuments } from '@/hooks/useQueries'
 import type { Document } from '@/schemas'
 
 const STATUS_LABELS: Record<Document['status'], string> = {
-  draft: 'Draft',
-  review: 'Under Review',
-  final: 'Finalized',
-  active: 'Active',
-  autonomous: 'Autonomous',
-  archived: 'Archived',
+  draft: 'Brouillon',
+  review: 'En revision',
+  final: 'Finalise',
+  active: 'Actif',
+  autonomous: 'Autonome',
+  archived: 'Archive',
 }
 
 const BADGE_STATUS: Record<Document['status'], 'draft' | 'review' | 'final' | 'active' | 'autonomous'> = {
@@ -57,25 +57,25 @@ export default function DocumentLibrary() {
 
   return (
     <>
-      <TopBar title="Workspace" tabs={[]} />
+      <TopBar title="Espace de travail" tabs={[]} />
       <div className="p-gutter max-w-[1400px] mx-auto w-full flex flex-col gap-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <nav className="flex items-center gap-2 mb-2 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">
               <span>Documents</span>
               <Icon name="chevron_right" className="text-[14px]" />
-              <span className="text-ai-vibrant font-bold">Library</span>
+              <span className="text-ai-vibrant font-bold">Bibliotheque</span>
             </nav>
-            <h1 className="font-headline-lg text-headline-lg text-primary">Enterprise Repository</h1>
+            <h1 className="font-headline-lg text-headline-lg text-primary">Depot d&apos;entreprise</h1>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" className="flex items-center gap-2">
               <Icon name="download" />
-              Bulk Export
+              Export groupe
             </Button>
             <Link to="/editor" search={{ id: undefined }} className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity">
               <Icon name="add" />
-              Create Document
+              Creer un document
             </Link>
           </div>
         </div>
@@ -84,52 +84,52 @@ export default function DocumentLibrary() {
         <div className="bg-surface p-4 rounded-xl border border-outline-variant shadow-sm flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-container-low rounded-lg border border-outline-variant">
             <Icon name="filter_list" className="text-on-surface-variant scale-90" />
-            <span className="font-label-md text-label-md font-bold">Filter By:</span>
+            <span className="font-label-md text-label-md font-bold">Filtrer par :</span>
           </div>
           <div className="flex flex-wrap gap-2">
             <Select value={department} onValueChange={(v) => setDepartment(v ?? 'all')}>
               <SelectTrigger className="bg-surface-container-low border border-outline-variant rounded-lg px-3 py-1.5 font-label-md text-label-md focus:ring-1 focus:ring-ai-vibrant outline-none">
-                <SelectValue placeholder="Department: All" />
+                <SelectValue placeholder="Departement : Tous" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Department: All</SelectItem>
-                <SelectItem value="Legal">Legal</SelectItem>
+                <SelectItem value="all">Departement : Tous</SelectItem>
+                <SelectItem value="Legal">Juridique</SelectItem>
                 <SelectItem value="Finance">Finance</SelectItem>
-                <SelectItem value="Engineering">Engineering</SelectItem>
-                <SelectItem value="Human Resources">Human Resources</SelectItem>
+                <SelectItem value="Engineering">Ingenierie</SelectItem>
+                <SelectItem value="Human Resources">Ressources Humaines</SelectItem>
               </SelectContent>
             </Select>
             <Select value={status} onValueChange={(v) => setStatus(v ?? 'all')}>
               <SelectTrigger className="bg-surface-container-low border border-outline-variant rounded-lg px-3 py-1.5 font-label-md text-label-md focus:ring-1 focus:ring-ai-vibrant outline-none">
-                <SelectValue placeholder="Status: All States" />
+                <SelectValue placeholder="Statut : Tous" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Status: All States</SelectItem>
-                <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="review">Under Review</SelectItem>
-                <SelectItem value="final">Finalized</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
+                <SelectItem value="all">Statut : Tous</SelectItem>
+                <SelectItem value="draft">Brouillon</SelectItem>
+                <SelectItem value="review">En revision</SelectItem>
+                <SelectItem value="final">Finalise</SelectItem>
+                <SelectItem value="archived">Archive</SelectItem>
               </SelectContent>
             </Select>
             <Select value={owner} onValueChange={(v) => setOwner(v ?? 'all')}>
               <SelectTrigger className="bg-surface-container-low border border-outline-variant rounded-lg px-3 py-1.5 font-label-md text-label-md focus:ring-1 focus:ring-ai-vibrant outline-none">
-                <SelectValue placeholder="Owner: Everyone" />
+                <SelectValue placeholder="Proprietaire : Tous" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Owner: Everyone</SelectItem>
-                <SelectItem value="me">Assigned to Me</SelectItem>
-                <SelectItem value="lead">Team Lead</SelectItem>
+                <SelectItem value="all">Proprietaire : Tous</SelectItem>
+                <SelectItem value="me">Attribue a moi</SelectItem>
+                <SelectItem value="lead">Chef d&apos;equipe</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="h-6 w-px bg-outline-variant mx-2 hidden lg:block" />
           <div className="flex items-center gap-4 ml-auto">
             <div className="flex items-center gap-1 font-label-sm text-label-sm text-on-surface-variant">
-              <span>Showing</span>
+              <span>Affichage</span>
               <span className="font-bold text-primary">{documents.length}</span>
               <span>Documents</span>
             </div>
-            <button className="text-ai-vibrant font-label-md text-label-md hover:underline">Clear Filters</button>
+            <button className="text-ai-vibrant font-label-md text-label-md hover:underline">Effacer les filtres</button>
           </div>
         </div>
 
@@ -138,7 +138,7 @@ export default function DocumentLibrary() {
           <Table className="border-collapse text-left">
             <TableHeader>
               <TableRow className="bg-surface-container-low border-b border-outline-variant">
-                {['Document Name', 'Status', 'Department', 'Owner', 'Modified', 'Actions'].map((h) => (
+                {['Nom du document', 'Statut', 'Departement', 'Proprietaire', 'Modifie', 'Actions'].map((h) => (
                   <TableHead key={h} className="px-6 py-4 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">
                     {h}
                   </TableHead>
@@ -149,7 +149,7 @@ export default function DocumentLibrary() {
               {documents.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="px-6 py-10 text-center font-body-md text-body-md text-on-surface-variant">
-                    No documents available.
+                    Aucun document disponible.
                   </TableCell>
                 </TableRow>
               ) : (
@@ -185,13 +185,13 @@ export default function DocumentLibrary() {
                     </TableCell>
                     <TableCell className="px-6 py-5 text-right">
                       <div className="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Export">
+                        <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Exporter">
                           <Icon name="ios_share" />
                         </button>
                         <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Permissions">
                           <Icon name="manage_accounts" />
                         </button>
-                        <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Audit Log">
+                        <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Journal d'audit">
                           <Icon name="history_edu" />
                         </button>
                       </div>
@@ -202,7 +202,7 @@ export default function DocumentLibrary() {
             </TableBody>
           </Table>
           <div className="px-6 py-4 border-t border-outline-variant bg-surface-container-lowest flex items-center justify-between">
-            <div className="font-label-sm text-label-sm text-on-surface-variant">Page 1 of 13</div>
+            <div className="font-label-sm text-label-sm text-on-surface-variant">Page 1 sur 13</div>
             <div className="flex items-center gap-1">
               <button className="p-1 rounded hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30" disabled>
                 <Icon name="chevron_left" />
@@ -225,9 +225,9 @@ export default function DocumentLibrary() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Icon name="bolt" className="text-ai-vibrant" fill />
-                <h3 className="font-headline-md text-headline-md">AI Insights & Activity</h3>
+                <h3 className="font-headline-md text-headline-md">Insights et activite IA</h3>
               </div>
-              <button className="text-ai-vibrant font-label-sm text-label-sm uppercase font-bold hover:underline">Full Log</button>
+              <button className="text-ai-vibrant font-label-sm text-label-sm uppercase font-bold hover:underline">Journal complet</button>
             </div>
             <div className="space-y-4">
               <div className="flex items-start gap-4 p-3 rounded-lg bg-ai-glow/30 border border-ai-vibrant/10">
@@ -235,8 +235,8 @@ export default function DocumentLibrary() {
                   <Icon name="auto_awesome" className="scale-75" />
                 </div>
                 <div className="flex-grow">
-                  <p className="font-body-sm text-body-sm"><span className="font-bold">Repora AI</span> summarized "Q3 Fiscal Compliance Audit" for <span className="text-ai-vibrant font-medium">@sarah.j</span></p>
-                  <p className="font-label-sm text-label-sm text-on-surface-variant">2 mins ago</p>
+                  <p className="font-body-sm text-body-sm"><span className="font-bold">Repora AI</span> a resume &quot;Audit de conformite fiscale T3&quot; pour <span className="text-ai-vibrant font-medium">@sarah.j</span></p>
+                  <p className="font-label-sm text-label-sm text-on-surface-variant">Il y a 2 min</p>
                 </div>
               </div>
               <div className="flex items-start gap-4 p-3 rounded-lg hover:bg-surface-container-low transition-colors">
@@ -244,8 +244,8 @@ export default function DocumentLibrary() {
                   <Icon name="update" className="scale-75" />
                 </div>
                 <div className="flex-grow">
-                  <p className="font-body-sm text-body-sm">Automated version control applied to 12 documents in <span className="font-medium text-primary">Legal</span> folder</p>
-                  <p className="font-label-sm text-label-sm text-on-surface-variant">1 hour ago</p>
+                  <p className="font-body-sm text-body-sm">Controle de version automatise applique a 12 documents dans le dossier <span className="font-medium text-primary">Juridique</span></p>
+                  <p className="font-label-sm text-label-sm text-on-surface-variant">Il y a 1 heure</p>
                 </div>
               </div>
             </div>
@@ -253,7 +253,7 @@ export default function DocumentLibrary() {
 
           <div className="bg-primary text-on-primary p-6 rounded-xl shadow-lg flex flex-col justify-between">
             <div>
-              <h3 className="font-headline-md text-headline-md opacity-80">Workspace Usage</h3>
+              <h3 className="font-headline-md text-headline-md opacity-80">Utilisation espace</h3>
               <div className="mt-4 flex items-end gap-2">
                 <span className="text-4xl font-black">74.2</span>
                 <span className="text-xl opacity-60 pb-1">GB / 100GB</span>
@@ -264,11 +264,11 @@ export default function DocumentLibrary() {
             </div>
             <div className="mt-6 flex flex-col gap-2">
               <div className="flex justify-between font-label-sm text-label-sm opacity-60">
-                <span>Documents Total</span>
-                <span>14,208</span>
+                <span>Total documents</span>
+                <span>14 208</span>
               </div>
               <div className="flex justify-between font-label-sm text-label-sm opacity-60">
-                <span>Uptime Status</span>
+                <span>Disponibilite</span>
                 <span className="text-green-400">99.98%</span>
               </div>
             </div>

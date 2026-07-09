@@ -18,11 +18,11 @@ const statusVariants = cva(
 )
 
 const LABELS: Record<string, string> = {
-  draft: 'DRAFT',
-  review: 'REVIEW',
-  final: 'VALIDATED',
-  active: 'ACTIVE EDIT',
-  autonomous: 'AUTONOMOUS',
+  draft: 'BROUILLON',
+  review: 'REVISION',
+  final: 'VALIDE',
+  active: 'EDITION ACTIVE',
+  autonomous: 'AUTONOME',
 }
 
 interface StatusBadgeProps extends VariantProps<typeof statusVariants> {
@@ -33,7 +33,7 @@ interface StatusBadgeProps extends VariantProps<typeof statusVariants> {
 export default function StatusBadge({ status = 'draft', className, children }: StatusBadgeProps) {
   return (
     <span className={cn(statusVariants({ status }), className)}>
-      {children || LABELS[status as string] || 'DRAFT'}
+      {children || LABELS[status as string] || 'BROUILLON'}
     </span>
   )
 }

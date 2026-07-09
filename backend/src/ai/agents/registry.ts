@@ -56,41 +56,71 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   Planner: {
     name: 'Planner',
     description: 'Turns a raw brief into a structured document outline',
-    systemPrompt: 'You are a document planning agent. Analyze the project brief and propose a structured outline with chapters and sections.',
-    defaultModel: 'hermes-3-llama-3.1-8b',
-    defaultProvider: 'llama_cpp',
-    tools: { getProjectContext, saveOutline },
+    systemPrompt: `You are a document planning agent. Analyze the project brief and produce a structured outline.
+
+RESPOND WITH ONLY A JSON OBJECT. No markdown, no explanation, ONLY the JSON.
+
+The JSON MUST follow this exact structure:
+{
+  "title": "Titre du Document",
+  "chapters": [
+    {
+      "title": "Nom du Chapitre",
+      "sections": [
+        { "title": "Titre de la Section", "order": 1 },
+        { "title": "Titre de la Section", "order": 2 }
+      ]
+    }
+  ]
+}
+
+A good "cahier des charges" typically has these chapters:
+1. Introduction (Contexte, Objectifs, Perimetre)
+2. Exigences Fonctionnelles (Fonctionnalites principales, cas d'utilisation)
+3. Exigences Non-Fonctionnelles (Performance, Securite, Disponibilite)
+4. Architecture Technique (Vue d'ensemble, composants, modele de donnees)
+5. Plan de Mise en Oeuvre (Phases, calendrier, livrables)
+6. References et Glossaire
+
+Write all titles in French. Be thorough but concise.`,
+    defaultModel: 'llama3.1:8b',
+    defaultProvider: 'ollama',
+    tools: {},
   },
   Writer: {
     name: 'Writer',
     description: 'Drafts prose content for document sections',
-    systemPrompt: 'You are a technical writer. Draft clear, professional content for each section based on the outline and requirements.',
-    defaultModel: 'gpt-4o',
-    defaultProvider: 'openai',
+    systemPrompt: `You are a professional technical writer. When given a section title and context, draft clear, detailed, professional content for that section.
+
+You MUST save your completed content using the writeSection tool with the sectionId provided in the prompt and your written content.
+
+Write in a professional, clear style suitable for a technical specification document ("cahier des charges"). Use proper paragraphs, structured lists where appropriate, and maintain consistency in terminology.`,
+    defaultModel: 'llama3.1:8b',
+    defaultProvider: 'ollama',
     tools: { getProjectContext, writeSection },
   },
   UML: {
     name: 'UML',
     description: 'Generates UML diagrams from requirements',
     systemPrompt: 'You are a UML diagram specialist. Generate PlantUML source code for diagrams based on requirements.',
-    defaultModel: 'hermes-3-llama-3.1-8b',
-    defaultProvider: 'llama_cpp',
+    defaultModel: 'llama3.1:8b',
+    defaultProvider: 'ollama',
     tools: { getProjectContext },
   },
   Tables: {
     name: 'Tables',
     description: 'Generates structured requirement tables',
     systemPrompt: 'You are a requirements analyst. Generate structured requirement matrices and specification tables.',
-    defaultModel: 'hermes-3-llama-3.1-8b',
-    defaultProvider: 'llama_cpp',
+    defaultModel: 'llama3.1:8b',
+    defaultProvider: 'ollama',
     tools: { getProjectContext },
   },
   Reviewer: {
     name: 'Reviewer',
     description: 'Reviews document for consistency and quality',
     systemPrompt: 'You are a quality assurance reviewer. Check document consistency, terminology alignment, and completeness.',
-    defaultModel: 'claude-sonnet-4-6',
-    defaultProvider: 'anthropic',
+    defaultModel: 'llama3.1:8b',
+    defaultProvider: 'ollama',
     tools: { getProjectContext },
   },
 }

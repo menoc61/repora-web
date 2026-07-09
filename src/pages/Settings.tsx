@@ -34,27 +34,27 @@ interface ToggleProps {
 
 const PROVIDERS: Provider[] = [
   { name: 'Ollama Local', icon: 'terminal', connected: true, endpoint: 'http://localhost:11434', model: 'Llama 3.1 70B', load: 42, gpu: 'M3 Max' },
-  { name: 'Anthropic Cloud', icon: 'cloud', connected: false, status: 'STANDBY' },
+  { name: 'Anthropic Cloud', icon: 'cloud', connected: false, status: 'EN ATTENTE' },
 ]
 
 const MCP_SKILLS: McpSkill[] = [
-  { name: 'Jira Ticket Fetcher', icon: 'terminal', type: 'REST API', permission: 'Read-Only', status: 'Live', color: 'text-status-final' },
-  { name: 'PostgreSQL Analytics', icon: 'dataset', type: 'SQL Proxy', permission: 'Sandboxed', status: 'Indexing', color: 'text-status-review' },
+  { name: 'Jira Ticket Fetcher', icon: 'terminal', type: 'REST API', permission: 'Lecture seule', status: 'Actif', color: 'text-status-final' },
+  { name: 'PostgreSQL Analytics', icon: 'dataset', type: 'SQL Proxy', permission: 'Isole', status: 'Indexation', color: 'text-status-review' },
 ]
 
 const ORCHESTRATION_NAV: [string, string, boolean?][] = [
-  ['hub', 'Providers', true],
-  ['memory', 'MCP Skills'],
-  ['verified_user', 'AI Compliance'],
+  ['hub', 'Fournisseurs', true],
+  ['memory', 'Competences MCP'],
+  ['verified_user', 'Conformite IA'],
 ]
 
 const INFRASTRUCTURE_NAV: [string, string][] = [
   ['lan', 'Collaboration'],
-  ['vpn_key', 'SSO & Auth'],
-  ['database', 'Storage'],
+  ['vpn_key', 'SSO et Auth'],
+  ['database', 'Stockage'],
 ]
 
-const MCP_HEADERS = ['SKILL NAME', 'SOURCE TYPE', 'PERMISSION', 'STATUS', 'ACTION']
+const MCP_HEADERS = ['NOM COMPETENCE', 'TYPE SOURCE', 'PERMISSION', 'STATUT', 'ACTION']
 
 export default function Settings() {
   const settings = useSettingsStore((s) => s.settings)
@@ -65,10 +65,10 @@ export default function Settings() {
     <div className="flex-1 flex flex-col min-h-screen">
       <header className="h-16 flex justify-between items-center px-gutter bg-surface-studio border-b border-outline-variant z-40 sticky top-0">
         <div className="flex items-center gap-8">
-          <span className="font-headline-md text-headline-md font-black text-primary">Settings</span>
+          <span className="font-headline-md text-headline-md font-black text-primary">Parametres</span>
           <div className="hidden md:flex items-center gap-6">
-            {['Organization', 'Billing', 'Audit Logs'].map((t) => (
-              <a key={t} className={`text-sm font-label-md pb-1 transition-all ${t === 'Organization' ? 'text-primary border-b-2 border-ai-vibrant' : 'text-on-surface-variant hover:text-ai-vibrant'}`} href="#">{t}</a>
+            {['Organisation', 'Facturation', 'Journaux d\'audit'].map((t) => (
+              <a key={t} className={`text-sm font-label-md pb-1 transition-all ${t === 'Organisation' ? 'text-primary border-b-2 border-ai-vibrant' : 'text-on-surface-variant hover:text-ai-vibrant'}`} href="#">{t}</a>
             ))}
           </div>
         </div>
@@ -80,14 +80,14 @@ export default function Settings() {
             </div>
           )}
           <Button variant="ghost" size="icon" className="p-2 text-on-surface-variant hover:text-ai-vibrant hover:bg-transparent transition-all"><Icon name="notifications" /></Button>
-          <Button className="bg-primary text-on-primary px-4 py-1.5 font-label-md text-label-md rounded hover:opacity-90">Share</Button>
+          <Button className="bg-primary text-on-primary px-4 py-1.5 font-label-md text-label-md rounded hover:opacity-90">Partager</Button>
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
         <nav className="w-60 border-r border-outline-variant bg-surface py-gutter px-6 flex flex-col gap-8 custom-scrollbar overflow-y-auto">
           <section>
-            <h3 className="font-label-sm text-label-sm text-outline mb-4 uppercase tracking-tighter">AI Orchestration</h3>
+            <h3 className="font-label-sm text-label-sm text-outline mb-4 uppercase tracking-tighter">Orchestration IA</h3>
             <ul className="space-y-3">
               {ORCHESTRATION_NAV.map(([icon, label, active]) => (
                 <li key={label}><a className={`flex items-center gap-2 font-body-sm text-body-sm ${active ? 'text-ai-vibrant font-semibold' : 'text-on-surface-variant hover:text-primary transition-colors'}`} href="#"><Icon name={icon} className="text-[18px]" />{label}</a></li>
@@ -109,10 +109,10 @@ export default function Settings() {
             <section className="space-y-6" id="providers">
               <div className="flex justify-between items-end border-b border-outline-variant pb-4">
                 <div>
-                  <h2 className="font-headline-md text-headline-md text-primary">AI Provider Settings</h2>
-                  <p className="font-body-md text-body-md text-on-surface-variant">Configure models for sovereign intelligence orchestration.</p>
+                  <h2 className="font-headline-md text-headline-md text-primary">Parametres du fournisseur IA</h2>
+                  <p className="font-body-md text-body-md text-on-surface-variant">Configurer les modeles pour l&apos;orchestration d&apos;intelligence souveraine.</p>
                 </div>
-                <Button variant="link" className="font-label-md text-label-md text-ai-vibrant flex items-center gap-1 hover:underline p-0 h-auto"><Icon name="add" className="text-[18px]" />Add Provider</Button>
+                <Button variant="link" className="font-label-md text-label-md text-ai-vibrant flex items-center gap-1 hover:underline p-0 h-auto"><Icon name="add" className="text-[18px]" />Ajouter un fournisseur</Button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {PROVIDERS.map((p) => (
@@ -124,7 +124,7 @@ export default function Settings() {
                         </div>
                         <div>
                           <p className="font-headline-md text-body-lg font-bold">{p.name}</p>
-                          <p className={`font-label-sm text-label-sm ${p.connected ? 'text-status-final' : 'text-status-draft'}`}>{p.connected ? 'CONNECTED' : p.status}</p>
+                          <p className={`font-label-sm text-label-sm ${p.connected ? 'text-status-final' : 'text-status-draft'}`}>{p.connected ? 'CONNECTE' : p.status}</p>
                         </div>
                       </div>
                       <Icon name="more_vert" className="text-outline cursor-pointer" />
@@ -136,18 +136,18 @@ export default function Settings() {
                           <code className="bg-surface-container-low px-2 py-0.5 rounded font-label-sm">{p.endpoint}</code>
                         </div>
                         <div className="flex justify-between items-center text-body-sm">
-                          <span className="text-on-surface-variant">Active Model:</span>
+                          <span className="text-on-surface-variant">Modele actif:</span>
                           <span className="font-medium">{p.model}</span>
                         </div>
                         <div className="w-full bg-surface-container-highest h-1.5 rounded-full overflow-hidden">
                           <div className="bg-ai-vibrant h-full w-3/4" />
                         </div>
-                        <p className="font-label-sm text-label-sm text-outline">System load: {p.load}% ({p.gpu})</p>
+                        <p className="font-label-sm text-label-sm text-outline">Charge systeme: {p.load}% ({p.gpu})</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <p className="text-body-sm text-on-surface-variant italic">Failover provider enabled for complex reasoning tasks.</p>
-                        <Button variant="outline" className="w-full border border-outline-variant py-2 font-label-md text-label-md rounded hover:bg-surface-studio transition-colors">Manage API Keys</Button>
+                        <p className="text-body-sm text-on-surface-variant italic">Fournisseur de secours active pour les taches de raisonnement complexes.</p>
+                        <Button variant="outline" className="w-full border border-outline-variant py-2 font-label-md text-label-md rounded hover:bg-surface-studio transition-colors">Gerer les cles API</Button>
                       </div>
                     )}
                   </div>
@@ -159,7 +159,7 @@ export default function Settings() {
               <div className="flex justify-between items-end border-b border-outline-variant pb-4">
                 <div>
                   <h2 className="font-headline-md text-headline-md text-primary">Model Context Protocol (MCP)</h2>
-                  <p className="font-body-md text-body-md text-on-surface-variant">Connect AI agents to enterprise internal tools and data siloes.</p>
+                  <p className="font-body-md text-body-md text-on-surface-variant">Connecter les agents IA aux outils internes et silos de donnees de l&apos;entreprise.</p>
                 </div>
               </div>
               <div className="bg-white border border-outline-variant rounded-lg overflow-hidden">
@@ -191,21 +191,21 @@ export default function Settings() {
                           </div>
                         </TableCell>
                         <TableCell className="px-6 py-4 text-right">
-                          <Button variant="link" className="text-ai-vibrant font-label-md text-label-md p-0 h-auto">Configure</Button>
+                          <Button variant="link" className="text-ai-vibrant font-label-md text-label-md p-0 h-auto">Configurer</Button>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
                 <div className="p-4 bg-surface-container-low text-center">
-                  <Button variant="link" className="font-label-md text-label-md text-outline hover:text-primary transition-colors p-0 h-auto">+ Discover more MCP skills in the marketplace</Button>
+                  <Button variant="link" className="font-label-md text-label-md text-outline hover:text-primary transition-colors p-0 h-auto">+ Decouvrir plus de competences MCP</Button>
                 </div>
               </div>
             </section>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <section className="space-y-6" id="auth">
-                <h2 className="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-4">SSO & Identity</h2>
+                <h2 className="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-4">SSO et Identite</h2>
                 <div className="bg-white border border-outline-variant rounded-lg p-6 space-y-4">
                   <div className="flex items-center justify-between">
                     <label className="flex items-center gap-3">
@@ -215,18 +215,18 @@ export default function Settings() {
                     <Toggle checked={settings.autoSave} onChange={(e) => updateSettings({ autoSave: e.target.checked })} />
                   </div>
                   <div className="space-y-2">
-                    <p className="font-label-sm text-label-sm text-outline uppercase">OIDC METADATA URL</p>
+                    <p className="font-label-sm text-label-sm text-outline uppercase">URL METADONNEES OIDC</p>
                     <Input className="w-full bg-surface-studio border border-outline-variant rounded px-3 py-2 font-label-sm text-on-surface-variant focus:outline-none" readOnly value="https://repora.okta.com/.well-known/openid-configuration" />
                   </div>
                   <div className="flex gap-4 pt-2">
-                    <Button className="flex-1 bg-surface-container-high py-2 rounded font-label-md text-label-md hover:bg-surface-container-highest transition-colors">Test Connection</Button>
-                    <Button variant="outline" className="flex-1 border border-outline-variant py-2 rounded font-label-md text-label-md hover:bg-surface-studio transition-colors">Download SP XML</Button>
+                    <Button className="flex-1 bg-surface-container-high py-2 rounded font-label-md text-label-md hover:bg-surface-container-highest transition-colors">Tester la connexion</Button>
+                    <Button variant="outline" className="flex-1 border border-outline-variant py-2 rounded font-label-md text-label-md hover:bg-surface-studio transition-colors">Telecharger SP XML</Button>
                   </div>
                 </div>
               </section>
 
               <section className="space-y-6" id="collaboration">
-                <h2 className="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-4">Communication Architecture</h2>
+                <h2 className="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-4">Architecture de communication</h2>
                 <div className="bg-white border border-outline-variant rounded-lg p-6 space-y-6">
                   <div className="space-y-4">
                     <div
@@ -236,8 +236,8 @@ export default function Settings() {
                       <div className="flex items-center gap-3">
                         <Icon name="sync_alt" className="text-ai-vibrant" />
                         <div>
-                          <p className="font-body-md text-body-md font-bold">Hybrid WebSocket</p>
-                          <p className="font-label-sm text-label-sm text-outline">Centralized synchronization (Recommended)</p>
+                          <p className="font-body-md text-body-md font-bold">WebSocket hybride</p>
+                          <p className="font-label-sm text-label-sm text-outline">Synchronisation centralisee (Recommande)</p>
                         </div>
                       </div>
                       <Icon name="check_circle" className="text-ai-vibrant" fill />
@@ -249,8 +249,8 @@ export default function Settings() {
                       <div className="flex items-center gap-3">
                         <Icon name="share" className="text-on-surface-variant" />
                         <div>
-                          <p className="font-body-md text-body-md font-bold">Decentralized P2P</p>
-                          <p className="font-label-sm text-label-sm text-outline">End-to-end encrypted (High Security)</p>
+                          <p className="font-body-md text-body-md font-bold">P2P decentralise</p>
+                          <p className="font-label-sm text-label-sm text-outline">Chiffre de bout en bout (Haute securite)</p>
                         </div>
                       </div>
                       <div className={`w-6 h-6 border-2 rounded-full ${settings.syncMode === 'p2p' ? 'border-ai-vibrant bg-ai-vibrant' : 'border-outline-variant'}`} />
@@ -258,7 +258,7 @@ export default function Settings() {
                   </div>
                   <div className="pt-4 border-t border-outline-variant">
                     <div className="flex justify-between items-center mb-2">
-                      <span className="font-label-md text-label-md text-on-surface-variant">Sync Latency (ms)</span>
+                      <span className="font-label-md text-label-md text-on-surface-variant">Latence de synchro (ms)</span>
                       <span className="font-label-md text-label-md font-bold">12ms</span>
                     </div>
                     <div className="w-full bg-surface-container-highest h-1 rounded-full">
@@ -271,12 +271,12 @@ export default function Settings() {
 
             <div className="bg-primary text-on-primary rounded-xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
               <div className="z-10 text-center md:text-left">
-                <h3 className="font-headline-md text-headline-md font-black">Ready to deploy changes?</h3>
-                <p className="font-body-md text-body-md text-surface-variant opacity-80">Updating infrastructure settings may require a system restart (approx. 45 seconds).</p>
+                <h3 className="font-headline-md text-headline-md font-black">Pret a deployer les modifications ?</h3>
+                <p className="font-body-md text-body-md text-surface-variant opacity-80">La mise a jour des parametres d&apos;infrastructure peut necessiter un redemarrage du systeme (environ 45 secondes).</p>
               </div>
               <div className="z-10 flex gap-4 w-full md:w-auto">
-                <Button className="bg-white text-primary px-8 py-3 rounded-lg font-label-md text-label-md font-bold shadow-lg hover:bg-surface-studio transition-colors w-full md:w-auto">Commit & Restart</Button>
-                <Button variant="outline" className="bg-transparent border border-white/30 text-white px-8 py-3 rounded-lg font-label-md text-label-md hover:bg-white/10 transition-colors w-full md:w-auto">Cancel</Button>
+                <Button className="bg-white text-primary px-8 py-3 rounded-lg font-label-md text-label-md font-bold shadow-lg hover:bg-surface-studio transition-colors w-full md:w-auto">Valider et redemarrer</Button>
+                <Button variant="outline" className="bg-transparent border border-white/30 text-white px-8 py-3 rounded-lg font-label-md text-label-md hover:bg-white/10 transition-colors w-full md:w-auto">Annuler</Button>
               </div>
             </div>
           </div>
@@ -285,8 +285,8 @@ export default function Settings() {
         <aside className="w-inspector-width border-l border-outline-variant bg-surface-studio p-gutter space-y-8 hidden xl:block">
           <section>
             <div className="flex items-center justify-between mb-6">
-              <h4 className="font-label-md text-label-md text-outline uppercase tracking-widest">Active Agents</h4>
-              <span className="bg-status-final/10 text-status-final text-[10px] px-2 py-0.5 rounded-full font-bold">SYNCED</span>
+              <h4 className="font-label-md text-label-md text-outline uppercase tracking-widest">Agents actifs</h4>
+              <span className="bg-status-final/10 text-status-final text-[10px] px-2 py-0.5 rounded-full font-bold">SYNCHRONISE</span>
             </div>
             <div className="space-y-4">
               <div className="bg-white p-4 rounded border border-outline-variant shadow-sm flex flex-col gap-3">
@@ -294,21 +294,21 @@ export default function Settings() {
                   <span className="font-label-sm text-label-sm font-bold bg-surface-container px-2 py-0.5 rounded">MODERATOR-AI</span>
                   <div className="w-1.5 h-1.5 rounded-full bg-status-final animate-pulse" />
                 </div>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">Monitoring MCP skills for data leaks and PII compliance.</p>
+                <p className="font-body-sm text-body-sm text-on-surface-variant">Surveillance des competences MCP pour les fuites de donnees et la conformite PII.</p>
               </div>
               <div className="bg-white p-4 rounded border border-outline-variant shadow-sm flex flex-col gap-3">
                 <div className="flex justify-between items-center">
                   <span className="font-label-sm text-label-sm font-bold bg-surface-container px-2 py-0.5 rounded">OIDC-SYNC</span>
                   <div className="w-1.5 h-1.5 rounded-full bg-status-draft" />
                 </div>
-                <p className="font-body-sm text-body-sm text-on-surface-variant italic">Idle. Next sync scheduled in 14 minutes.</p>
+                <p className="font-body-sm text-body-sm text-on-surface-variant italic">Inactif. Prochaine synchro prevue dans 14 minutes.</p>
               </div>
             </div>
           </section>
           <section className="p-6 bg-ai-glow/30 rounded-xl border border-ai-vibrant/20">
-            <h5 className="font-label-md text-label-md font-bold text-ai-vibrant mb-2">Sovereign Intelligence Tips</h5>
-            <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">Running <strong>Ollama Local</strong> on high-end silicon reduces inference latency by up to 300% compared to cloud providers for high-frequency editing tasks.</p>
-            <Button variant="link" className="mt-4 font-label-md text-label-md text-ai-vibrant hover:underline p-0 h-auto">Read Benchmarks →</Button>
+            <h5 className="font-label-md text-label-md font-bold text-ai-vibrant mb-2">Conseils d&apos;intelligence souveraine</h5>
+            <p className="font-body-sm text-body-sm text-on-surface-variant leading-relaxed">L&apos;execution d&apos;<strong>Ollama Local</strong> sur du silicium haut de gamme reduit la latence d&apos;inference jusqu&apos;a 300% par rapport aux fournisseurs cloud pour les taches d&apos;edition a haute frequence.</p>
+            <Button variant="link" className="mt-4 font-label-md text-label-md text-ai-vibrant hover:underline p-0 h-auto">Lire les benchmarks →</Button>
           </section>
         </aside>
       </div>

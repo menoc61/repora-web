@@ -9,6 +9,8 @@ import { diagramRouter } from './routes/diagrams'
 import { adminRouter } from './routes/admin'
 import { exportRouter } from './routes/export'
 import { validationRouter } from './routes/validation'
+import { modelsRouter } from './routes/models'
+import { discoverOllamaModel } from './ai/hermes'
 import { db } from './db'
 
 const app = express()
@@ -17,6 +19,8 @@ app.use(cors({ origin: config.corsOrigin, credentials: true }))
 app.use(express.json())
 
 app.use('/auth', authRouter)
+app.use('/projects', projectRouter)
+app.use('/models', modelsRouter)
 app.use('/projects', projectRouter)
 app.use('/documents', documentRouter)
 app.use('/projects', diagramRouter)
@@ -29,6 +33,10 @@ app.get('/healthz', (_req, res) => {
 })
 
 app.use(errorHandler)
+
+discoverOllamaModel().then((model) => {
+  console.log(`Ollama model detected: ${model}`)
+})
 
 app.listen(config.port, () => {
   console.log(`Repora backend listening on :${config.port}`)

@@ -16,14 +16,14 @@ interface TemplateCard {
 type AgentStatus = 'final' | 'review' | 'draft'
 
 const TEMPLATES: TemplateCard[] = [
-  { title: 'Master Service Agreement', dept: 'Legal', icon: 'gavel', color: 'bg-blue-50 text-secondary', agents: [['Legal Scout', 'final'], ['Risk Auditor', 'review']] },
-  { title: 'PRD Technical Blueprint', dept: 'Engineering', icon: 'terminal', color: 'bg-emerald-50 text-status-final', agents: [['Tech Writer', 'final'], ['Spec Validator', 'draft']] },
+  { title: 'Master Service Agreement', dept: 'Juridique', icon: 'gavel', color: 'bg-blue-50 text-secondary', agents: [['Legal Scout', 'final'], ['Risk Auditor', 'review']] },
+  { title: 'PRD Technical Blueprint', dept: 'Ingenierie', icon: 'terminal', color: 'bg-emerald-50 text-status-final', agents: [['Tech Writer', 'final'], ['Spec Validator', 'draft']] },
   { title: 'Go-To-Market Strategy', dept: 'Marketing', icon: 'campaign', color: 'bg-amber-50 text-status-review', agents: [['Market Analyst', 'final'], ['Copy Catalyst', 'review']] },
-  { title: 'Global Onboarding Guide', dept: 'HR', icon: 'badge', color: 'bg-purple-50 text-purple-600', agents: [['Culture Guide', 'final'], ['Policy Sync', 'final']] },
+  { title: 'Global Onboarding Guide', dept: 'RH', icon: 'badge', color: 'bg-purple-50 text-purple-600', agents: [['Culture Guide', 'final'], ['Policy Sync', 'final']] },
   { title: 'Quarterly Fiscal Review', dept: 'Finance', icon: 'account_balance', color: 'bg-slate-100 text-on-surface', agents: [['Data Cruncher', 'review'], ['Forecast AI', 'final']] },
 ]
 
-const FILTERS: string[] = ['All Templates', 'Legal', 'Engineering', 'Marketing', 'HR', 'Finance']
+const FILTERS: string[] = ['Tous les modeles', 'Juridique', 'Ingenierie', 'Marketing', 'RH', 'Finance']
 
 function agentDotClass(status: AgentStatus): string {
   if (status === 'final') return 'bg-status-final'
@@ -32,11 +32,9 @@ function agentDotClass(status: AgentStatus): string {
 }
 
 export default function TemplateGallery() {
-  const [active, setActive] = useState<string>('All Templates')
+  const [active, setActive] = useState<string>('Tous les modeles')
   const { data: apiTemplates = [] } = useTemplates()
 
-  // Connect to data layer where applicable: map Template fields onto the card.
-  // Keep agents demo data + color as local consts. Fall back to local const gracefully.
   const templateMap = new Map<string, Template>(
     apiTemplates.map((t) => [t.title.toLowerCase(), t])
   )
@@ -52,20 +50,20 @@ export default function TemplateGallery() {
       <div className="h-16 flex items-center justify-between px-gutter bg-surface-studio border-b border-outline-variant">
         <div className="relative w-full max-w-md">
           <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-          <Input className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-2 font-body-sm text-body-sm focus:ring-2 focus:ring-ai-vibrant outline-none" placeholder="Search templates, agents, or tags..." />
+          <Input className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-2 font-body-sm text-body-sm focus:ring-2 focus:ring-ai-vibrant outline-none" placeholder="Rechercher modeles, agents ou tags..." />
         </div>
         <nav className="hidden md:flex gap-6">
-          <a className="font-label-md text-label-md text-on-surface-variant hover:text-secondary" href="#">Workspace</a>
-          <a className="font-label-md text-label-md text-primary border-b-2 border-secondary pb-1" href="#">Library</a>
+          <a className="font-label-md text-label-md text-on-surface-variant hover:text-secondary" href="#">Espace de travail</a>
+          <a className="font-label-md text-label-md text-primary border-b-2 border-secondary pb-1" href="#">Bibliotheque</a>
           <a className="font-label-md text-label-md text-on-surface-variant hover:text-secondary" href="#">Agents</a>
         </nav>
       </div>
 
       <div className="p-gutter max-w-[1200px] mx-auto">
         <div className="mb-10">
-          <h2 className="font-headline-lg text-headline-lg text-on-surface mb-2 tracking-tight">Template Library</h2>
+          <h2 className="font-headline-lg text-headline-lg text-on-surface mb-2 tracking-tight">Bibliotheque de modeles</h2>
           <p className="text-on-surface-variant font-body-md max-w-2xl">
-            Deploy pre-configured sovereign environments tailored for complex departmental workflows. Each template includes orchestration logic and domain-specific AI agents.
+            Deployez des environnements souverains preconfigures adaptes aux flux de travail departementaux complexes. Chaque modele inclut la logique d&apos;orchestration et des agents IA specialises par domaine.
           </p>
           <div className="flex flex-wrap gap-3 mt-6">
             {FILTERS.map((f) => (
@@ -93,10 +91,10 @@ export default function TemplateGallery() {
               </div>
               <h3 className="font-headline-md text-headline-md mb-2 group-hover:text-secondary transition-colors">{t.title}</h3>
               <p className="text-on-surface-variant font-body-sm mb-6 line-clamp-2">
-                Standardized framework with clause-by-clause risk assessment and jurisdiction-specific adaptations.
+                Cadre standardise avec evaluation des risques clause par clause et adaptations specifiques a chaque juridiction.
               </p>
               <div className="mt-auto pt-4 border-t border-outline-variant/30">
-                <p className="font-label-sm text-[11px] text-on-surface-variant uppercase mb-3">Active Agents</p>
+                <p className="font-label-sm text-[11px] text-on-surface-variant uppercase mb-3">Agents actifs</p>
                 <div className="flex flex-wrap gap-2 mb-6">
                   {t.agents.map(([name, st]) => (
                     <div key={name} className="flex items-center gap-1 bg-surface-studio border border-outline-variant px-2 py-1 rounded">
@@ -106,7 +104,7 @@ export default function TemplateGallery() {
                   ))}
                 </div>
                 <Button className="w-full bg-surface-container-highest text-on-surface font-label-md text-label-md hover:bg-primary-container hover:text-white">
-                  Use Template
+                  Utiliser le modele
                 </Button>
               </div>
             </div>
@@ -116,8 +114,8 @@ export default function TemplateGallery() {
             <div className="w-12 h-12 rounded-full border border-outline-variant flex items-center justify-center mb-4 group-hover:border-secondary group-hover:text-secondary">
               <Icon name="add" className="text-[32px]" />
             </div>
-            <h3 className="font-headline-md text-[20px] mb-1 group-hover:text-secondary">Custom Blueprint</h3>
-            <p className="text-on-surface-variant font-body-sm">Build your own orchestration logic from scratch.</p>
+            <h3 className="font-headline-md text-[20px] mb-1 group-hover:text-secondary">Modele personnalise</h3>
+            <p className="text-on-surface-variant font-body-sm">Creez votre propre logique d&apos;orchestration a partir de zero.</p>
           </div>
         </div>
 
@@ -130,16 +128,16 @@ export default function TemplateGallery() {
               <div className="absolute -top-1 -right-1 w-4 h-4 bg-status-final rounded-full border-2 border-primary-container" />
             </div>
             <div>
-              <h4 className="text-white font-label-md text-label-md font-bold mb-1">Global Orchestrator Active</h4>
+              <h4 className="text-white font-label-md text-label-md font-bold mb-1">Orchestrateur global actif</h4>
               <div className="flex gap-3">
-                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-status-final animate-pulse" /><span className="font-label-sm text-[10px] text-on-primary-container uppercase">3 Agents Idle</span></div>
-                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-status-review animate-bounce" /><span className="font-label-sm text-[10px] text-on-primary-container uppercase">1 Agent Synthesizing</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-status-final animate-pulse" /><span className="font-label-sm text-[10px] text-on-primary-container uppercase">3 agents inactifs</span></div>
+                <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-status-review animate-bounce" /><span className="font-label-sm text-[10px] text-on-primary-container uppercase">1 agent en synthese</span></div>
               </div>
             </div>
           </div>
           <div className="w-full md:w-64">
             <div className="flex justify-between mb-2">
-              <span className="font-label-sm text-[10px] text-on-primary-container uppercase">Contextual Readiness</span>
+              <span className="font-label-sm text-[10px] text-on-primary-container uppercase">Preparation contextuelle</span>
               <span className="font-label-sm text-[10px] text-white">94%</span>
             </div>
             <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">

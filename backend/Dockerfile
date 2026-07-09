@@ -10,5 +10,5 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package*.json ./
-EXPOSE 3001
-CMD ["node", "dist/index.js"]
+EXPOSE 8000
+CMD ["npx", "tsx", "dist/index.js"]

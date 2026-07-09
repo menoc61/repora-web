@@ -3,12 +3,12 @@ import { agentConfigs, auditLogs, documents } from '../db/schema'
 import { eq, sql, count } from 'drizzle-orm'
 
 const DEFAULT_AGENTS = [
-  { agentName: 'Hermes', provider: 'llama_cpp', modelId: 'hermes-3-llama-3.1-8b', enabled: true },
-  { agentName: 'Planner', provider: 'llama_cpp', modelId: 'hermes-3-llama-3.1-8b', enabled: true },
-  { agentName: 'Writer', provider: 'byok', modelId: 'gpt-4o', enabled: true },
-  { agentName: 'UML', provider: 'llama_cpp', modelId: 'hermes-3-llama-3.1-8b', enabled: true },
-  { agentName: 'Tables', provider: 'llama_cpp', modelId: 'hermes-3-llama-3.1-8b', enabled: true },
-  { agentName: 'Reviewer', provider: 'byok', modelId: 'claude-sonnet-4-6', enabled: true },
+  { agentName: 'Hermes', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
+  { agentName: 'Planner', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
+  { agentName: 'Writer', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
+  { agentName: 'UML', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
+  { agentName: 'Tables', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
+  { agentName: 'Reviewer', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
 ]
 
 export async function listAgents() {

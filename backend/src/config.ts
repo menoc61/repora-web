@@ -7,5 +7,6 @@ export const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   encryptionKey: process.env.ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef',
   llamaCppUrl: process.env.LLAMA_CPP_URL || 'http://localhost:8080/v1',
+  ollamaUrl: process.env.OLLAMA_URL || 'http://localhost:11434/v1',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
 }
