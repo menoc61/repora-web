@@ -1,18 +1,37 @@
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
+import { useCreateProject } from '../hooks/useQueries'
+import { useWorkspaceStore } from '../stores'
 
 const NAV = [
-  { to: '/workspace', label: 'Espace', icon: 'workspaces' },
-  { to: '/library', label: 'Bibliotheque', icon: 'inventory_2' },
-  { to: '/templates', label: 'Modeles', icon: 'style' },
-  { to: '/analytics', label: 'Analyses', icon: 'insights' },
-  { to: '/collaboration', label: 'Collaboration', icon: 'groups' },
+  { to: '/workspace', label: 'Tableau de bord', icon: 'dashboard' },
+  { to: '/library', label: 'Bibliotheque', icon: 'library_books' },
+  { to: '/templates', label: 'Modeles', icon: 'description' },
+  { to: '/agents', label: 'Agents IA', icon: 'smart_toy' },
+  { to: '/analytics', label: 'Analytique', icon: 'monitoring' },
+  { to: '/collaboration', label: 'Collaboration', icon: 'group' },
   { to: '/infrastructure', label: 'Infrastructure', icon: 'dns' },
-  { to: '/sharing', label: 'Partage', icon: 'settings' },
+  { to: '/history', label: 'Historique', icon: 'history' },
+  { to: '/sharing', label: 'Partage', icon: 'share' },
 ]
 
 export default function Sidebar() {
+  const navigate = useNavigate()
+  const createProject = useCreateProject()
+  const generateDoc = useGenerateDocument()
+  const setActiveView = useWorkspaceStore((s) => s.setActiveView)
+
+  async function handleNewDocument() {
+    try {
+      // Create project and redirect to onboarding wizard
+      const project = await createProject.mutateAsync({ name: 'Nouveau projet' })
+      navigate({ to: '/onboarding/$id', params: { id: project.id } })
+    } catch {
+      /* handled by mutation states */
+    }
+  }
+
   return (
     <aside className="fixed left-0 top-0 h-screen w-sidebar-width bg-surface border-r border-outline-variant flex flex-col py-gutter px-4 z-50">
       <div className="mb-8 flex items-center gap-3">
@@ -25,12 +44,14 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <Link to="/workspace" className="mb-8 w-full">
-        <Button className="w-full bg-ai-vibrant text-white hover:bg-secondary transition-colors active:scale-95 flex items-center justify-center gap-2">
-          <Icon name="add" />
-          Nouveau document
-        </Button>
-      </Link>
+      <Button
+        onClick={handleNewDocument}
+        disabled={createProject.isPending || generateDoc.isPending}
+        className="mb-8 w-full bg-ai-vibrant text-white hover:bg-secondary transition-colors active:scale-95 flex items-center justify-center gap-2"
+      >
+        <Icon name="add" />
+        Nouveau document
+      </Button>
 
       <nav className="flex-1 space-y-1">
         {NAV.map((item) => (
@@ -49,16 +70,13 @@ export default function Sidebar() {
       <div className="pt-6 border-t border-outline-variant space-y-1">
         <Link
           to="/settings"
+          activeOptions={{ exact: true }}
           className="flex items-center gap-3 py-2 pl-2 transition-colors text-on-surface-variant hover:bg-surface-container-high"
           activeProps={{ className: 'text-ai-vibrant font-bold border-l-2 border-ai-vibrant' }}
         >
           <Icon name="settings" />
           <span className="font-body-md">Parametres</span>
         </Link>
-        <a className="flex items-center gap-3 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors pl-2" href="#">
-          <Icon name="help_outline" />
-          <span className="font-body-md">Assistance</span>
-        </a>
       </div>
     </aside>
   )

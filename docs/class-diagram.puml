@@ -1,0 +1,775 @@
+@startuml Repora Full Class Diagram
+' ================================================================
+' Repora — Diagramme de Classes Complet
+' Base: Report (Cahier des Charges) + DB Schema (Drizzle/PostgreSQL)
+'       + Architecture Hermes (Vercel AI SDK v7)
+' ================================================================
+
+skinparam classAttributeIconSize 0
+skinparam groupInheritance 2
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+' ──── PACKAGE: Domain Entities (PostgreSQL / Drizzle ORM) ────
+package "Domain Entities" #F8FAFC {
+
+  abstract class User {
+    + id: UUID
+    + name: string
+    + email: string
+    + passwordHash: string
+    + role: string (redacteur|validateur|admin|super_admin)
+    + createdAt: DateTime
+    --
+    + isAdmin(): bool
+    + isSuperAdmin(): bool
+  }
+
+  class Redacteur extends User {
+    + projects: Project[]
+    + createProject(name, brief): Project
+    + generateDocument(projectId, template?): Document
+    + submitForValidation(documentId): Validation
+  }
+
+  class Validateur extends User {
+    + validations: Validation[]
+    + validateDocument(token, decision, reasons?): Validation
+    + addComment(sectionId, text): Comment
+  }
+
+  class Administrateur extends User {
+    + configureAgent(agentName, config): AgentConfig
+    + manageProviderKeys(): ApiKey[]
+    + adjustModelParams(agent, temperature, topP, maxTokens): void
+  }
+
+  class SuperAdmin extends User {
+    + manageUsers(): User[]
+    + configureApiProvider(userId, provider, key): ApiKey
+    + viewSystemLogs(filters): AuditLog[]
+    + backupDatabase(): void
+  }
+
+  class Project {
+    + id: UUID
+    + ownerId: UUID
+    + name: string
+    + brief: string?
+    + status: string (draft|active|completed|archived)
+    + createdAt: DateTime
+    + updatedAt: DateTime
+    --
+    + getDocuments(): Document[]
+    + getRequirements(): Requirement[]
+    + getDiagrams(): Diagram[]
+  }
+
+  class Requirement {
+    + id: UUID
+    + projectId: UUID
+    + type: string (functional|non_functional)
+    + text: string
+    + sourceActor: string?
+    + createdAt: DateTime
+    --
+    + isFunctional(): bool
+    + isNonFunctional(): bool
+  }
+
+  class Template {
+    + id: UUID
+    + name: string
+    + category: string
+    + description: string?
+    + sections: JSON (string[])
+    + createdAt: DateTime
+    --
+    + getSectionTitles(): string[]
+    + applyToProject(projectId): Document
+  }
+
+  class Document {
+    + id: UUID
+    + projectId: UUID
+    + status: string (draft|in_review|validated|rejected)
+    + outline: JSON?
+    + createdAt: DateTime
+    + updatedAt: DateTime
+    --
+    + getSections(): Section[]
+    + getValidation(): Validation | null
+    + export(format: 'pdf'|'docx|'md'): Buffer
+  }
+
+  class Section {
+    + id: UUID
+    + documentId: UUID
+    + order: int
+    + title: string
+    + content: string
+    + status: string (draft|written|reviewed|approved)
+    + generatedByAgent: string?
+    + modelUsed: string?
+    + createdAt: DateTime
+    + updatedAt: DateTime
+    --
+    + getComments(): Comment[]
+    + isComplete(): bool
+  }
+
+  class Diagram {
+    + id: UUID
+    + projectId: UUID
+    + type: string (use_case|sequence|activity|class|deployment)
+    + plantumlSource: string?
+    + renderedUrl: string?
+    + createdAt: DateTime
+    --
+    + render(): string
+    + export(format: 'png'|'pdf'|'svg'): Buffer
+    + toDocxBlock(): DocxBlock
+  }
+
+  class Comment {
+    + id: UUID
+    + sectionId: UUID
+    + authorId: UUID
+    + text: string
+    + resolved: bool
+    + createdAt: DateTime
+    --
+    + resolve(): void
+  }
+
+  class Validation {
+    + id: UUID
+    + documentId: UUID
+    + validatorToken: string
+    + decision: string? (validated|rejected)
+    + sectionReasons: JSON?
+    + decidedAt: DateTime?
+    + createdAt: DateTime
+    --
+    + isValidated(): bool
+    + isRejected(): bool
+    + isExpired(): bool
+  }
+
+  class AgentConfig {
+    + id: UUID
+    + agentName: string
+    + provider: string (llama_cpp|byok)
+    + modelId: string?
+    + temperature: float
+    + topP: float
+    + maxTokens: int
+    + enabled: bool
+    + metadata: JSON?
+    + updatedAt: DateTime
+    --
+    + getProviderConfig(): ProviderConfig
+  }
+
+  class ApiKey {
+    + id: UUID
+    + userId: UUID
+    + provider: string
+    + encryptedKey: string
+    + createdAt: DateTime
+    --
+    + decrypt(): string
+  }
+
+  class AuditLog {
+    + id: UUID
+    + userId: UUID?
+    + action: string
+    + target: string?
+    + metadata: JSON?
+    + timestamp: DateTime
+    --
+    + toEntry(): string
+  }
+
+}
+
+
+' ──── PACKAGE: Services (Business Logic Layer) ────
+package "Services" #FFF8E1 {
+
+  class AuthService {
+    + login(email, password): { token: string, user: User }
+    + logout(token): void
+    + register(name, email, password, role): User
+    + verifyToken(token): User
+    + refreshToken(token): string
+  }
+
+  class UserService {
+    + getById(id): User
+    + listAll(filters): User[]
+    + create(data): User
+    + update(id, data): User
+    + delete(id): void
+    + listByRole(role): User[]
+  }
+
+  class ProjectService {
+    + create(ownerId, name, brief?, template?): Project
+    + getById(id): Project
+    + listByOwner(ownerId, filters): Project[]
+    + update(id, data): Project
+    + delete(id): void
+    + updateStatus(id, status): Project
+  }
+
+  class RequirementService {
+    + create(projectId, type, text, sourceActor?): Requirement
+    + listByProject(projectId, filters?): Requirement[]
+    + update(id, data): Requirement
+    + delete(id): void
+    + importBatch(projectId, requirements): Requirement[]
+  }
+
+  class DocumentService {
+    + create(projectId, templateId?): Document
+    + getById(id): Document
+    + listByProject(projectId): Document[]
+    + updateStatus(id, status): Document
+    + saveOutline(id, outline): void
+    + getFullContent(id): string
+  }
+
+  class SectionService {
+    + create(documentId, order, title): Section
+    + getByDocument(documentId): Section[]
+    + updateContent(id, content, agent?, model?): Section
+    + updateStatus(id, status): Section
+    + reorder(documentId, orders): void
+  }
+
+  class DiagramService {
+    + create(projectId, type, plantumlSource): Diagram
+    + getById(id): Diagram
+    + listByProject(projectId): Diagram[]
+    + render(id): string
+    + export(id, format): Buffer
+    + delete(id): void
+  }
+
+  class CommentService {
+    + create(sectionId, authorId, text): Comment
+    + listBySection(sectionId): Comment[]
+    + resolve(id): void
+    + delete(id): void
+  }
+
+  class ExportService {
+    + toPDF(documentId): Buffer
+    + toDOCX(documentId): Buffer
+    + toMarkdown(documentId): Buffer
+    + toZip(documentId, formats[]): Buffer
+  }
+
+  class ValidationService {
+    + create(documentId): Validation
+    + getByToken(token): Validation
+    + decide(token, decision, reasons?): Validation
+    + notifyValidator(token): void
+    + notifyRedacteur(validationId, decision): void
+  }
+
+  class OutlineService {
+    + generateFromPrompt(prompt, templateId?): Outline
+    + parseAIResponse(response): Outline
+    + mergeWithTemplate(outline, template): Outline
+    + validateStructure(outline): bool
+  }
+
+  class TemplateService {
+    + getById(id): Template
+    + listAll(category?): Template[]
+    + create(name, category, description, sections): Template
+    + update(id, data): Template
+    + delete(id): void
+  }
+
+  class AuditService {
+    + log(userId, action, target?, metadata?): void
+    + query(filters, limit?, offset?): AuditLog[]
+    + getMetrics(range): Metrics
+  }
+
+  class CollaborationService {
+    + joinDocument(documentId, userId): void
+    + leaveDocument(documentId, userId): void
+    + getPresence(documentId): Collaborator[]
+    + broadcastChange(documentId, update): void
+    + getActiveUsers(projectId): string[]
+  }
+
+}
+
+
+' ──── PACKAGE: AI — Hermes Orchestrator ────
+package "AI (Hermes Orchestration)" #F3E5F5 {
+
+  class HermesOrchestrator {
+    - registry: AgentRegistry
+    - context: GenerationContext
+    - activeGenerations: Map<string, AsyncGenerator>
+    --
+    + orchestrateGeneration(documentId, projectId, prompt, templateId?): AsyncGenerator<HermesEvent>
+    + cancelGeneration(documentId): void
+    + getStatus(documentId): GenerationStatus
+    - runPipeline(ctx, sections): AsyncGenerator<HermesEvent>
+  }
+
+  class GenerationContext {
+    + documentId: UUID
+    + projectId: UUID
+    + prompt: string
+    + chapter: string?
+    + sectionId: UUID?
+    + chapterMetadata: Record<string, unknown>?
+    + parentSectionId: UUID?
+    --
+    + clone(overrides): GenerationContext
+    + toJSON(): object
+  }
+
+  abstract class BaseAgent {
+    + name: string
+    + description: string
+    + systemPrompt: string
+    + tools: ToolSet
+    + modelConfig: AgentConfig
+    --
+    + runAgent(prompt, context, abortSignal?): AsyncGenerator<HermesEvent>
+    - modelSupportsTools(modelId): bool
+    - handleStreamError(error): void
+  }
+
+  class PlannerAgent extends BaseAgent {
+    + proposeOutline(prompt, template?): Outline
+    + getProjectBrief(): Project
+    + saveOutline(documentId, outline): void
+    --
+    tools: getProjectBrief, proposeOutline, saveOutline
+  }
+
+  class WriterAgent extends BaseAgent {
+    + writeSection(sectionId, content): void
+    + getSectionContext(sectionId): SectionContext
+    + setSectionStatus(sectionId, status): void
+    --
+    tools: getSectionContext, getSimilarSections, writeSection, setSectionStatus
+  }
+
+  class UMLAgent extends BaseAgent {
+    + generatePlantUML(type, requirements): string
+    + renderDiagram(source): string
+    + saveDiagram(projectId, type, source, url): Diagram
+    --
+    tools: getRequirements, generatePlantUML, renderDiagram, saveDiagram
+  }
+
+  class TablesAgent extends BaseAgent {
+    + getRequirements(projectId): Requirement[]
+    + buildTable(type, data): JSON
+    + saveTable(documentId, table): Section
+    --
+    tools: getRequirements, buildTable, saveTable
+  }
+
+  class ReviewerAgent extends BaseAgent {
+    + getFullDocument(documentId): Document
+    + flagIssue(sectionId, issue): void
+    + suggestFix(sectionId, fix): void
+    + approveSection(sectionId): void
+    + updateDocumentStatus(documentId, status): void
+    --
+    tools: getFullDocument, flagIssue, suggestFix, approveSection, updateDocumentStatus
+  }
+
+  class AgentRegistry {
+    - agents: Map<string, BaseAgent>
+    --
+    + getAgent(name): BaseAgent
+    + listAgents(): Agent[]
+    + registerAgent(agent): void
+    + getAgentTool(name, toolName): Tool
+  }
+
+  enum HermesEventType {
+    agent_status
+    token
+    tool_call
+    tool_result
+    section_complete
+    error
+    done
+  }
+
+  class HermesEvent {
+    + type: HermesEventType
+    + agent: string?
+    + token: string?
+    + tool: string?
+    + args: JSON?
+    + result: JSON?
+    + message: string?
+    + timestamp: DateTime
+    --
+    + toSSE(): string
+  }
+
+  class Outline {
+    + title: string
+    + chapters: Chapter[]
+    --
+    + flatten(): Section[]
+    + toJSON(): object
+  }
+
+  class Chapter {
+    + title: string
+    + sections: SectionMeta[]
+  }
+
+  class SectionMeta {
+    + title: string
+    + order: int
+  }
+
+}
+
+
+' ──── PACKAGE: Providers (LLM Abstraction) ────
+package "Providers (LLM Abstraction)" #E8F5E9 {
+
+  interface ModelProvider {
+    + streamChat(messages, tools, config): AsyncIterable<StreamPart>
+    + supportsTools(): bool
+    + getModelInfo(): ModelInfo
+  }
+
+  class LlamaCppProvider implements ModelProvider {
+    - baseUrl: string
+    - modelId: string
+    --
+    + streamChat(messages, tools, config): AsyncIterable<StreamPart>
+    + supportsTools(): bool
+    + getModelInfo(): ModelInfo
+  }
+
+  class BYOKProvider implements ModelProvider {
+    - baseUrl: string
+    - apiKey: string (encrypted)
+    - providerType: string
+    --
+    + streamChat(messages, tools, config): AsyncIterable<StreamPart>
+    + supportsTools(): bool
+    + getModelInfo(): ModelInfo
+  }
+
+  class ProviderFactory {
+    + createProvider(provider, modelId, apiKey?): ModelProvider
+    + getLanguageModel(provider, modelId, apiKey?): LanguageModelV2
+    + modelSupportsTools(modelId): bool
+  }
+
+  class ProviderConfig {
+    + provider: string
+    + modelId: string
+    + apiKey?: string
+    + baseURL?: string
+    --
+    + validate(): bool
+  }
+
+}
+
+
+' ──── PACKAGE: Routes / Controllers ────
+package "API Routes (Express)" #E3F2FD {
+
+  class AuthRoutes {
+    + POST /auth/login
+    + POST /auth/logout
+    + POST /auth/signup
+    + GET /auth/me
+  }
+
+  class ProjectRoutes {
+    + GET /projects
+    + POST /projects
+    + GET /projects/:id
+    + PATCH /projects/:id
+    + DELETE /projects/:id
+  }
+
+  class DocumentRoutes {
+    + POST /projects/:id/generate
+    + GET /documents/:id
+    + GET /documents/:id/stream (SSE)
+    + PATCH /documents/:id
+  }
+
+  class DiagramRoutes {
+    + POST /projects/:id/diagrams
+    + GET /diagrams/:id
+    + POST /diagrams/:id/export
+    + DELETE /diagrams/:id
+  }
+
+  class ValidationRoutes {
+    + GET /validate/:token (public)
+    + POST /validate/:token/decision
+  }
+
+  class ExportRoutes {
+    + GET /documents/:id/export (query: format)
+  }
+
+  class AdminRoutes {
+    + GET /admin/agents
+    + PATCH /admin/agents/:agent
+    + GET /admin/users
+    + POST /admin/users
+    + PATCH /admin/users/:id
+    + DELETE /admin/users/:id
+  }
+
+  class InfrastructureRoutes {
+    + GET /admin/api-keys
+    + POST /admin/api-keys
+    + DELETE /admin/api-keys/:id
+    + GET /admin/metrics
+    + GET /admin/logs
+  }
+
+  class TemplateRoutes {
+    + GET /templates
+    + GET /templates/:id
+    + POST /templates
+    + PATCH /templates/:id
+    + DELETE /templates/:id
+  }
+
+  class CommentRoutes {
+    + GET /sections/:id/comments
+    + POST /sections/:id/comments
+    + PATCH /comments/:id/resolve
+    + DELETE /comments/:id
+  }
+
+  class ShareRoutes {
+    + GET /share/:token
+    + POST /documents/:id/share
+  }
+
+  class AuthMiddleware {
+    + authenticate(req, res, next)
+    + authorize(roles[])
+    + optionalAuth(req, res, next)
+  }
+
+}
+
+
+' ──── PACKAGE: Frontend (React PWA) ────
+package "Frontend (React PWA)" #FCE4EC {
+
+  abstract class Page {
+    + route: string
+    + layout: 'shell' | 'public' | 'minimal'
+    --
+    + render(): JSX.Element
+  }
+
+  class WorkspaceDashboard extends Page {
+    + projects: Project[]
+    + recentActivity: AuditLog[]
+    + agentStatus: Map<string, Status>
+    --
+    route: /workspace
+  }
+
+  class Editor extends Page {
+    + document: Document
+    + sections: Section[]
+    + activeAgent: string
+    + generationProgress: Progress
+    --
+    route: /editor
+  }
+
+  class DocumentLibrary extends Page {
+    + documents: Document[]
+    + filters: FilterState
+    + search: string
+    --
+    route: /library
+  }
+
+  class TemplateGallery extends Page {
+    + templates: Template[]
+    + selectedCategory: string
+    --
+    route: /templates
+  }
+
+  class AgentWorkshop extends Page {
+    + agents: AgentConfig[]
+    + liveStatus: Map<string, Status>
+    --
+    route: /agents
+  }
+
+  class ValidatePortal extends Page {
+    + validation: Validation
+    + document: Document
+    + sections: Section[]
+    + comments: Comment[]
+    --
+    route: /validate/$token
+  }
+
+  class ExportPreview extends Page {
+    + document: Document
+    + format: 'pdf' | 'docx' | 'md'
+    --
+    route: /export
+  }
+
+  class Infrastructure extends Page {
+    + agents: AgentConfig[]
+    + apiKeys: ApiKey[]
+    + providers: string[]
+    --
+    route: /infrastructure
+  }
+
+  class Settings extends Page {
+    + user: User
+    + preferences: Settings
+    --
+    route: /settings
+  }
+
+  class Sidebar {
+    + documents: Document[]
+    + activeDocument: UUID
+    + collapsed: bool
+    --
+    width: 280px
+  }
+
+  class TopBar {
+    + user: User
+    + projectName: string
+    + notifications: Notification[]
+  }
+
+  class AgentStatusChip {
+    + agentName: string
+    + status: 'idle' | 'thinking' | 'writing' | 'error'
+    + progress: float
+    --
+    + renderDot(): JSX.Element
+  }
+
+  class GenerationProgress {
+    + stages: Stage[]
+    + currentStage: int
+    + tokensGenerated: int
+    --
+    + renderWaveBar(stage, progress): JSX.Element
+  }
+
+}
+
+
+' ──── RELATIONSHIPS: Domain ────
+User "1" -- "N" Project : owns >
+Project "1" -- "N" Requirement : contains >
+Project "1" -- "N" Document : has >
+Project "1" -- "N" Diagram : has >
+Document "1" -- "N" Section : composed_of >
+Section "1" -- "N" Comment : receives >
+Document "1" -- "0..1" Validation : validated_by >
+User "1" -- "N" Comment : authors >
+User "1" -- "N" ApiKey : owns >
+User "1" -- "N" AuditLog : generates >
+Project "N" .. "N" Template : applies >
+AgentConfig .. AgentConfig : configured_per >
+
+
+' ──── RELATIONSHIPS: Services ────
+ProjectService ..> Project : manages >
+DocumentService ..> Document : manages >
+SectionService ..> Section : manages >
+DiagramService ..> Diagram : manages >
+RequirementService ..> Requirement : manages >
+CommentService ..> Comment : manages >
+ValidationService ..> Validation : manages >
+TemplateService ..> Template : manages >
+AuthService ..> User : authenticates >
+UserService ..> User : manages >
+AuditService ..> AuditLog : writes >
+CollaborationService ..> Document : manages_presence >
+ExportService ..> Document : exports >
+OutlineService ..> Document : generates >
+
+' ──── RELATIONSHIPS: AI ────
+HermesOrchestrator "1" -- "1" AgentRegistry : uses >
+AgentRegistry "1" -- "N" BaseAgent : registers >
+HermesOrchestrator "1" -- "1" GenerationContext : holds >
+HermesOrchestrator ..> HermesEvent : yields >
+BaseAgent ..> ModelProvider : calls >
+BaseAgent ..> GenerationContext : reads >
+BaseAgent ..> HermesEvent : yields >
+PlannerAgent ..> Outline : produces >
+Outline "1" -- "N" Chapter : contains >
+Chapter "1" -- "N" SectionMeta : contains >
+WriterAgent ..> Section : writes >
+UMLAgent ..> Diagram : creates >
+TablesAgent ..> Section : creates_table >
+ReviewerAgent ..> Section : reviews >
+ReviewerAgent ..> Comment : flags >
+
+' ──── RELATIONSHIPS: Providers ────
+ProviderFactory ..> ModelProvider : creates >
+ProviderFactory ..> AgentConfig : reads >
+AgentConfig "1" -- "N" ApiKey : references >
+LlamaCppProvider ..> ProviderConfig : configured_by >
+BYOKProvider ..> ProviderConfig : configured_by >
+BYOKProvider ..> ApiKey : decrypts >
+
+' ──── RELATIONSHIPS: Routes ────
+AuthRoutes ..> AuthService : delegates >
+ProjectRoutes ..> ProjectService : delegates >
+DocumentRoutes ..> HermesOrchestrator : dispatches >
+DocumentRoutes ..> DocumentService : delegates >
+DiagramRoutes ..> DiagramService : delegates >
+ValidationRoutes ..> ValidationService : delegates >
+ExportRoutes ..> ExportService : delegates >
+AdminRoutes ..> UserService : delegates >
+AdminRoutes ..> AgentConfig : manages >
+InfrastructureRoutes ..> ApiKey : manages >
+TemplateRoutes ..> TemplateService : delegates >
+CommentRoutes ..> CommentService : delegates >
+AuthMiddleware ..> AuthService : verifies >
+
+' ──── RELATIONSHIPS: Frontend ────
+Page ..> Document : renders >
+Editor ..> HermesOrchestrator : listens_SSE >
+AgentWorkshop ..> AgentConfig : displays >
+AgentWorkshop ..> AgentStatusChip : contains >
+Editor ..> GenerationProgress : contains >
+Sidebar ..> Section : navigates >
+ValidatePortal ..> Validation : displays >
+
+@enduml

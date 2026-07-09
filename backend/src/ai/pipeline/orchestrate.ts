@@ -4,6 +4,9 @@ import type { OutlineJson } from '../../services/outline.service'
 import { createSectionsFromOutline, generateStaticOutline, mergeTemplateWithOutline } from '../../services/outline.service'
 import { getTemplateForGeneration } from '../../services/template.service'
 import { evaluateWriterOutput, rescopeHandoff, adjustContext } from './negotiate'
+import { db } from '../../db'
+import { requirements } from '../../db/schema'
+import { eq } from 'drizzle-orm'
 
 // JSON extraction helpers (moved from hermes.ts — needed by the Planner stage)
 function extractJson(text: string): Record<string, unknown> | null {
@@ -95,10 +98,32 @@ export async function orchestrateGeneration(
       let outlineJson: OutlineJson | null = null
       let collectedText = ''
 
-      // Build planner prompt (template seeding)
-      let plannerPrompt = `Analyze the following project brief and produce a structured document outline as a JSON object:\n\n"${prompt}"`
+      // Pre-fetch requirements from DB and inject into Planner prompt
+      const reqs = await db
+        .select({ type: requirements.type, text: requirements.text, sourceActor: requirements.sourceActor })
+        .from(requirements)
+        .where(eq(requirements.projectId, projectId))
 
-      // Inject template structure into Planner prompt
+      const funcReqs = reqs.filter(r => r.type === 'functional')
+      const nonFuncReqs = reqs.filter(r => r.type === 'non_functional')
+
+      let reqsText = ''
+      if (funcReqs.length > 0) {
+        reqsText += '\n\nExigences Fonctionnelles du projet :\n'
+        funcReqs.forEach((r, i) => { reqsText += `  ${i + 1}. ${r.text}${r.sourceActor ? ` (Acteur: ${r.sourceActor})` : ''}\n` })
+      }
+      if (nonFuncReqs.length > 0) {
+        reqsText += '\nExigences Non-Fonctionnelles du projet :\n'
+        nonFuncReqs.forEach((r, i) => { reqsText += `  ${i + 1}. ${r.text}\n` })
+      }
+
+      // Build planner prompt (with requirements + template seeding)
+      let plannerPrompt = `Analyze the following project brief and produce a structured document outline as a JSON object:\n\n"${prompt}"${reqsText}`
+
+      if (funcReqs.length > 0 || nonFuncReqs.length > 0) {
+        plannerPrompt += '\n\nIMPORTANT: The outline MUST include chapters and sections that directly address the requirements listed above. Do NOT produce a generic outline — each functional requirement should map to a specific section.'
+      }
+
       if (templateOutline) {
         const chapterTitles = templateOutline.chapters.map(c => `- ${c.title}`).join('\n')
         plannerPrompt += `\n\nUtilise la structure suivante comme base pour le plan du document :\n${chapterTitles}`
@@ -177,7 +202,13 @@ export async function orchestrateGeneration(
             section_title: section.title,
           }
 
-          const sectionPrompt = `Write the section titled "${section.title}" (sectionId: "${section.id}") for document ${documentId}. Call the writeSection tool with sectionId="${section.id}" and your prose content. This is part of a professional specification document ("cahier des charges"). Write clear, detailed, professional prose in French.`
+          const sectionPrompt = `Write the section titled "${section.title}" (sectionId: "${section.id}") for document ${documentId}.
+
+First call getProjectContext(projectId: "${projectId}") to understand the project context and requirements relevant to this section.
+
+Then call writeSection with sectionId="${section.id}" and your prose content.
+
+This is part of a professional specification document ("cahier des charges"). Write clear, detailed, specific prose in French. Reference the actual requirements when writing — not generic placeholder text. Be technical and precise.`
 
           // Track rescope attempts for this section
           let rescopeCount = ctx.rescopeCount.get(section.id) || 0

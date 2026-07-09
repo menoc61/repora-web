@@ -24,6 +24,8 @@ import Sharing from './pages/Sharing'
 import VersionHistory from './pages/VersionHistory'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
+import ValidatePortal from './pages/ValidatePortal'
+import OnboardingWizard from './pages/OnboardingWizard'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +38,7 @@ export const queryClient = new QueryClient({
 })
 
 const PUBLIC_PATHS = new Set(['/login', '/signup'])
+const PUBLIC_PREFIXES = ['/validate/']
 
 function requireAuth() {
   if (!useAuthStore.getState().isAuthenticated) {
@@ -43,9 +46,14 @@ function requireAuth() {
   }
 }
 
+function isPublicPath(pathname: string) {
+  if (PUBLIC_PATHS.has(pathname)) return true
+  return PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))
+}
+
 function RootLayout() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const isPublic = PUBLIC_PATHS.has(pathname)
+  const isPublic = isPublicPath(pathname)
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-surface-studio text-on-surface">
@@ -62,7 +70,7 @@ const rootRoute = createRootRoute({
   component: RootLayout,
 })
 
-// Public routes — no auth guard, no sidebar (handled via layout check in component)
+// Public routes — no auth guard, no sidebar
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/login',
@@ -72,6 +80,12 @@ const signupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/signup',
   component: SignupPage,
+})
+
+const validatePortalRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/validate/$token',
+  component: ValidatePortal,
 })
 
 // Protected routes — require auth
@@ -95,6 +109,15 @@ const exportRoute = createRoute({
   }),
 })
 
+const searchParamsValidator = (search: Record<string, unknown>) => ({
+  id: typeof search.id === 'string' ? search.id : undefined,
+  department: typeof search.department === 'string' ? search.department : undefined,
+  search: typeof search.search === 'string' ? search.search : undefined,
+  agent: typeof search.agent === 'string' ? search.agent : undefined,
+  status: typeof search.status === 'string' ? search.status : undefined,
+  owner: typeof search.owner === 'string' ? search.owner : undefined,
+})
+
 const protectedRoutes = [
   { path: '/', component: WorkspaceDashboard },
   { path: '/workspace', component: WorkspaceDashboard },
@@ -106,20 +129,40 @@ const protectedRoutes = [
   { path: '/settings', component: Settings },
   { path: '/infrastructure', component: Infrastructure },
   { path: '/sharing', component: Sharing },
-  { path: '/history', component: VersionHistory },
-]
+];
+
+const historyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/history',
+  component: VersionHistory,
+  beforeLoad: () => requireAuth(),
+  validateSearch: (search: Record<string, unknown>) => ({
+    id: typeof search.id === 'string' ? search.id : undefined,
+  }),
+})
+
+const onboardingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/onboarding/$id',
+  component: OnboardingWizard,
+  beforeLoad: () => requireAuth(),
+})
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
+  validatePortalRoute,
   editorRoute,
   exportRoute,
+  historyRoute,
+  onboardingRoute,
   ...protectedRoutes.map((r) =>
     createRoute({
       getParentRoute: () => rootRoute,
       path: r.path,
       component: r.component,
       beforeLoad: () => requireAuth(),
+      validateSearch: searchParamsValidator,
     }),
   ),
 ])

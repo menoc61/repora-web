@@ -22,14 +22,27 @@ export const getProjectContext = tool({
   }),
   execute: async ({ projectId }) => {
     const { db } = await import('../../db')
-    const { projects } = await import('../../db/schema')
+    const { projects, requirements } = await import('../../db/schema')
     const { eq } = await import('drizzle-orm')
     const [project] = await db
-      .select({ brief: projects.brief })
+      .select({ brief: projects.brief, name: projects.name })
       .from(projects)
       .where(eq(projects.id, projectId))
       .limit(1)
-    return { brief: project?.brief || 'No brief found', requirements: [] }
+    const reqs = await db
+      .select({ id: requirements.id, type: requirements.type, text: requirements.text, sourceActor: requirements.sourceActor })
+      .from(requirements)
+      .where(eq(requirements.projectId, projectId))
+    return {
+      brief: project?.brief || 'Aucun brief',
+      name: project?.name || 'Projet inconnu',
+      requirements: reqs.map(r => ({
+        id: r.id,
+        type: r.type,
+        text: r.text,
+        sourceActor: r.sourceActor,
+      })),
+    }
   },
 })
 

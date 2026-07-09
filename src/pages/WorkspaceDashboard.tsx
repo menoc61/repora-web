@@ -6,7 +6,7 @@ import StatusBadge from '../components/StatusBadge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { Input } from '../components/ui/input'
-import { useDocuments, useAnalytics, useCreateProject, useGenerateDocument, useAgents, useActivity } from '../hooks/useQueries'
+import { useDocuments, useAnalytics, useCreateProject, useAgents, useActivity } from '../hooks/useQueries'
 import { useWorkspaceStore } from '../stores'
 import type { HermesGenerationError } from '../hooks/useQueries'
 
@@ -86,12 +86,11 @@ export default function WorkspaceDashboard() {
   const { data: activity = [], isLoading: activityLoading } = useActivity()
   const setActiveView = useWorkspaceStore((s) => s.setActiveView)
   const createProject = useCreateProject()
-  const generateDoc = useGenerateDocument()
   const [prompt, setPrompt] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   const activityItems: UIActivityItem[] = Array.isArray(activity) ? activity.map(mapActivityItem) : []
-  const isCreatingNew = createProject.isPending || generateDoc.isPending
+  const isCreatingNew = createProject.isPending
 
   // Check if a document is likely being generated (draft + updated in last 5 min)
   function isDocumentGenerating(doc: typeof documents[number]): boolean {
@@ -109,9 +108,7 @@ export default function WorkspaceDashboard() {
     if (!prompt.trim()) return
     try {
       const project = await createProject.mutateAsync({ name: prompt.slice(0, 80), brief: prompt })
-      const result = await generateDoc.mutateAsync({ projectId: project.id, prompt })
-      setActiveView('editor')
-      navigate({ to: '/editor', search: { id: result.document_id } })
+      navigate({ to: '/onboarding/$id', params: { id: project.id } })
     } catch {
       /* affiche via les etats pending/error */
     }
@@ -120,9 +117,7 @@ export default function WorkspaceDashboard() {
   async function handleNewDocument() {
     try {
       const project = await createProject.mutateAsync({ name: 'Nouveau document', brief: '' })
-      const result = await generateDoc.mutateAsync({ projectId: project.id })
-      setActiveView('editor')
-      navigate({ to: '/editor', search: { id: result.document_id } })
+      navigate({ to: '/onboarding/$id', params: { id: project.id } })
     } catch {
       /* affiche via les etats pending/error */
     }
@@ -156,10 +151,10 @@ export default function WorkspaceDashboard() {
               />
               <Button
                 onClick={handleGenerate}
-                disabled={createProject.isPending || generateDoc.isPending || !prompt.trim()}
+                disabled={createProject.isPending || !prompt.trim()}
                 className="absolute right-2 bg-ai-vibrant hover:bg-secondary text-white px-6 py-2 rounded-md font-bold flex items-center gap-2 transition-all"
               >
-                {createProject.isPending || generateDoc.isPending ? 'Generation...' : 'Generer'}
+                {createProject.isPending ? 'Creation...' : 'Generer'}
                 <Icon name="bolt" className="text-[18px]" />
               </Button>
             </div>

@@ -277,7 +277,7 @@ export function useGenerateDocument() {
 export function useAddRequirement() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ projectId, ...payload }: { projectId: string; type: string; text: string; source_actor?: string }) =>
+    mutationFn: async ({ projectId, ...payload }: { projectId: string; type: string; text: string; sourceActor?: string }) =>
       api.post<BackendRequirement>(`/projects/${projectId}/requirements`, payload),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['requirements', variables.projectId] })
@@ -401,7 +401,8 @@ export function useDocumentStream(docId: string | undefined) {
 export function useUpsertDocument() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (doc: Document) => doc,
+    mutationFn: async ({ id, ...data }: { id: string; [key: string]: unknown }) =>
+      api.patch<{ ok: boolean }>(`/documents/${id}`, data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
   })
 }
@@ -440,8 +441,8 @@ export function useAcceptChanges() {
 export function useApplyPatch() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...payload }: { id: string; [key: string]: unknown }) =>
-      api.patch<{ ok: boolean }>(`/documents/${id}/patch`, payload),
+    mutationFn: async ({ id, sectionId, content }: { id: string; sectionId: string; content: string }) =>
+      api.patch<{ ok: boolean }>(`/documents/${id}/patch`, { sectionId, content }),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['document', variables.id] })
     },
@@ -451,7 +452,7 @@ export function useApplyPatch() {
 export function useAddComment() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ documentId, ...payload }: { documentId: string; text: string; section_id?: string }) =>
+    mutationFn: async ({ documentId, ...payload }: { documentId: string; text: string; sectionId?: string }) =>
       api.post<BackendComment>(`/documents/${documentId}/comments`, payload),
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: ['comments', variables.documentId] })

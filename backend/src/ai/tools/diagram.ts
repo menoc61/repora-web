@@ -9,13 +9,31 @@
 
 import { tool } from 'ai'
 import { z } from 'zod'
+import { deflateSync } from 'zlib'
 
-/**
- * Persist a PlantUML diagram for the current project.
- *
- * The UML agent calls this after generating PlantUML source code.
- * The diagram type must be one of the supported UML categories.
- */
+function encodePlantUML(source: string): string {
+  let cleaned = source
+    .replace(/@startuml\s*\n?/g, '')
+    .replace(/@enduml\s*\n?/g, '')
+  const deflated = deflateSync(Buffer.from(cleaned, 'utf-8'))
+  return encode64(deflated)
+}
+
+function encode64(data: Buffer): string {
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_'
+  let result = ''
+  for (let i = 0; i < data.length; i += 3) {
+    const b1 = data[i]
+    const b2 = data[i + 1] ?? 0
+    const b3 = data[i + 2] ?? 0
+    result += chars[b1 >> 2]
+    result += chars[((b1 & 3) << 4) | (b2 >> 4)]
+    result += i + 1 < data.length ? chars[((b2 & 15) << 2) | (b3 >> 6)] : ''
+    result += i + 2 < data.length ? chars[b3 & 63] : ''
+  }
+  return result
+}
+
 export const saveDiagram = tool({
   description: 'Save a PlantUML diagram source for the project. The type must be one of: use_case, sequence, activity, class, deployment.',
   inputSchema: z.object({
@@ -30,15 +48,17 @@ export const saveDiagram = tool({
   execute: async ({ projectId, type, plantumlSource }) => {
     const { db } = await import('../../db')
     const { diagrams: diagramsTable } = await import('../../db/schema')
+    const encoded = encodePlantUML(plantumlSource)
+    const renderedUrl = `https://www.plantuml.com/plantuml/svg/${encoded}`
     const [diagram] = await db
       .insert(diagramsTable)
       .values({
         projectId,
         type,
         plantumlSource,
-        renderedUrl: '',
+        renderedUrl,
       })
       .returning()
-    return { id: diagram.id, ok: true }
+    return { id: diagram.id, renderedUrl, ok: true }
   },
 })

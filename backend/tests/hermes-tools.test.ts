@@ -249,9 +249,9 @@ describe('AGENT_REGISTRY — tool wiring', () => {
     expect(reviewer.tools).toHaveProperty('updateDocumentStatus')
   })
 
-  it('Planner agent has empty tools object', async () => {
+  it('Planner agent has getProjectContext and getRequirements tools', async () => {
     const { AGENT_REGISTRY } = await import('../src/ai/agents/registry')
     const planner = AGENT_REGISTRY.Planner
-    expect(planner.tools).toEqual({})
+    expect(Object.keys(planner.tools).sort()).toEqual(['getProjectContext', 'getRequirements'].sort())
   })
 })

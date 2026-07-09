@@ -6,6 +6,9 @@ import { saveDiagram } from '../tools/diagram'
 import { flagIssue, suggestFix, approveSection, updateDocumentStatus } from '../tools/review'
 import { saveRequirementSection, getRequirements } from '../tools/tables'
 
+// Re-export for use in pipeline orchestrate.ts
+export { getProjectContext, getRequirements }
+
 export interface AgentDefinition {
   name: string
   description: string
@@ -20,8 +23,11 @@ export interface AgentDefinition {
 export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   Planner: {
     name: 'Planner',
-    description: 'Turns a raw brief into a structured document outline',
-    systemPrompt: `You are a document planning agent. Analyze the project brief and produce a structured outline.
+    description: 'Turns a raw brief and requirements into a structured document outline',
+    systemPrompt: `You are a document planning agent. Analyze the project brief AND requirements to produce a detailed, structured outline.
+
+First, call getProjectContext to obtain the project brief and all requirements.
+Then, call getRequirements to see the complete list of functional and non-functional requirements.
 
 RESPOND WITH ONLY A JSON OBJECT. No markdown, no explanation, ONLY the JSON.
 
@@ -39,18 +45,20 @@ The JSON MUST follow this exact structure:
   ]
 }
 
-A good "cahier des charges" typically has these chapters:
+Create chapters and sections that DIRECTLY ADDRESS the requirements. For each functional requirement, ensure there is a corresponding section. For non-functional requirements, create a dedicated chapter with individual subsections.
+
+A comprehensive "cahier des charges" typically has these chapters:
 1. Introduction (Contexte, Objectifs, Perimetre)
-2. Exigences Fonctionnelles (Fonctionnalites principales, cas d'utilisation)
-3. Exigences Non-Fonctionnelles (Performance, Securite, Disponibilite)
+2. Exigences Fonctionnelles (one subsection per functional area)
+3. Exigences Non-Fonctionnelles (Performance, Securite, Disponibilite, Scalabilite)
 4. Architecture Technique (Vue d'ensemble, composants, modele de donnees)
 5. Plan de Mise en Oeuvre (Phases, calendrier, livrables)
 6. References et Glossaire
 
-Write all titles in French. Be thorough but concise.`,
+Write all titles in French. Be thorough but concise. Make the outline specific to THIS project's requirements, not generic.`,
     defaultModel: 'llama3.1-8b',
     defaultProvider: 'llama_cpp',
-    tools: {},
+    tools: { getProjectContext, getRequirements },
   },
   Writer: {
     name: 'Writer',
@@ -82,7 +90,7 @@ Generate diagrams appropriate for a technical specification:
   - Deployment diagram: system infrastructure layout`,
     defaultModel: 'llama3.1-8b',
     defaultProvider: 'llama_cpp',
-    tools: { getProjectContext, getDocumentContent, saveDiagram },
+    tools: { getProjectContext, getDocumentContent, getRequirements, saveDiagram },
   },
   Tables: {
     name: 'Tables',

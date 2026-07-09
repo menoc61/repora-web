@@ -58,15 +58,15 @@ function sectionsToBlocks(sections: Array<{ id: string; title: string; content: 
   return blocks
 }
 
-function blocksToSections(blocks: any[]): Array<{ title: string; content: string; status: string }> {
-  const sections: Array<{ title: string; content: string; status: string }> = []
-  let current: { title: string; content: string; status: string } | null = null
+function blocksToSections(blocks: any[], sectionIds: Map<string, string>): Array<{ id?: string; title: string; content: string; status: string }> {
+  const sections: Array<{ id?: string; title: string; content: string; status: string }> = []
+  let current: { id?: string; title: string; content: string; status: string } | null = null
 
   for (const block of blocks) {
     const text = block.content?.map((c: any) => c.text).join('') ?? ''
     if (block.type === 'heading') {
       if (current) sections.push(current)
-      current = { title: text, content: '', status: 'draft' }
+      current = { id: sectionIds.get(text) ?? undefined, title: text, content: '', status: 'draft' }
     } else if (current) {
       if (current.content) current.content += '\n'
       current.content += text
@@ -159,18 +159,24 @@ function EditorContent({ docId, document, isLoading, onWordCountChange, onOutlin
 
   // Debounced auto-save on content change
   const handleChange = useCallback(() => {
-    if (!docId) return
+    if (!docId || !document) return
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
       const blocks = editor.document
-      const sections = blocksToSections(blocks)
+      const sectionIds = new Map<string, string>()
+      if (document.sections) {
+        for (const s of document.sections) {
+          sectionIds.set(s.title, s.id)
+        }
+      }
+      const sections = blocksToSections(blocks, sectionIds)
       saveDocument.mutate({
         id: docId,
         sections,
         content: JSON.stringify(blocks),
       })
     }, 2000)
-  }, [docId, editor, saveDocument])
+  }, [docId, editor, saveDocument, document])
 
   useEffect(() => {
     if (!editor) return
