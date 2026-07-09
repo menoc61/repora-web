@@ -274,68 +274,178 @@ export function useValidationView(token: string | undefined) {
   })
 }
 
-// ── Template Hooks (seeded client-side from agents for now) ──
-
-const TEMPLATE_SEED: Template[] = [
-  {
-    id: 'tpl-ip-assignment',
-    title: 'IP Assignment Master',
-    icon: 'balance',
-    department: 'Legal',
-    usageCount: 42,
-    sections: [{ name: 'Clauses', blocks: 8 }],
-    description: 'IP assignment & licensing clauses scaffold.',
-  },
-  {
-    id: 'tpl-system-arch',
-    title: 'System Architecture V2',
-    icon: 'architecture',
-    department: 'Engineering',
-    usageCount: 18,
-    sections: [{ name: 'Diagrams', blocks: 6 }],
-    description: 'Architecture + deployment scaffold.',
-  },
-  {
-    id: 'tpl-governance',
-    title: 'AI Governance Policy',
-    icon: 'policy',
-    department: 'Security',
-    usageCount: 27,
-    sections: [{ name: 'Controls', blocks: 5 }],
-    description: 'AI governance + compliance scaffold.',
-  },
-  {
-    id: 'tpl-sla',
-    title: 'Service Level Agreement',
-    icon: 'description',
-    department: 'Operations',
-    usageCount: 15,
-    sections: [{ name: 'Metrics', blocks: 7 }],
-    description: 'SLA with uptime & penalty clauses.',
-  },
-]
+// ── Template Hooks ──
 
 export function useTemplates() {
   return useQuery({
     queryKey: ['templates'],
-    queryFn: async (): Promise<Template[]> => TEMPLATE_SEED,
-    staleTime: Infinity,
+    queryFn: async () => api.get<Template[]>('/templates'),
+    staleTime: 60_000,
   })
 }
 
-// ── Collaborator Hooks (seeded client-side until /collaborators endpoint exists) ──
+export function useTemplate(id: string | undefined) {
+  return useQuery({
+    queryKey: ['template', id],
+    queryFn: async () => api.get<Template>(`/templates/${id}`),
+    enabled: !!id,
+  })
+}
 
-const COLLABORATOR_SEED: Collaborator[] = [
-  { name: 'Alex Chen (You)', email: 'alex@repora.ai', role: 'owner' },
-  { name: 'Sarah Miller', email: 's.miller@repora.ai', role: 'admin' },
-  { name: 'Repora AI', email: 'hermes@repora.local', role: 'editor' },
-]
+export function useCreateDocumentFromTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ templateId, projectName }: { templateId: string; projectName?: string }) =>
+      api.post<BackendProject>('/templates/use', { templateId, name: projectName }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
+  })
+}
+
+// ── Collaborator Hooks ──
 
 export function useCollaborators() {
   return useQuery({
     queryKey: ['collaborators'],
-    queryFn: async (): Promise<Collaborator[]> => COLLABORATOR_SEED,
-    staleTime: Infinity,
+    queryFn: async () => api.get<Collaborator[]>('/collaboration/collaborators'),
+    staleTime: 30_000,
+  })
+}
+
+// ── Activity / Collaboration Hooks ──
+
+export function useActivity() {
+  return useQuery({
+    queryKey: ['activity'],
+    queryFn: async () => api.get('/collaboration/activity'),
+    staleTime: 15_000,
+  })
+}
+
+// ── Sharing Hooks ──
+
+export function useInvite() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: { email: string; role: string }) => api.post('/sharing/invite', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collaborators'] }),
+  })
+}
+
+export function useGenerateLink() {
+  return useMutation({
+    mutationFn: async (docId: string) => api.post('/sharing/generate-link', { documentId: docId }),
+  })
+}
+
+export function useResendInvite() {
+  return useMutation({
+    mutationFn: async (id: string) => api.post(`/sharing/resend/${id}`),
+  })
+}
+
+export function useAccessLogs() {
+  return useQuery({
+    queryKey: ['access-logs'],
+    queryFn: async () => api.get('/sharing/access-logs'),
+  })
+}
+
+// ── Infrastructure Hooks ──
+
+export function useInfraHealth() {
+  return useQuery({
+    queryKey: ['infra-health'],
+    queryFn: async () => api.get('/infrastructure/health'),
+    refetchInterval: 10_000,
+  })
+}
+
+export function useRestartServices() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => api.post('/infrastructure/restart'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['infra-health'] })
+      qc.invalidateQueries({ queryKey: ['health'] })
+    },
+  })
+}
+
+// ── API Key Hooks ──
+
+export function useApiKeys() {
+  return useQuery({
+    queryKey: ['api-keys'],
+    queryFn: async () => api.get('/admin/api-keys'),
+  })
+}
+
+export function useCreateApiKey() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: { provider: string; apiKey: string }) => api.post('/admin/api-keys', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['api-keys'] }),
+  })
+}
+
+export function useDeleteApiKey() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => api.delete(`/admin/api-keys/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['api-keys'] }),
+  })
+}
+
+// ── Agent Test Hook ──
+
+export function useTestAgent() {
+  return useMutation({
+    mutationFn: async ({ name, message }: { name: string; message: string }) =>
+      api.post<{ reply: string }>(`/agents/${name}/test`, { message }),
+  })
+}
+
+// ── Agent Enable Hook ──
+
+export function useEnableAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (name: string) => api.post(`/agents/${name}/enable`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
+  })
+}
+
+// ── Version History Hooks ──
+
+export function useVersions(documentId: string | undefined) {
+  return useQuery({
+    queryKey: ['versions', documentId],
+    queryFn: async () => api.get<{ versions: Record<string, unknown>[] }>(`/documents/${documentId}/versions`),
+    enabled: !!documentId,
+  })
+}
+
+export function useRestoreVersion() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ documentId, version }: { documentId: string; version: string }) =>
+      api.post(`/documents/${documentId}/restore`, { version }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['versions'] }),
+  })
+}
+
+// ── Developer Profile Hook ──
+
+export function useExportAgentConfig() {
+  return useMutation({
+    mutationFn: async (name: string) => api.get(`/agents/${name}/export`),
+  })
+}
+
+export function useConnectTool() {
+  return useMutation({
+    mutationFn: async (data: { agentName: string; toolName: string; config: Record<string, unknown> }) =>
+      api.post(`/agents/${data.agentName}/tools`, { toolName: data.toolName, config: data.config }),
   })
 }
 

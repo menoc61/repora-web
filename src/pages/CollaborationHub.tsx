@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { useDocuments, useAnalytics } from '../hooks/useQueries'
+import { useDocuments, useAnalytics, useEnableAgent, useActivity } from '../hooks/useQueries'
 import type { Document } from '../schemas'
 
 type ActiveStatus = 'draft' | 'review' | 'final' | 'active' | 'autonomous'
@@ -111,8 +111,12 @@ const toActiveDoc = (doc: Document): ActiveDoc => {
 
 export default function CollaborationHub() {
   const [search, setSearch] = useState('')
+  const [activityPage, setActivityPage] = useState(1)
   const { data: documents = [] } = useDocuments()
   const { data: analytics } = useAnalytics()
+  const { data: activityData } = useActivity()
+  const enableAgent = useEnableAgent()
+  const navigate = useNavigate()
 
   const activeDocs: ActiveDoc[] = documents.length ? documents.map(toActiveDoc) : ACTIVE
 
@@ -120,10 +124,23 @@ export default function CollaborationHub() {
   const aiUtilization = analytics?.aiUtilization ?? 68
   const topContributor = analytics?.topContributor ?? 'Orchestrateur autonome'
 
-  const handleDeployAgent = () => {}
-  const handleBrowseTemplates = () => {}
-  const handleExploreGraph = () => {}
-  const handleLoadOlder = () => {}
+  const handleDeployAgent = () => {
+    if (documents.length > 0 && documents[0].status) {
+      enableAgent.mutate('Orchestrateur')
+    }
+  }
+
+  const handleBrowseTemplates = () => {
+    navigate({ to: '/templates' })
+  }
+
+  const handleExploreGraph = () => {
+    navigate({ to: '/' })
+  }
+
+  const handleLoadOlder = () => {
+    setActivityPage((p) => p + 1)
+  }
 
   return (
     <>
@@ -149,9 +166,10 @@ export default function CollaborationHub() {
           <button className="p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant"><Icon name="account_circle" /></button>
           <Button
             onClick={handleDeployAgent}
+            disabled={enableAgent.isPending}
             className="rounded-full bg-primary text-on-primary font-label-md text-label-md px-6 py-2 hover:opacity-80 transition-opacity"
           >
-            Deployer un agent
+            {enableAgent.isPending ? 'Deploiement...' : 'Deployer un agent'}
           </Button>
         </div>
       </div>

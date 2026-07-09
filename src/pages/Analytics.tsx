@@ -1,8 +1,10 @@
+import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../components/ui/table'
-import { useAnalytics } from '../hooks/useQueries'
+import { useAnalytics, useEnableAgent, useAgents } from '../hooks/useQueries'
 
 interface Metric {
   label: string
@@ -50,6 +52,29 @@ const RANGES = ['24 Heures', '7 Jours', '30 Jours'] as const
 
 export default function Analytics() {
   const { data: analytics } = useAnalytics()
+  const { data: agents = [] } = useAgents()
+  const enableAgent = useEnableAgent()
+  const navigate = useNavigate()
+  const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('24h')
+  const [showAddAgentModal, setShowAddAgentModal] = useState(false)
+  const [newAgentName, setNewAgentName] = useState('')
+
+  const handleDeployAgent = () => {
+    if (agents.length > 0) enableAgent.mutate(agents[0].name)
+  }
+
+  const handleAddCustomAgent = () => {
+    if (newAgentName.trim()) {
+      enableAgent.mutate(newAgentName.trim(), {
+        onSuccess: () => { setShowAddAgentModal(false); setNewAgentName('') },
+      })
+    }
+  }
+
+  const handleDateRange = (range: string) => {
+    const map: Record<string, '24h' | '7d' | '30d'> = { '24 Heures': '24h', '7 Jours': '7d', '30 Jours': '30d' }
+    setTimeRange(map[range] ?? '24h')
+  }
 
   const METRICS: Metric[] = [
     { label: 'Documents', icon: 'description', value: analytics ? analytics.totalDocuments.toLocaleString() : '—', trend: 'check_circle', trendText: 'Generes', good: true },
@@ -73,7 +98,9 @@ export default function Analytics() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <Button className="bg-secondary/10 text-secondary hover:bg-secondary hover:text-white px-4 py-2 rounded font-label-md text-label-md transition-all">Deployer un agent</Button>
+          <Button className="bg-secondary/10 text-secondary hover:bg-secondary hover:text-white px-4 py-2 rounded font-label-md text-label-md transition-all" onClick={handleDeployAgent} disabled={enableAgent.isPending}>
+            {enableAgent.isPending ? 'Deploiement...' : 'Deployer un agent'}
+          </Button>
           <button className="p-2 text-on-surface-variant hover:text-secondary relative">
             <Icon name="notifications" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full" />
@@ -90,7 +117,7 @@ export default function Analytics() {
           </div>
           <div className="flex items-center gap-2 bg-surface p-1 rounded-lg border border-outline-variant">
             {RANGES.map((t, i) => (
-              <button key={t} className={`px-3 py-1.5 rounded font-label-md text-label-md ${i === 0 ? 'bg-surface-container-highest text-on-surface' : 'text-on-surface-variant hover:bg-surface-container-low'}`}>{t}</button>
+              <button key={t} onClick={() => handleDateRange(t)} className={`px-3 py-1.5 rounded font-label-md text-label-md ${t === (timeRange === '24h' ? '24 Heures' : timeRange === '7d' ? '7 Jours' : '30 Jours') ? 'bg-surface-container-highest text-on-surface' : 'text-on-surface-variant hover:bg-surface-container-low'}`}>{t}</button>
             ))}
           </div>
         </div>
@@ -179,7 +206,7 @@ export default function Analytics() {
                 </div>
               ))}
             </div>
-            <Button variant="outline" className="mt-gutter w-full py-3 text-label-md font-label-md text-secondary hover:bg-secondary/5 rounded border border-dashed border-secondary transition-colors">Ajouter un agent personnalise</Button>
+            <Button variant="outline" className="mt-gutter w-full py-3 text-label-md font-label-md text-secondary hover:bg-secondary/5 rounded border border-dashed border-secondary transition-colors" onClick={() => setShowAddAgentModal(true)}>Ajouter un agent personnalise</Button>
           </div>
         </div>
 
@@ -228,8 +255,8 @@ export default function Analytics() {
               <p className="text-body-md text-on-primary-container/90">Tous les documents generes sont soumis a des verifications paralleles d&apos;alignement ethique et de verification de formatage deterministe avant finalisation.</p>
             </div>
             <div className="flex items-center gap-4 mt-8">
-              <Button className="bg-white text-primary px-6 py-3 rounded font-label-md text-label-md hover:bg-white/90 transition-colors">Audit de securite</Button>
-              <Button variant="outline" className="text-white border border-white/20 px-6 py-3 rounded font-label-md text-label-md hover:bg-white/10 transition-colors">Configuration</Button>
+              <Button className="bg-white text-primary px-6 py-3 rounded font-label-md text-label-md hover:bg-white/90 transition-colors" onClick={() => { /* trigger safety audit */ }}>Audit de securite</Button>
+              <Button variant="outline" className="text-white border border-white/20 px-6 py-3 rounded font-label-md text-label-md hover:bg-white/10 transition-colors" onClick={() => navigate({ to: '/settings' })}>Configuration</Button>
             </div>
           </div>
           <div className="bg-surface-studio border border-outline-variant rounded-xl p-6 flex flex-col justify-center">
@@ -245,6 +272,26 @@ export default function Analytics() {
           </div>
           <div className="flex items-center gap-4"><span>API v2.4.1</span><span className="opacity-30">|</span><span>© 2024 Repora Intelligence</span></div>
         </footer>
+
+        {showAddAgentModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setShowAddAgentModal(false)}>
+            <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <h3 className="font-headline-md text-headline-md mb-4">Ajouter un agent personnalise</h3>
+              <Input
+                className="w-full bg-surface-studio border border-outline-variant rounded-lg px-4 py-2 font-body-sm mb-6"
+                placeholder="Nom de l'agent..."
+                value={newAgentName}
+                onChange={(e) => setNewAgentName((e.target as HTMLInputElement).value)}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" className="px-4 py-2" onClick={() => setShowAddAgentModal(false)}>Annuler</Button>
+                <Button className="px-4 py-2 bg-secondary text-white" onClick={handleAddCustomAgent} disabled={enableAgent.isPending || !newAgentName.trim()}>
+                  {enableAgent.isPending ? 'Ajout...' : 'Ajouter'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )

@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
+import { useVersions, useRestoreVersion } from '../hooks/useQueries'
 
 interface Version {
   version: string
@@ -35,6 +37,37 @@ const COLLABORATORS: Collaborator[] = [
 ]
 
 export default function VersionHistory() {
+  const [showMore, setShowMore] = useState(false)
+  const [showRetention, setShowRetention] = useState(false)
+  const { data: versionsData } = useVersions(undefined)
+  const restoreVersion = useRestoreVersion()
+
+  const allVersions: Version[] = versionsData?.versions
+    ? (versionsData.versions as any[]).map((v: any) => ({
+        version: v.version ?? v.label ?? '',
+        time: v.timestamp ?? v.time ?? '',
+        user: v.author ?? v.user ?? '',
+        desc: v.description ?? v.desc ?? '',
+        isAI: v.isAI ?? false,
+        isAuto: v.isAuto ?? false,
+        additions: v.additions,
+        removals: v.removals,
+      }))
+    : VERSIONS
+
+  const handleLoadMore = () => setShowMore(true)
+  const handleRestore = (v: Version) => {
+    if (v.version && v.version !== 'ACTUEL') {
+      restoreVersion.mutate({ documentId: 'current', version: v.version })
+    }
+  }
+  const handleAcceptChanges = () => {
+    /* POST /documents/:id/accept */
+  }
+  const handleApplySuggestion = () => {
+    /* PATCH /documents/:id/patch */
+  }
+  const handleManageRetention = () => setShowRetention(true)
   return (
     <div className="pl-sidebar-width pt-16 h-screen flex overflow-hidden">
       <aside className="w-80 h-full bg-white border-r border-outline-variant flex flex-col">
@@ -43,7 +76,7 @@ export default function VersionHistory() {
           <p className="text-on-surface-variant font-body-sm text-body-sm mt-1">Suivi des captures pour legal_framework_v4.docx</p>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
-          {VERSIONS.map((v) => (
+          {allVersions.map((v) => (
             <div key={v.version}>
               {v.older && (
                 <div className="flex items-center gap-2 py-4">
@@ -91,7 +124,7 @@ export default function VersionHistory() {
           ))}
         </div>
         <div className="p-4 border-t border-outline-variant">
-          <Button className="w-full py-2 bg-surface-container-high hover:bg-surface-variant border border-outline-variant rounded-lg font-label-md text-label-md transition-colors">Charger plus d&apos;historique</Button>
+          <Button className="w-full py-2 bg-surface-container-high hover:bg-surface-variant border border-outline-variant rounded-lg font-label-md text-label-md transition-colors" onClick={handleLoadMore}>Charger plus d&apos;historique</Button>
         </div>
       </aside>
 
@@ -106,10 +139,10 @@ export default function VersionHistory() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" className="flex items-center gap-2 px-4 py-2 border border-outline text-on-surface rounded-lg font-label-md text-label-md hover:bg-surface-studio transition-all">
-              <Icon name="restore" /> Restaurer cette version
+            <Button variant="outline" className="flex items-center gap-2 px-4 py-2 border border-outline text-on-surface rounded-lg font-label-md text-label-md hover:bg-surface-studio transition-all" onClick={() => handleRestore(allVersions[0])} disabled={restoreVersion.isPending}>
+              <Icon name="restore" /> {restoreVersion.isPending ? 'Restauration...' : 'Restaurer cette version'}
             </Button>
-            <Button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-all">
+            <Button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-all" onClick={handleAcceptChanges}>
               <Icon name="done_all" /> Accepter les modifications
             </Button>
             <Button variant="ghost" size="icon" className="p-2 hover:bg-surface-studio rounded-lg text-on-surface-variant">
@@ -189,7 +222,7 @@ export default function VersionHistory() {
               <div className="h-1 bg-surface-variant rounded-full overflow-hidden">
                 <div className="h-full bg-ai-vibrant w-2/3" />
               </div>
-              <Button className="w-full py-1.5 text-ai-vibrant border border-ai-vibrant rounded font-label-md text-label-md hover:bg-ai-vibrant hover:text-white transition-all">Appliquer la suggestion</Button>
+              <Button className="w-full py-1.5 text-ai-vibrant border border-ai-vibrant rounded font-label-md text-label-md hover:bg-ai-vibrant hover:text-white transition-all" onClick={handleApplySuggestion}>Appliquer la suggestion</Button>
             </div>
           </div>
           <div className="space-y-3">
@@ -213,11 +246,31 @@ export default function VersionHistory() {
             <Icon name="info" className="text-on-surface-variant" />
             <p className="font-body-sm text-body-sm text-on-surface-variant">Les captures sont conservees pendant 365 jours dans le cadre de votre abonnement Enterprise.</p>
           </div>
-          <Button variant="ghost" className="w-full py-2 flex items-center justify-center gap-2 text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors">
+          <Button variant="ghost" className="w-full py-2 flex items-center justify-center gap-2 text-on-surface-variant font-label-md text-label-md hover:text-primary transition-colors" onClick={handleManageRetention}>
             <Icon name="settings_backup_restore" /> Gerer la retention
           </Button>
         </div>
       </aside>
+      {showRetention && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setShowRetention(false)}>
+          <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-headline-md text-headline-md mb-4">Gerer la retention</h3>
+            <p className="text-body-sm text-on-surface-variant mb-4">Les captures sont conservees pendant 365 jours dans le cadre de votre abonnement Enterprise.</p>
+            <div className="space-y-3 mb-6">
+              {[30, 90, 180, 365].map((days) => (
+                <label key={days} className="flex items-center gap-3 p-3 bg-surface-studio rounded border border-outline-variant cursor-pointer hover:border-secondary">
+                  <input type="radio" name="retention" defaultChecked={days === 365} className="text-secondary" />
+                  <span className="font-body-sm">{days} jours</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" className="px-4 py-2" onClick={() => setShowRetention(false)}>Annuler</Button>
+              <Button className="px-4 py-2 bg-secondary text-white" onClick={() => setShowRetention(false)}>Enregistrer</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

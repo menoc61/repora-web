@@ -1,8 +1,9 @@
 import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { useTemplates } from '../hooks/useQueries'
+import { useTemplates, useCreateDocumentFromTemplate } from '../hooks/useQueries'
 import type { Template } from '../schemas'
 
 interface TemplateCard {
@@ -33,17 +34,27 @@ function agentDotClass(status: AgentStatus): string {
 
 export default function TemplateGallery() {
   const [active, setActive] = useState<string>('Tous les modeles')
-  const { data: apiTemplates = [] } = useTemplates()
+  const { data: apiTemplates = [], isLoading } = useTemplates()
+  const createFromTemplate = useCreateDocumentFromTemplate()
 
-  const templateMap = new Map<string, Template>(
-    apiTemplates.map((t) => [t.title.toLowerCase(), t])
-  )
-  const cards: TemplateCard[] = TEMPLATES.map((t) => {
-    const api = templateMap.get(t.title.toLowerCase())
-    return api
-      ? { ...t, title: api.title, icon: api.icon, dept: api.department }
-      : t
-  })
+  const cards: TemplateCard[] = apiTemplates.length > 0
+    ? apiTemplates.map((t) => ({
+        title: t.title,
+        dept: t.department,
+        icon: t.icon,
+        color: 'bg-blue-50 text-secondary',
+        agents: [] as [string, string][],
+      }))
+    : TEMPLATES
+
+  const filtered = active === 'Tous les modeles' ? cards : cards.filter((c) => c.dept === active)
+
+  const handleUseTemplate = (tpl: TemplateCard) => {
+    const t = apiTemplates.find((at) => at.title === tpl.title)
+    if (t) {
+      createFromTemplate.mutate({ templateId: t.id, projectName: tpl.title })
+    }
+  }
 
   return (
     <>
@@ -81,7 +92,7 @@ export default function TemplateGallery() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
-          {cards.map((t) => (
+          {filtered.map((t) => (
             <div key={t.title} className="group bg-white border border-outline-variant p-6 flex flex-col h-full hover:border-secondary hover:shadow-lg transition-all">
               <div className="flex justify-between items-start mb-4">
                 <div className={`${t.color} p-2 rounded`}>
@@ -103,20 +114,24 @@ export default function TemplateGallery() {
                     </div>
                   ))}
                 </div>
-                <Button className="w-full bg-surface-container-highest text-on-surface font-label-md text-label-md hover:bg-primary-container hover:text-white">
-                  Utiliser le modele
+                <Button
+                  className="w-full bg-surface-container-highest text-on-surface font-label-md text-label-md hover:bg-primary-container hover:text-white"
+                  onClick={() => handleUseTemplate(t)}
+                  disabled={createFromTemplate.isPending}
+                >
+                  {createFromTemplate.isPending ? 'Creation...' : 'Utiliser le modele'}
                 </Button>
               </div>
             </div>
           ))}
 
-          <div className="group border-2 border-dashed border-outline-variant p-6 flex flex-col items-center justify-center text-center hover:border-secondary hover:bg-white transition-all cursor-pointer bg-surface-studio/50">
+          <Link to="/editor" search={{ id: undefined }} className="group border-2 border-dashed border-outline-variant p-6 flex flex-col items-center justify-center text-center hover:border-secondary hover:bg-white transition-all cursor-pointer bg-surface-studio/50">
             <div className="w-12 h-12 rounded-full border border-outline-variant flex items-center justify-center mb-4 group-hover:border-secondary group-hover:text-secondary">
               <Icon name="add" className="text-[32px]" />
             </div>
             <h3 className="font-headline-md text-[20px] mb-1 group-hover:text-secondary">Modele personnalise</h3>
             <p className="text-on-surface-variant font-body-sm">Creez votre propre logique d&apos;orchestration a partir de zero.</p>
-          </div>
+          </Link>
         </div>
 
         <div className="mt-12 p-6 bg-primary-container rounded-xl border border-outline-variant/20 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">

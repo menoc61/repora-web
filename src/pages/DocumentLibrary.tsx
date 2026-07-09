@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import TopBar from '../layout/TopBar'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
@@ -19,8 +19,8 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select'
-import { useDocuments } from '@/hooks/useQueries'
-import type { Document } from '@/schemas'
+import { useDocuments, useExportDocument } from '@/hooks/useQueries'
+import type { Document, DocumentFilters } from '@/schemas'
 
 const STATUS_LABELS: Record<Document['status'], string> = {
   draft: 'Brouillon',
@@ -49,11 +49,53 @@ function initials(name: string): string {
     .toUpperCase()
 }
 
+const PAGE_SIZE = 10
+
 export default function DocumentLibrary() {
-  const { data: documents = [] } = useDocuments()
+  const navigate = useNavigate()
   const [department, setDepartment] = useState<string>('all')
   const [status, setStatus] = useState<string>('all')
   const [owner, setOwner] = useState<string>('all')
+  const [page, setPage] = useState(1)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const exportMutation = useExportDocument()
+
+  const filters: DocumentFilters = {
+    ...(department !== 'all' ? { department } : {}),
+    ...(status !== 'all' ? { status } : {}),
+  }
+  const { data: documents = [] } = useDocuments(filters)
+
+  const ownerFiltered = owner === 'all' ? documents : documents.filter((d) => d.author.name === 'Repora AI')
+
+  const totalPages = Math.max(1, Math.ceil(ownerFiltered.length / PAGE_SIZE))
+  const pagedDocs = ownerFiltered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const currentPage = totalPages > 0 ? Math.min(page, totalPages) : 1
+
+  const handleBulkExport = () => {
+    const ids = selectedIds.size > 0 ? [...selectedIds] : pagedDocs.map((d) => d.id)
+    ids.forEach((id) => exportMutation.mutate({ id, format: 'pdf' }))
+  }
+
+  const handleExportSingle = (doc: Document) => {
+    exportMutation.mutate({ id: doc.id, format: 'pdf' })
+  }
+
+  const handleClearFilters = () => {
+    setDepartment('all')
+    setStatus('all')
+    setOwner('all')
+    setPage(1)
+    setSelectedIds(new Set())
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
 
   return (
     <>
@@ -69,9 +111,9 @@ export default function DocumentLibrary() {
             <h1 className="font-headline-lg text-headline-lg text-primary">Depot d&apos;entreprise</h1>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="flex items-center gap-2">
+            <Button variant="outline" className="flex items-center gap-2" onClick={handleBulkExport} disabled={exportMutation.isPending}>
               <Icon name="download" />
-              Export groupe
+              {exportMutation.isPending ? 'Exportation...' : 'Export groupe'}
             </Button>
             <Link to="/editor" search={{ id: undefined }} className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity">
               <Icon name="add" />
@@ -126,10 +168,10 @@ export default function DocumentLibrary() {
           <div className="flex items-center gap-4 ml-auto">
             <div className="flex items-center gap-1 font-label-sm text-label-sm text-on-surface-variant">
               <span>Affichage</span>
-              <span className="font-bold text-primary">{documents.length}</span>
+              <span className="font-bold text-primary">{ownerFiltered.length}</span>
               <span>Documents</span>
             </div>
-            <button className="text-ai-vibrant font-label-md text-label-md hover:underline">Effacer les filtres</button>
+            <button className="text-ai-vibrant font-label-md text-label-md hover:underline" onClick={handleClearFilters}>Effacer les filtres</button>
           </div>
         </div>
 
@@ -138,6 +180,12 @@ export default function DocumentLibrary() {
           <Table className="border-collapse text-left">
             <TableHeader>
               <TableRow className="bg-surface-container-low border-b border-outline-variant">
+                <TableHead className="px-4 py-4 w-10 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">
+                  <input type="checkbox" onChange={(e) => {
+                    if (e.target.checked) setSelectedIds(new Set(pagedDocs.map((d) => d.id)))
+                    else setSelectedIds(new Set())
+                  }} checked={pagedDocs.length > 0 && pagedDocs.every((d) => selectedIds.has(d.id))} />
+                </TableHead>
                 {['Nom du document', 'Statut', 'Departement', 'Proprietaire', 'Modifie', 'Actions'].map((h) => (
                   <TableHead key={h} className="px-6 py-4 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">
                     {h}
@@ -146,15 +194,18 @@ export default function DocumentLibrary() {
               </TableRow>
             </TableHeader>
             <TableBody className="divide-y divide-outline-variant">
-              {documents.length === 0 ? (
+              {pagedDocs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="px-6 py-10 text-center font-body-md text-body-md text-on-surface-variant">
+                  <TableCell colSpan={7} className="px-6 py-10 text-center font-body-md text-body-md text-on-surface-variant">
                     Aucun document disponible.
                   </TableCell>
                 </TableRow>
               ) : (
-                documents.map((r) => (
+                pagedDocs.map((r) => (
                   <TableRow key={r.id} className="hover:bg-surface-container-low transition-colors group">
+                    <TableCell className="px-4 py-5">
+                      <input type="checkbox" checked={selectedIds.has(r.id)} onChange={() => toggleSelect(r.id)} />
+                    </TableCell>
                     <TableCell className="px-6 py-5">
                       <Link to="/editor" search={{ id: r.id }} className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded bg-surface-container-high flex items-center justify-center text-on-surface-variant">
@@ -185,7 +236,7 @@ export default function DocumentLibrary() {
                     </TableCell>
                     <TableCell className="px-6 py-5 text-right">
                       <div className="flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Exporter">
+                        <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Exporter" onClick={() => handleExportSingle(r)}>
                           <Icon name="ios_share" />
                         </button>
                         <button className="p-2 hover:bg-surface-container-high rounded-lg text-on-surface-variant hover:text-ai-vibrant transition-colors" title="Permissions">
@@ -202,17 +253,25 @@ export default function DocumentLibrary() {
             </TableBody>
           </Table>
           <div className="px-6 py-4 border-t border-outline-variant bg-surface-container-lowest flex items-center justify-between">
-            <div className="font-label-sm text-label-sm text-on-surface-variant">Page 1 sur 13</div>
+            <div className="font-label-sm text-label-sm text-on-surface-variant">Page {currentPage} sur {totalPages}</div>
             <div className="flex items-center gap-1">
-              <button className="p-1 rounded hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30" disabled>
+              <button className="p-1 rounded hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                 <Icon name="chevron_left" />
               </button>
-              <button className="w-8 h-8 flex items-center justify-center rounded bg-ai-vibrant text-white font-label-md text-label-md">1</button>
-              <button className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface-variant font-label-md text-label-md">2</button>
-              <button className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface-variant font-label-md text-label-md">3</button>
-              <span className="px-1 text-on-surface-variant">...</span>
-              <button className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-container-high text-on-surface-variant font-label-md text-label-md">13</button>
-              <button className="p-1 rounded hover:bg-surface-container-high text-on-surface-variant">
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                const pageNum = i + 1
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={`w-8 h-8 flex items-center justify-center rounded font-label-md text-label-md ${currentPage === pageNum ? 'bg-ai-vibrant text-white' : 'hover:bg-surface-container-high text-on-surface-variant'}`}
+                  >
+                    {pageNum}
+                  </button>
+                )
+              })}
+              {totalPages > 5 && <span className="px-1 text-on-surface-variant">...</span>}
+              <button className="p-1 rounded hover:bg-surface-container-high text-on-surface-variant disabled:opacity-30" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
                 <Icon name="chevron_right" />
               </button>
             </div>

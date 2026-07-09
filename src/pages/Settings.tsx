@@ -1,10 +1,11 @@
-import React from 'react'
+import React, { useState } from 'react'
 import Icon from '../components/Icon'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { useSettingsStore } from '@/stores'
-import { useMe } from '@/hooks/useQueries'
+import { useMe, useApiKeys, useCreateApiKey, useDeleteApiKey, useRestartServices } from '@/hooks/useQueries'
+import { api } from '@/api/client'
 
 interface Provider {
   name: string
@@ -60,6 +61,39 @@ export default function Settings() {
   const settings = useSettingsStore((s) => s.settings)
   const updateSettings = useSettingsStore((s) => s.updateSettings)
   const { data: me } = useMe()
+  const { data: apiKeys = [] } = useApiKeys()
+  const createApiKey = useCreateApiKey()
+  const deleteApiKey = useDeleteApiKey()
+  const restartServices = useRestartServices()
+  const [showKeyModal, setShowKeyModal] = useState(false)
+  const [newProvider, setNewProvider] = useState('')
+  const [newKey, setNewKey] = useState('')
+  const [testResult, setTestResult] = useState<string | null>(null)
+
+  const handleAddProvider = () => {
+    setShowKeyModal(true)
+  }
+
+  const handleSaveKey = () => {
+    if (!newProvider.trim() || !newKey.trim()) return
+    createApiKey.mutate({ provider: newProvider.trim(), apiKey: newKey.trim() }, {
+      onSuccess: () => { setShowKeyModal(false); setNewProvider(''); setNewKey('') },
+    })
+  }
+
+  const handleTestConnection = async () => {
+    setTestResult('Test en cours...')
+    try {
+      await api.post('/admin/sso/test', { provider: 'okta' })
+      setTestResult('Connexion reussie')
+    } catch {
+      setTestResult('Echec de la connexion')
+    }
+  }
+
+  const handleCommitRestart = () => {
+    restartServices.mutate()
+  }
 
   return (
     <div className="flex-1 flex flex-col min-h-screen">
@@ -112,7 +146,7 @@ export default function Settings() {
                   <h2 className="font-headline-md text-headline-md text-primary">Parametres du fournisseur IA</h2>
                   <p className="font-body-md text-body-md text-on-surface-variant">Configurer les modeles pour l&apos;orchestration d&apos;intelligence souveraine.</p>
                 </div>
-                <Button variant="link" className="font-label-md text-label-md text-ai-vibrant flex items-center gap-1 hover:underline p-0 h-auto"><Icon name="add" className="text-[18px]" />Ajouter un fournisseur</Button>
+                <Button variant="link" className="font-label-md text-label-md text-ai-vibrant flex items-center gap-1 hover:underline p-0 h-auto" onClick={handleAddProvider}><Icon name="add" className="text-[18px]" />Ajouter un fournisseur</Button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {PROVIDERS.map((p) => (
@@ -147,7 +181,7 @@ export default function Settings() {
                     ) : (
                       <div className="space-y-3">
                         <p className="text-body-sm text-on-surface-variant italic">Fournisseur de secours active pour les taches de raisonnement complexes.</p>
-                        <Button variant="outline" className="w-full border border-outline-variant py-2 font-label-md text-label-md rounded hover:bg-surface-studio transition-colors">Gerer les cles API</Button>
+                        <Button variant="outline" className="w-full border border-outline-variant py-2 font-label-md text-label-md rounded hover:bg-surface-studio transition-colors" onClick={handleAddProvider}>Gerer les cles API</Button>
                       </div>
                     )}
                   </div>
@@ -191,7 +225,7 @@ export default function Settings() {
                           </div>
                         </TableCell>
                         <TableCell className="px-6 py-4 text-right">
-                          <Button variant="link" className="text-ai-vibrant font-label-md text-label-md p-0 h-auto">Configurer</Button>
+                          <Button variant="link" className="text-ai-vibrant font-label-md text-label-md p-0 h-auto" onClick={() => { /* open MCP skill config */ }}>Configurer</Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -219,9 +253,12 @@ export default function Settings() {
                     <Input className="w-full bg-surface-studio border border-outline-variant rounded px-3 py-2 font-label-sm text-on-surface-variant focus:outline-none" readOnly value="https://repora.okta.com/.well-known/openid-configuration" />
                   </div>
                   <div className="flex gap-4 pt-2">
-                    <Button className="flex-1 bg-surface-container-high py-2 rounded font-label-md text-label-md hover:bg-surface-container-highest transition-colors">Tester la connexion</Button>
+                    <Button className="flex-1 bg-surface-container-high py-2 rounded font-label-md text-label-md hover:bg-surface-container-highest transition-colors" onClick={handleTestConnection}>Tester la connexion</Button>
                     <Button variant="outline" className="flex-1 border border-outline-variant py-2 rounded font-label-md text-label-md hover:bg-surface-studio transition-colors">Telecharger SP XML</Button>
                   </div>
+                  {testResult && (
+                    <p className={`font-label-sm text-label-sm mt-2 ${testResult.includes('reussie') ? 'text-status-final' : testResult.includes('cours') ? 'text-on-surface-variant' : 'text-error'}`}>{testResult}</p>
+                  )}
                 </div>
               </section>
 
@@ -275,7 +312,9 @@ export default function Settings() {
                 <p className="font-body-md text-body-md text-surface-variant opacity-80">La mise a jour des parametres d&apos;infrastructure peut necessiter un redemarrage du systeme (environ 45 secondes).</p>
               </div>
               <div className="z-10 flex gap-4 w-full md:w-auto">
-                <Button className="bg-white text-primary px-8 py-3 rounded-lg font-label-md text-label-md font-bold shadow-lg hover:bg-surface-studio transition-colors w-full md:w-auto">Valider et redemarrer</Button>
+                <Button className="bg-white text-primary px-8 py-3 rounded-lg font-label-md text-label-md font-bold shadow-lg hover:bg-surface-studio transition-colors w-full md:w-auto" onClick={handleCommitRestart} disabled={restartServices.isPending}>
+                  {restartServices.isPending ? 'Redemarrage...' : 'Valider et redemarrer'}
+                </Button>
                 <Button variant="outline" className="bg-transparent border border-white/30 text-white px-8 py-3 rounded-lg font-label-md text-label-md hover:bg-white/10 transition-colors w-full md:w-auto">Annuler</Button>
               </div>
             </div>
@@ -312,6 +351,45 @@ export default function Settings() {
           </section>
         </aside>
       </div>
+      {showKeyModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setShowKeyModal(false)}>
+          <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-headline-md text-headline-md mb-4">Gerer les cles API</h3>
+            <label className="block font-body-sm font-semibold mb-1">Fournisseur</label>
+            <Input
+              className="w-full bg-surface-studio border border-outline-variant rounded-lg px-4 py-2 font-body-sm mb-4"
+              placeholder="Ex: anthropic, openai..."
+              value={newProvider}
+              onChange={(e) => setNewProvider((e.target as HTMLInputElement).value)}
+            />
+            <label className="block font-body-sm font-semibold mb-1">Cle API</label>
+            <Input
+              className="w-full bg-surface-studio border border-outline-variant rounded-lg px-4 py-2 font-body-sm mb-6"
+              placeholder="sk-..."
+              type="password"
+              value={newKey}
+              onChange={(e) => setNewKey((e.target as HTMLInputElement).value)}
+            />
+            {apiKeys.length > 0 && (
+              <div className="mb-6 space-y-2 max-h-32 overflow-y-auto">
+                <p className="font-label-sm text-label-sm text-on-surface-variant mb-2">Cles existantes :</p>
+                {apiKeys.map((k: any) => (
+                  <div key={k.id} className="flex items-center justify-between p-2 bg-surface-studio rounded text-body-sm">
+                    <span>{k.provider}</span>
+                    <button className="text-error font-label-sm hover:underline" onClick={() => deleteApiKey.mutate(k.id)}>Supprimer</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" className="px-4 py-2" onClick={() => setShowKeyModal(false)}>Annuler</Button>
+              <Button className="px-4 py-2 bg-secondary text-white" onClick={handleSaveKey} disabled={createApiKey.isPending}>
+                {createApiKey.isPending ? 'Enregistrement...' : 'Enregistrer'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { useState, useRef } from 'react'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -8,7 +9,7 @@ import {
   SelectContent,
   SelectItem,
 } from '../components/ui/select'
-import { useCollaborators } from '../hooks/useQueries'
+import { useCollaborators, useInvite, useGenerateLink, useResendInvite, useAccessLogs } from '../hooks/useQueries'
 import type { Collaborator } from '../schemas'
 
 const ROLES = ['Editeur', 'Admin', 'Reviseur', 'Observateur']
@@ -54,9 +55,42 @@ function toRow(c: Collaborator): CollaboratorRow {
 
 export default function Sharing() {
   const { data: collaborators = [] } = useCollaborators()
+  const inviteMutation = useInvite()
+  const resendMutation = useResendInvite()
+  const generateLinkMutation = useGenerateLink()
+  const { data: accessLogs } = useAccessLogs()
+  const [email, setEmail] = useState('')
+  const [role, setRole] = useState(ROLES[0])
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null)
+  const [showAccessLogs, setShowAccessLogs] = useState(false)
+  const emailRef = useRef<HTMLInputElement>(null)
+
   const rows: CollaboratorRow[] = collaborators.length > 0
     ? collaborators.map(toRow)
     : COLLABORATORS
+
+  const handleSendInvite = () => {
+    if (!email.trim()) return
+    inviteMutation.mutate({ email: email.trim(), role: role.toLowerCase() }, {
+      onSuccess: () => setEmail(''),
+    })
+  }
+
+  const handleResend = (emailAddr: string) => {
+    resendMutation.mutate(emailAddr)
+  }
+
+  const handleGenerateLink = (docId?: string) => {
+    generateLinkMutation.mutate(docId ?? 'current', {
+      onSuccess: (data: any) => {
+        setGeneratedLink(data?.url ?? data?.token ?? 'Lien genere')
+      },
+    })
+  }
+
+  const handleViewAccessLogs = () => {
+    setShowAccessLogs(true)
+  }
 
   return (
     <div className="min-h-screen bg-surface-studio">
@@ -81,10 +115,17 @@ export default function Sharing() {
               <div className="flex flex-col gap-4">
                 <div className="flex gap-2">
                   <div className="flex-1 relative">
-                    <Input className="w-full px-4 py-3 bg-surface-studio border border-outline-variant rounded-lg text-body-md focus:ring-2 focus:ring-secondary outline-none" placeholder="Saisir les adresses e-mail..." type="email" />
+                    <Input
+                      className="w-full px-4 py-3 bg-surface-studio border border-outline-variant rounded-lg text-body-md focus:ring-2 focus:ring-secondary outline-none"
+                      placeholder="Saisir les adresses e-mail..."
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSendInvite() }}
+                    />
                   </div>
                   <div className="relative min-w-[140px]">
-                    <Select defaultValue={ROLES[0]}>
+                    <Select value={role} onValueChange={(v) => setRole(v ?? ROLES[0])}>
                       <SelectTrigger className="w-full px-4 py-3 bg-surface-studio border border-outline-variant rounded-lg text-body-md focus:ring-2 focus:ring-secondary outline-none">
                         <SelectValue />
                       </SelectTrigger>
@@ -101,7 +142,13 @@ export default function Sharing() {
                     <input className="rounded border-outline text-secondary focus:ring-secondary" id="notify" type="checkbox" />
                     <label className="text-body-sm text-on-surface-variant" htmlFor="notify">Notifier les destinataires par e-mail</label>
                   </div>
-                  <Button className="bg-primary text-white px-8 py-3 rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity">Envoyer l&apos;invitation</Button>
+                  <Button
+                    className="bg-primary text-white px-8 py-3 rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity"
+                    onClick={handleSendInvite}
+                    disabled={inviteMutation.isPending || !email.trim()}
+                  >
+                    {inviteMutation.isPending ? 'Envoi...' : 'Envoyer l\'invitation'}
+                  </Button>
                 </div>
               </div>
             </section>
@@ -128,7 +175,7 @@ export default function Sharing() {
                     <div className="flex items-center gap-4">
                       <span className={`font-label-sm text-label-sm uppercase px-2 py-1 rounded ${c.badge}`}>{c.role}</span>
                       {c.pending ? (
-                        <Button variant="link" className="text-secondary font-label-md text-label-md p-0 h-auto">Renvoyer</Button>
+                        <Button variant="link" className="text-secondary font-label-md text-label-md p-0 h-auto" onClick={() => handleResend(c.email ?? '')}>{resendMutation.isPending ? 'Envoi...' : 'Renvoyer'}</Button>
                       ) : (
                         <Icon name="more_vert" className="text-outline cursor-pointer" />
                       )}
@@ -148,10 +195,16 @@ export default function Sharing() {
                   Acces externe
                 </h3>
                 <p className="text-on-primary-container text-body-sm mb-6">Creez une passerelle unique et chiffree pour les utilisateurs hors de votre organisation.</p>
-                <Button className="w-full py-3 bg-ai-vibrant text-white font-label-md text-label-md rounded-lg flex items-center justify-center gap-2 hover:bg-ai-vibrant/90 transition-all mb-6">
+                <Button className="w-full py-3 bg-ai-vibrant text-white font-label-md text-label-md rounded-lg flex items-center justify-center gap-2 hover:bg-ai-vibrant/90 transition-all mb-6" onClick={() => handleGenerateLink()} disabled={generateLinkMutation.isPending}>
                   <Icon name="shield" />
-                  Generer un lien securise
+                  {generateLinkMutation.isPending ? 'Generation...' : 'Generer un lien securise'}
                 </Button>
+                {generatedLink && (
+                  <div className="mb-6 p-3 bg-surface-studio rounded-lg border border-outline-variant break-all">
+                    <p className="font-label-sm text-label-sm text-on-surface-variant mb-1">Lien genere :</p>
+                    <code className="text-body-sm text-secondary">{generatedLink}</code>
+                  </div>
+                )}
                 <div className="space-y-4 border-t border-on-primary-container/20 pt-6">
                   {[
                     { label: 'Protection par mot de passe', desc: 'Connexion obligatoire pour les detenteurs de lien', checked: true },
@@ -185,10 +238,34 @@ export default function Sharing() {
                   <span>1 lien externe actuellement actif.</span>
                 </div>
               </div>
-              <Button variant="link" className="mt-4 w-full text-center text-secondary font-label-md text-label-md hover:underline p-0 h-auto">Voir les journaux d&apos;acces</Button>
+              <Button variant="link" className="mt-4 w-full text-center text-secondary font-label-md text-label-md hover:underline p-0 h-auto" onClick={handleViewAccessLogs}>Voir les journaux d&apos;acces</Button>
             </section>
           </div>
         </div>
+
+        {showAccessLogs && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setShowAccessLogs(false)}>
+            <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <h3 className="font-headline-md text-headline-md mb-4">Journaux d&apos;acces</h3>
+              {accessLogs && Array.isArray(accessLogs) ? (
+                <div className="space-y-3">
+                  {(accessLogs as any[]).map((log: any, i: number) => (
+                    <div key={i} className="p-3 bg-surface-studio rounded border border-outline-variant">
+                      <div className="flex justify-between text-body-sm">
+                        <span className="font-semibold">{log.user ?? log.email ?? 'Inconnu'}</span>
+                        <span className="text-label-sm text-on-surface-variant">{log.timestamp ?? log.time ?? ''}</span>
+                      </div>
+                      <p className="text-label-sm text-on-surface-variant">{log.action ?? log.event ?? 'Acces'}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-body-sm text-on-surface-variant">Aucune tentative d&apos;acces non autorisee au cours des dernieres 24h.</p>
+              )}
+              <Button variant="outline" className="mt-4 w-full" onClick={() => setShowAccessLogs(false)}>Fermer</Button>
+            </div>
+          </div>
+        )}
 
         <footer className="mt-12 flex items-center justify-center gap-8 border-t border-outline-variant pt-8 opacity-60 hover:opacity-100 transition-all duration-500 grayscale hover:grayscale-0">
           {[

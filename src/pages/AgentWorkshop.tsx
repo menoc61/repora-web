@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { useAgents, usePatchAgent } from '../hooks/useQueries'
+import { useAgents, usePatchAgent, useTestAgent, useExportAgentConfig, useConnectTool, useEnableAgent } from '../hooks/useQueries'
 
 type AgentState = 'ACTIF' | 'INACTIF' | 'DEPLOIEMENT'
 
@@ -64,11 +64,72 @@ const CHAT: ChatMessage[] = [
 
 export default function AgentWorkshop() {
   const [selected, setSelected] = useState<number>(0)
+  const [testInput, setTestInput] = useState('')
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(CHAT)
+  const [showToolModal, setShowToolModal] = useState(false)
+  const [toolName, setToolName] = useState('')
   const { data: backendAgents = [] } = useAgents()
   const patchAgent = usePatchAgent()
+  const testAgent = useTestAgent()
+  const exportConfig = useExportAgentConfig()
+  const connectTool = useConnectTool()
+  const enableAgent = useEnableAgent()
   const AGENTS = buildAgents(backendAgents)
 
   const handleSelect = (i: number) => setSelected(i)
+
+  const handleExport = () => {
+    const agent = AGENTS[selected]
+    if (agent) exportConfig.mutate(agent.name, {
+      onSuccess: (data) => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url; a.download = `${agent.name}-config.json`; a.click()
+        URL.revokeObjectURL(url)
+      },
+    })
+  }
+
+  const handleShare = () => {
+    const agent = AGENTS[selected]
+    const config = { agentName: agent.name, agents: backendAgents }
+    const shareUrl = `${window.location.origin}/agents?share=${encodeURIComponent(JSON.stringify(config))}`
+    navigator.clipboard?.writeText(shareUrl)
+  }
+
+  const handleConnectTool = () => {
+    if (!toolName.trim()) return
+    const agent = AGENTS[selected]
+    if (agent) {
+      connectTool.mutate({ agentName: agent.name, toolName: toolName.trim(), config: {} }, {
+        onSuccess: () => { setShowToolModal(false); setToolName('') },
+      })
+    }
+  }
+
+  const handleDeploy = () => {
+    const agent = AGENTS[selected]
+    if (agent) enableAgent.mutate(agent.name)
+  }
+
+  const handleTestSend = () => {
+    if (!testInput.trim()) return
+    const message = testInput.trim()
+    setTestInput('')
+    setChatMessages((prev) => [...prev, { from: 'user', text: message }])
+    const agent = AGENTS[selected]
+    if (agent) {
+      testAgent.mutate({ name: agent.name, message }, {
+        onSuccess: (data) => {
+          setChatMessages((prev) => [...prev, { from: 'agent', text: (data as any)?.reply ?? 'Reponse recue.' }])
+        },
+        onError: () => {
+          setChatMessages((prev) => [...prev, { from: 'agent', text: 'Erreur lors du test. Verifiez que l\'agent est actif.' }])
+        },
+      })
+    }
+  }
 
   return (
     <>
@@ -84,8 +145,8 @@ export default function AgentWorkshop() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <Button variant="ghost" className="px-4 py-1.5 border border-outline-variant text-body-sm font-medium rounded-lg hover:bg-surface-variant transition-all">Exporter</Button>
-          <Button variant="ghost" className="px-4 py-1.5 bg-primary text-on-primary text-body-sm font-medium rounded-lg hover:opacity-90 transition-all">Partager</Button>
+          <Button variant="ghost" className="px-4 py-1.5 border border-outline-variant text-body-sm font-medium rounded-lg hover:bg-surface-variant transition-all" onClick={handleExport} disabled={exportConfig.isPending}>{exportConfig.isPending ? 'Export...' : 'Exporter'}</Button>
+          <Button variant="ghost" className="px-4 py-1.5 bg-primary text-on-primary text-body-sm font-medium rounded-lg hover:opacity-90 transition-all" onClick={handleShare}>Partager</Button>
           <Icon name="notifications" className="ml-2" />
           <div className="w-8 h-8 rounded-full border border-outline-variant bg-secondary-container flex items-center justify-center text-white text-[10px] font-bold">AC</div>
         </div>
@@ -192,7 +253,7 @@ export default function AgentWorkshop() {
                       <div className="px-3 py-1.5 bg-primary-fixed text-on-primary-fixed rounded-lg text-body-sm flex items-center gap-2">
                         <Icon name="folder_zip" className="text-[16px]" /> RAG PDF interne <Icon name="close" className="text-[14px] hover:text-error" />
                       </div>
-                      <Button variant="ghost" className="px-3 py-1.5 border border-dashed border-outline-variant rounded-lg text-body-sm text-outline flex items-center gap-2 hover:bg-surface-variant transition-all">
+                      <Button variant="ghost" className="px-3 py-1.5 border border-dashed border-outline-variant rounded-lg text-body-sm text-outline flex items-center gap-2 hover:bg-surface-variant transition-all" onClick={() => setShowToolModal(true)}>
                         <Icon name="add" className="text-[16px]" /> Connecter un outil
                       </Button>
                     </div>
@@ -213,7 +274,7 @@ export default function AgentWorkshop() {
             <p className="text-[12px] text-on-surface-variant font-body-sm">Simuler le comportement avant le deploiement.</p>
           </div>
           <div className="flex-1 p-4 overflow-y-auto space-y-4 hide-scrollbar">
-            {CHAT.map((m, i) => (
+            {chatMessages.map((m, i) => (
               <div key={i} className={`flex gap-3 ${m.from === 'user' ? 'flex-row-reverse' : ''}`}>
                 <div className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center ${m.from === 'user' ? 'bg-surface-container-high border border-outline-variant' : 'bg-secondary'}`}>
                   <Icon name={m.from === 'user' ? 'person' : 'gavel'} className={m.from === 'user' ? 'text-on-surface-variant' : 'text-on-secondary'} fill={m.from === 'agent'} />
@@ -231,20 +292,49 @@ export default function AgentWorkshop() {
           </div>
           <div className="p-4 border-t border-outline-variant">
             <div className="relative">
-              <Input className="w-full bg-surface-studio border border-outline-variant rounded-full py-3 pl-5 pr-12 text-body-sm focus-visible:ring-2 focus-visible:ring-secondary/20 focus-visible:border-secondary outline-none transition-all" placeholder="Saisir un message..." />
-              <button className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-secondary text-on-secondary rounded-full flex items-center justify-center hover:opacity-90">
-                <Icon name="arrow_upward" className="text-[18px]" />
+              <Input
+                className="w-full bg-surface-studio border border-outline-variant rounded-full py-3 pl-5 pr-12 text-body-sm focus-visible:ring-2 focus-visible:ring-secondary/20 focus-visible:border-secondary outline-none transition-all"
+                placeholder="Saisir un message..."
+                value={testInput}
+                onChange={(e) => setTestInput((e.target as HTMLInputElement).value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleTestSend() }}
+              />
+              <button
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-secondary text-on-secondary rounded-full flex items-center justify-center hover:opacity-90 disabled:opacity-50"
+                onClick={handleTestSend}
+                disabled={testAgent.isPending || !testInput.trim()}
+              >
+                <Icon name={testAgent.isPending ? 'hourglass_top' : 'arrow_upward'} className="text-[18px]" />
               </button>
             </div>
           </div>
         </div>
 
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50">
-          <Button variant="ghost" className="flex items-center gap-3 px-8 py-4 bg-secondary text-on-secondary rounded-full shadow-2xl hover:scale-[1.02] active:scale-95 transition-all group">
+          <Button variant="ghost" className="flex items-center gap-3 px-8 py-4 bg-secondary text-on-secondary rounded-full shadow-2xl hover:scale-[1.02] active:scale-95 transition-all group" onClick={handleDeploy} disabled={enableAgent.isPending}>
             <Icon name="rocket_launch" className="group-hover:rotate-12 transition-transform" />
-            <span className="font-headline-md text-[18px] font-bold">Deployer vers l&apos;espace de travail</span>
+            <span className="font-headline-md text-[18px] font-bold">{enableAgent.isPending ? 'Deploiement...' : 'Deployer vers l\'espace de travail'}</span>
           </Button>
         </div>
+        {showToolModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => { setShowToolModal(false); setToolName('') }}>
+            <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <h3 className="font-headline-md text-headline-md mb-4">Connecter un outil</h3>
+              <Input
+                className="w-full bg-surface-studio border border-outline-variant rounded-lg px-4 py-2 font-body-sm mb-4"
+                placeholder="Nom de l'outil (ex: API Westlaw)..."
+                value={toolName}
+                onChange={(e) => setToolName((e.target as HTMLInputElement).value)}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" className="px-4 py-2" onClick={() => { setShowToolModal(false); setToolName('') }}>Annuler</Button>
+                <Button className="px-4 py-2 bg-secondary text-white" onClick={handleConnectTool} disabled={connectTool.isPending || !toolName.trim()}>
+                  {connectTool.isPending ? 'Connexion...' : 'Connecter'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { useHealth } from '../hooks/useQueries'
+import { useHealth, useInfraHealth, useRestartServices, useEnableAgent } from '../hooks/useQueries'
 
 interface LogEntry {
   type: string
@@ -49,8 +49,36 @@ export default function Infrastructure() {
   const [logs, setLogs] = useState<LogEntry[]>(LOG_ENTRIES)
   const logRef = useRef<HTMLDivElement>(null)
   const [logIndex, setLogIndex] = useState(0)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [diagInput, setDiagInput] = useState('')
   const { data: health } = useHealth()
+  const { data: infraHealth } = useInfraHealth()
+  const restartServices = useRestartServices()
+  const enableAgent = useEnableAgent()
   const status = health?.status === 'ok' ? 'OPERATIONNEL' : 'INCONNU'
+
+  const handleDeployAgent = () => {
+    enableAgent.mutate('Orchestrateur')
+  }
+
+  const handleRestartAll = () => {
+    restartServices.mutate()
+  }
+
+  const handleDiagCommand = () => {
+    if (!diagInput.trim()) return
+    if (diagInput.trim() === 'cls' || diagInput.trim() === 'clear') {
+      setLogs(LOG_ENTRIES)
+      setLogIndex(0)
+    } else {
+      setLogs((prev) => [...prev, { type: 'CMD', msg: diagInput.trim(), color: 'text-yellow-400' }])
+    }
+    setDiagInput('')
+  }
+
+  const filteredServices = SERVICES.filter((s) =>
+    searchTerm ? s.name.toLowerCase().includes(searchTerm.toLowerCase()) : true
+  )
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -71,7 +99,12 @@ export default function Infrastructure() {
         <div className="flex items-center gap-8">
           <div className="flex items-center bg-surface-container rounded-lg px-3 py-1.5 w-64 border border-outline-variant focus-within:border-secondary transition-colors">
             <Icon name="search" className="text-on-surface-variant text-[20px]" />
-            <Input className="border-none bg-transparent focus-visible:ring-0 p-0 text-body-sm w-full" placeholder="Rechercher infrastructure..." />
+            <Input
+              className="border-none bg-transparent focus-visible:ring-0 p-0 text-body-sm w-full"
+              placeholder="Rechercher infrastructure..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm((e.target as HTMLInputElement).value)}
+            />
           </div>
           <nav className="hidden md:flex items-center gap-6">
             {['Espace de travail', 'Bibliotheque', 'Agents'].map((t) => (
@@ -80,7 +113,9 @@ export default function Infrastructure() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <Button className="bg-secondary text-on-secondary px-4 py-2 rounded-lg font-label-md text-label-md font-bold active:opacity-80 transition-opacity">Deployer un agent</Button>
+          <Button className="bg-secondary text-on-secondary px-4 py-2 rounded-lg font-label-md text-label-md font-bold active:opacity-80 transition-opacity" onClick={handleDeployAgent} disabled={enableAgent.isPending}>
+            {enableAgent.isPending ? 'Deploiement...' : 'Deployer un agent'}
+          </Button>
           <button className="text-on-surface-variant hover:text-secondary p-1"><Icon name="notifications" /></button>
           <button className="text-on-surface-variant hover:text-secondary p-1"><Icon name="account_circle" /></button>
         </div>
@@ -171,10 +206,12 @@ export default function Infrastructure() {
           <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-outline-variant flex flex-col h-[320px]">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-headline-md text-headline-md">Services</h3>
-              <Button variant="link" className="text-secondary text-body-sm font-medium hover:underline p-0 h-auto">Tout redemarrer</Button>
+              <Button variant="link" className="text-secondary text-body-sm font-medium hover:underline p-0 h-auto" onClick={handleRestartAll} disabled={restartServices.isPending}>
+                {restartServices.isPending ? 'Redemarrage...' : 'Tout redemarrer'}
+              </Button>
             </div>
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-              {SERVICES.map((s) => (
+              {filteredServices.map((s) => (
                 <div key={s.name} className="flex items-center justify-between p-3 rounded-lg border border-outline-variant bg-surface-studio">
                   <div className="flex items-center gap-3">
                     <Icon name={s.status} className={s.color} />
@@ -212,7 +249,13 @@ export default function Infrastructure() {
             </div>
             <div className="mt-4 pt-2 border-t border-on-surface-variant flex gap-2">
               <span className="text-status-final">$</span>
-              <Input className="border-none bg-transparent p-0 focus-visible:ring-0 text-white w-full font-mono outline-none" placeholder="Saisir commande diagnostic..." />
+              <Input
+                className="border-none bg-transparent p-0 focus-visible:ring-0 text-white w-full font-mono outline-none"
+                placeholder="Saisir commande diagnostic..."
+                value={diagInput}
+                onChange={(e) => setDiagInput((e.target as HTMLInputElement).value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleDiagCommand() }}
+              />
             </div>
           </div>
 

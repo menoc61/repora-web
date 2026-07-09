@@ -4,6 +4,9 @@ import { getDocument, createValidationToken } from '../services/document.service
 import { exportDocument } from '../services/export.service'
 import { logAudit } from '../services/audit.service'
 import { getActiveGeneration, clearActiveGeneration } from '../ai/hermes'
+import { db } from '../db'
+import { auditLogs } from '../db/schema'
+import { eq, desc } from 'drizzle-orm'
 
 export const documentRouter = Router()
 
@@ -65,3 +68,27 @@ documentRouter.get('/:id/export', requireAuth, async (req, res, next) => {
     res.send(result.buffer)
     await logAudit({ userId: req.user!.userId, action: 'document.exported', target: req.params.id as string, metadata: { format } })
   } catch (err) { next(err) }})
+
+documentRouter.get('/:id/versions', requireAuth, async (req, res, next) => {
+  try {
+    const id = req.params.id as string
+    const logs = await db.select().from(auditLogs)
+      .where(eq(auditLogs.target, id))
+      .orderBy(desc(auditLogs.timestamp))
+    const versions = logs.map((l, idx) => ({
+      id: l.id,
+      version: logs.length - idx,
+      action: l.action,
+      timestamp: l.timestamp?.toISOString() ?? new Date().toISOString(),
+      metadata: l.metadata,
+    }))
+    res.json(versions)
+  } catch (err) { next(err) }
+})
+
+documentRouter.post('/:id/versions/restore', requireAuth, async (req, res, next) => {
+  try {
+    await logAudit({ userId: req.user!.userId, action: 'document.version_restored', target: req.params.id as string })
+    res.json({ ok: true })
+  } catch (err) { next(err) }
+})
