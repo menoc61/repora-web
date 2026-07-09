@@ -50,16 +50,31 @@ graph LR
 ### Developpement local
 
 ```bash
-# Backend
-cd backend && npm install
-npm run db:generate && npm run db:migrate && npm run db:seed
+# 1. Demarrer PostgreSQL (via Docker ou local)
+docker compose up db -d
+
+# 2. Backend (terminal 1)
+cd backend
+npm install
+npm run db:migrate && npm run db:seed
+
+# Windows PowerShell:
+$env:OLLAMA_MODEL="ornith:latest"
+$env:DATABASE_URL="postgres://repora:repora@localhost:5433/repora"
+$env:CORS_ORIGIN="http://localhost:5173"
 npm run dev                          # Express → http://localhost:8000
 
-# Frontend
+# Linux/Mac:
+OLLAMA_MODEL=ornith:latest          \
+DATABASE_URL=postgres://repora:repora@localhost:5433/repora \
+CORS_ORIGIN=http://localhost:5173   \
+npm run dev
+
+# 3. Frontend (terminal 2)
 npm install && npm run dev           # Vite → http://localhost:5173
 ```
 
-Creer `.env` : `VITE_API_BASE=http://localhost:8000`
+> `OLLAMA_MODEL` est optionnel. Si non defini, le backend detecte automatiquement votre modele via `ollama list`.
 
 ---
 
