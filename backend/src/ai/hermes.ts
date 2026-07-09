@@ -1,4 +1,5 @@
 import { streamText, isStepCount } from 'ai'
+import type { Tool } from 'ai'
 import { AGENT_REGISTRY } from './agents/registry'
 import { getLanguageModel, modelSupportsTools, setDefaultModel, defaultModel } from './providers/interface'
 import type { ProviderType } from './providers/interface'
@@ -103,7 +104,7 @@ export async function* runAgent(
   const supportsTools = modelSupportsTools(modelId)
   const hasTools = Object.keys(agentDef.tools).length > 0
   const tools = supportsTools && hasTools
-    ? (agentDef.tools as Parameters<typeof streamText>[0]['tools'])
+    ? (agentDef.tools as Record<string, Tool>)
     : undefined
 
   // G6: maxSteps exhaustion handled by SDK stopWhen — stops after maxSteps LLM calls.
