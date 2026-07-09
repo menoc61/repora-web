@@ -10,6 +10,9 @@ const dotVariants = cva('w-2 h-2 rounded-full', {
       ai: 'bg-ai-vibrant',
       idle: 'bg-outline',
       thinking: 'bg-ai-vibrant animate-pulse',
+      writing: 'bg-ai-vibrant animate-wave-active',
+      error: 'bg-status-review',
+      done: 'bg-status-final',
     },
   },
   defaultVariants: { state: 'idle' },
@@ -22,6 +25,9 @@ const STATE_LABELS: Record<string, string> = {
   ai: 'ia',
   idle: 'inactif',
   thinking: 'reflexion',
+  writing: 'redaction',
+  error: 'erreur',
+  done: 'termine',
 }
 
 interface AgentStatusProps extends VariantProps<typeof dotVariants> {

@@ -1,6 +1,83 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../api/client'
+import { useState, useEffect, useRef } from 'react'
+import { api, sseStream } from '../api/client'
 import type { Document, Metrics, Template, Collaborator, DocumentFilters } from '../schemas'
+
+// ── Hermes SSE Event Types (aligned with backend HermesEvent union) ──
+
+export interface HermesAgentStatus {
+  type: 'agent_status'
+  agent: string
+  status: string
+  section?: string
+  section_title?: string
+  sections_created?: number
+  [key: string]: unknown
+}
+
+export interface HermesToken {
+  type: 'token'
+  token: string
+  agent: string
+  [key: string]: unknown
+}
+
+export interface HermesToolCall {
+  type: 'tool_call'
+  agent: string
+  tool: string
+  args: unknown
+  [key: string]: unknown
+}
+
+export interface HermesToolResult {
+  type: 'tool_result'
+  agent: string
+  tool: string
+  result: unknown
+  [key: string]: unknown
+}
+
+export interface HermesSectionComplete {
+  type: 'section_complete'
+  section_id?: string
+  title?: string
+  [key: string]: unknown
+}
+
+export interface HermesContextUpdated {
+  type: 'context_updated'
+  agent: string
+  key: string
+  value: unknown
+  [key: string]: unknown
+}
+
+export interface HermesGenerationError {
+  type: 'generation_error'
+  agent: string
+  message: string
+  error_type?: string
+  section_id?: string
+  [key: string]: unknown
+}
+
+export interface HermesDone {
+  type: 'done'
+  document_id?: string
+  agent?: string
+  [key: string]: unknown
+}
+
+export type HermesEvent =
+  | HermesAgentStatus
+  | HermesToken
+  | HermesToolCall
+  | HermesToolResult
+  | HermesSectionComplete
+  | HermesContextUpdated
+  | HermesGenerationError
+  | HermesDone
 
 // ── Backend response shapes ──
 
@@ -30,7 +107,7 @@ interface BackendAgent {
   name: string
   provider: string
   enabled: boolean
-  model_id?: string
+  modelId?: string
 }
 
 interface BackendMetrics {
@@ -60,6 +137,26 @@ interface BackendGenerateResponse {
   document_id: string
   status: string
   prompt: string
+}
+
+interface BackendComment {
+  id: string
+  section_id: string
+  document_id: string
+  author_id: string
+  author_name: string
+  text: string
+  resolved: boolean
+  created_at: string
+}
+
+interface BackendRequirement {
+  id: string
+  project_id: string
+  type: 'functional' | 'non_functional'
+  text: string
+  source_actor: string
+  created_at: string
 }
 
 // ── Mappers: backend → frontend ──
@@ -148,6 +245,14 @@ export function useProject(id: string | undefined) {
   })
 }
 
+export function useRequirements(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['requirements', projectId],
+    queryFn: async () => api.get<BackendRequirement[]>(`/projects/${projectId}/requirements`),
+    enabled: !!projectId,
+  })
+}
+
 export function useCreateProject() {
   const qc = useQueryClient()
   return useMutation({
@@ -165,6 +270,17 @@ export function useGenerateDocument() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['projects'] })
       qc.invalidateQueries({ queryKey: ['documents'] })
+    },
+  })
+}
+
+export function useAddRequirement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ projectId, ...payload }: { projectId: string; type: string; text: string; source_actor?: string }) =>
+      api.post<BackendRequirement>(`/projects/${projectId}/requirements`, payload),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['requirements', variables.projectId] })
     },
   })
 }
@@ -200,17 +316,86 @@ export function useDocument(id: string | undefined) {
   })
 }
 
-export function useDocumentStream(id: string | undefined) {
-  return useQuery({
-    queryKey: ['document-status', id],
-    queryFn: async () => {
-      // Non-streaming health-check fetch; real streaming uses useDocumentStreamEffect below.
-      const d = await api.get<BackendDocument>(`/documents/${id}`)
-      return { status: d.status, sections: d.sections.length }
-    },
-    enabled: !!id,
-    refetchInterval: 5000,
-  })
+export function useDocumentStream(docId: string | undefined) {
+  const [events, setEvents] = useState<HermesEvent[]>([])
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+  const cancelledRef = useRef(false)
+
+  useEffect(() => {
+    if (!docId) {
+      setEvents([])
+      setIsStreaming(false)
+      setError(null)
+      return
+    }
+
+    cancelledRef.current = false
+    setIsStreaming(true)
+    setEvents([])
+    setError(null)
+
+    const run = async () => {
+      try {
+        for await (const evt of sseStream(`/documents/${docId}/stream`)) {
+          if (cancelledRef.current) break
+          setEvents((prev) => [...prev, evt as HermesEvent])
+        }
+      } catch (e) {
+        if (!cancelledRef.current) {
+          setError(e instanceof Error ? e : new Error(String(e)))
+        }
+      } finally {
+        if (!cancelledRef.current) {
+          setIsStreaming(false)
+        }
+      }
+    }
+    run()
+
+    return () => {
+      cancelledRef.current = true
+    }
+  }, [docId])
+
+  // ── Derived values from the event stream ──
+  const lastEvent = events.length > 0 ? events[events.length - 1] : null
+
+  const activeAgents = [...new Set(
+    events
+      .filter((e): e is HermesAgentStatus => e.type === 'agent_status' && (e as HermesAgentStatus).status !== 'done')
+      .map((e) => e.agent),
+  )]
+
+  const agentStates: Record<string, { status: string; section?: string; sectionTitle?: string; tokenCount: number }> = {}
+  for (const e of events) {
+    if (e.type === 'agent_status') {
+      const s = e as HermesAgentStatus
+      agentStates[s.agent] = {
+        status: s.status,
+        section: s.section,
+        sectionTitle: s.section_title,
+        tokenCount: agentStates[s.agent]?.tokenCount ?? 0,
+      }
+    } else if (e.type === 'token') {
+      const t = e as HermesToken
+      if (agentStates[t.agent]) {
+        agentStates[t.agent].status = 'writing'
+        agentStates[t.agent].tokenCount += 1
+      } else {
+        agentStates[t.agent] = { status: 'writing', tokenCount: 1 }
+      }
+    } else if (e.type === 'generation_error') {
+      const err = e as HermesGenerationError
+      if (agentStates[err.agent]) {
+        agentStates[err.agent].status = 'error'
+      } else {
+        agentStates[err.agent] = { status: 'error', tokenCount: 0 }
+      }
+    }
+  }
+
+  return { events, isStreaming, error, lastEvent, activeAgents, agentStates }
 }
 
 export function useUpsertDocument() {
@@ -218,6 +403,70 @@ export function useUpsertDocument() {
   return useMutation({
     mutationFn: async (doc: Document) => doc,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
+  })
+}
+
+export function useComments(documentId: string | undefined) {
+  return useQuery({
+    queryKey: ['comments', documentId],
+    queryFn: async () => api.get<BackendComment[]>(`/documents/${documentId}/comments`),
+    enabled: !!documentId,
+  })
+}
+
+export function useSaveDocument() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; [key: string]: unknown }) =>
+      api.patch<{ ok: boolean }>(`/documents/${id}`, data),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['documents'] })
+      qc.invalidateQueries({ queryKey: ['document', variables.id] })
+    },
+  })
+}
+
+export function useAcceptChanges() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => api.post<{ ok: boolean }>(`/documents/${id}/accept`),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ['documents'] })
+      qc.invalidateQueries({ queryKey: ['document', id] })
+    },
+  })
+}
+
+export function useApplyPatch() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: { id: string; [key: string]: unknown }) =>
+      api.patch<{ ok: boolean }>(`/documents/${id}/patch`, payload),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['document', variables.id] })
+    },
+  })
+}
+
+export function useAddComment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ documentId, ...payload }: { documentId: string; text: string; section_id?: string }) =>
+      api.post<BackendComment>(`/documents/${documentId}/comments`, payload),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['comments', variables.documentId] })
+    },
+  })
+}
+
+export function useResolveComment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, resolved }: { id: string; resolved: boolean }) =>
+      api.patch<{ ok: boolean }>(`/comments/${id}`, { resolved }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['comments'] })
+    },
   })
 }
 
@@ -277,6 +526,65 @@ export function usePatchAgent() {
   })
 }
 
+export function useTestAgent() {
+  return useMutation({
+    mutationFn: async ({ name, message }: { name: string; message: string }) =>
+      api.post<{ reply: string }>(`/agents/${name}/test`, { message }),
+  })
+}
+
+export function useEnableAgent() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (name: string) => api.post(`/agents/${name}/enable`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
+  })
+}
+
+export function useExportAgentConfig() {
+  return useMutation({
+    mutationFn: async (name: string) => api.get<Record<string, unknown>>(`/agents/${name}/export`),
+  })
+}
+
+interface BackendTool {
+  name: string
+  config: Record<string, unknown>
+}
+
+export function useAgentTools(name: string | undefined) {
+  return useQuery({
+    queryKey: ['agent-tools', name],
+    queryFn: async () => {
+      const data = await api.get<{ agent: string; tools: BackendTool[] }>(`/agents/${name}/tools`)
+      return data.tools ?? []
+    },
+    enabled: !!name,
+  })
+}
+
+export function useConnectTool() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (data: { name: string; toolName: string; config: Record<string, unknown> }) =>
+      api.post(`/agents/${data.name}/tools`, { toolName: data.toolName, config: data.config }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['agent-tools', variables.name] })
+    },
+  })
+}
+
+export function useDisconnectTool() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ name, toolName }: { name: string; toolName: string }) =>
+      api.delete(`/agents/${name}/tools/${encodeURIComponent(toolName)}`),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['agent-tools', variables.name] })
+    },
+  })
+}
+
 // ── Export Hooks ──
 
 export function useExportDocument() {
@@ -294,10 +602,53 @@ export function useValidationToken(documentId: string | undefined) {
   })
 }
 
-export function useValidationView(token: string | undefined) {
+interface ValidateDocResponse {
+  document: {
+    id: string
+    title: string
+    status: string
+    sections: BackendSection[]
+  }
+  validation: {
+    decision: string | null
+    decidedAt: string | null
+  }
+}
+
+export function useValidateDocument(token: string | undefined) {
   return useQuery({
     queryKey: ['validation', token],
-    queryFn: async () => api.get<{ document_id: string; decision: string | null }>(`/validate/${token}`),
+    queryFn: async () => api.get<ValidateDocResponse>(`/validate/${token}`, { public: true }),
+    enabled: !!token,
+    retry: false,
+  })
+}
+
+export function useSubmitValidation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      token,
+      decision,
+      sectionReasons,
+    }: {
+      token: string
+      decision: 'approved' | 'rejected'
+      sectionReasons: Record<string, string>
+    }) => api.post<{ ok: boolean }>(`/validate/${token}/decision`, {
+      decision,
+      section_reasons: sectionReasons,
+    }, { public: true }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['validation', variables.token] })
+    },
+  })
+}
+
+export function useValidationView(token: string | undefined) {
+  return useQuery({
+    queryKey: ['validation-view', token],
+    queryFn: async () => api.get<ValidateDocResponse>(`/validate/${token}`, { public: true }),
     enabled: !!token,
   })
 }
@@ -326,6 +677,15 @@ export function useCreateDocumentFromTemplate() {
     mutationFn: async ({ templateId, projectName }: { templateId: string; projectName?: string }) =>
       api.post<BackendProject>('/templates/use', { templateId, name: projectName }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['projects'] }),
+  })
+}
+
+export function useCreateFromTemplate() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { templateId: string; name?: string }) =>
+      api.post<BackendProject>('/templates/use', payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
   })
 }
 
@@ -378,6 +738,31 @@ export function useAccessLogs() {
   })
 }
 
+export function useUpdateCollaborator() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ email, role }: { email: string; role: string }) =>
+      api.patch('/collaboration/collaborators', { email, role }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collaborators'] }),
+  })
+}
+
+export function useRemoveCollaborator() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (email: string) =>
+      api.delete(`/collaboration/collaborators?email=${encodeURIComponent(email)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collaborators'] }),
+  })
+}
+
+export function useUpdateShareSettings() {
+  return useMutation({
+    mutationFn: async (settings: { documentId: string; passwordProtect?: boolean; expiration?: boolean; nda?: boolean }) =>
+      api.patch('/sharing/settings', settings),
+  })
+}
+
 // ── Infrastructure Hooks ──
 
 export function useInfraHealth() {
@@ -402,7 +787,7 @@ export function useRestartServices() {
 // ── API Key Hooks ──
 
 export function useApiKeys() {
-  return useQuery({
+  return useQuery<{ id: string; provider: string; encrypted_key: string; created_at: string }[]>({
     queryKey: ['api-keys'],
     queryFn: async () => api.get('/admin/api-keys'),
   })
@@ -411,7 +796,8 @@ export function useApiKeys() {
 export function useCreateApiKey() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (data: { provider: string; apiKey: string }) => api.post('/admin/api-keys', data),
+    mutationFn: async (data: { provider: string; apiKey: string }) =>
+      api.post('/admin/api-keys', { provider: data.provider, key: data.apiKey }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['api-keys'] }),
   })
 }
@@ -421,25 +807,6 @@ export function useDeleteApiKey() {
   return useMutation({
     mutationFn: async (id: string) => api.delete(`/admin/api-keys/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['api-keys'] }),
-  })
-}
-
-// ── Agent Test Hook ──
-
-export function useTestAgent() {
-  return useMutation({
-    mutationFn: async ({ name, message }: { name: string; message: string }) =>
-      api.post<{ reply: string }>(`/agents/${name}/test`, { message }),
-  })
-}
-
-// ── Agent Enable Hook ──
-
-export function useEnableAgent() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (name: string) => api.post(`/agents/${name}/enable`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
   })
 }
 
@@ -458,22 +825,10 @@ export function useRestoreVersion() {
   return useMutation({
     mutationFn: async ({ documentId, version }: { documentId: string; version: string }) =>
       api.post(`/documents/${documentId}/restore`, { version }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['versions'] }),
-  })
-}
-
-// ── Developer Profile Hook ──
-
-export function useExportAgentConfig() {
-  return useMutation({
-    mutationFn: async (name: string) => api.get(`/agents/${name}/export`),
-  })
-}
-
-export function useConnectTool() {
-  return useMutation({
-    mutationFn: async (data: { agentName: string; toolName: string; config: Record<string, unknown> }) =>
-      api.post(`/agents/${data.agentName}/tools`, { toolName: data.toolName, config: data.config }),
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ['versions', variables.documentId] })
+      qc.invalidateQueries({ queryKey: ['document', variables.documentId] })
+    },
   })
 }
 
