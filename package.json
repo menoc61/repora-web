@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:backend": "cd backend && npm run dev"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

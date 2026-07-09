@@ -69,7 +69,7 @@ All agents speak the same internal tool-call protocol (OpenAI-style `tools`/`too
 }
 ```
 
-The backend intercepts `tool_calls`, executes the matching Flask-side function (DB read/write, PlantUML render, etc.), and returns a `tool` role message with the result, looping until the agent emits a final content message. This loop is provider-agnostic — the same code path drives local llama.cpp and any BYOK model, since both are accessed through one abstraction (§4).
+The backend intercepts `tool_calls`, executes the matching nodejs with the vercel ai sdk-side function (DB read/write, PlantUML render, etc.), and returns a `tool` role message with the result, looping until the agent emits a final content message. This loop is provider-agnostic — the same code path drives local llama.cpp and any BYOK model, since both are accessed through one abstraction (§4).
 
 ---
 
@@ -83,7 +83,7 @@ The backend intercepts `tool_calls`, executes the matching Flask-side function (
 └───────────────────────────────┬───────────────────────────────────┘
                                  │ REST + SSE/WebSocket
 ┌───────────────────────────────▼───────────────────────────────────┐
-│  APPLICATION — Flask (Python)                                      │
+│  APPLICATION — nodejs with the vercel ai sdk (ts)                                      │
 │  - Auth (JWT/session), RBAC                                        │
 │  - Project / Document / Requirement services                       │
 │  - Hermes Orchestrator + Agent Registry                            │
@@ -99,7 +99,7 @@ The backend intercepts `tool_calls`, executes the matching Flask-side function (
 └─────────────────────────────────────────────────────────────────────┘
 
            Local inference sidecar: llama.cpp server (OpenAI-compatible
-           HTTP API, e.g. `llama-server`), reachable only from the Flask
+           HTTP API, e.g. `llama-server`), reachable only from the nodejs with the vercel ai sdk
            backend — never exposed directly to the browser.
 ```
 
@@ -117,7 +117,7 @@ A single internal interface, e.g. `ModelProvider.stream_chat(messages, tools, mo
 - Streaming is relayed to the browser via Server-Sent Events (or WebSocket) so the UI can render tokens live and flip Agent Chip status Idle → Thinking → Writing in real time.
 - Config surface (Admin panel, per thesis §II.2.2 "Administrateur Système"): temperature, top-p, presence penalty, max tokens per section, enable/disable per agent, choice of provider per agent.
 
-```python
+```ts
 class ModelProvider(Protocol):
     def stream_chat(self, messages: list[dict], tools: list[dict], **cfg) -> Iterator[dict]: ...
 
@@ -173,7 +173,7 @@ Carried over directly from the thesis's NFR list — these are binding constrain
 - **Maintainability** — modular agent registry; new agents/providers plug in without touching the orchestrator core.
 - **Ergonomics** — simple, intuitive UI (see DESIGN.md — "Functional Minimalism").
 - **Portability** — standard PWA, runs in any modern browser.
-- **Scalability** — architecture must support adding agents and users without redesign; llama.cpp sidecar can be scaled/replaced independently of the Flask app.
+- **Scalability** — architecture must support adding agents and users without redesign; llama.cpp sidecar can be scaled/replaced independently of the nodejs with the vercel ai sdk app.
 
 ---
 
@@ -205,7 +205,7 @@ Gutters: `24px` (`spacing.gutter`). Layout margins: `24px`–`32px` (6x–8x of 
 
 ---
 
-## 9. Backend — Flask API Surface (functional modules → endpoints)
+## 9. Backend — nodejs with the vercel ai sdk API Surface (functional modules → endpoints)
 
 Mapped directly from the thesis's functional module list (§II.2.1):
 
@@ -230,7 +230,7 @@ Docker-first, matching the thesis's containerization approach:
 ```yaml
 services:
   frontend:      # React PWA, static build served via nginx or Vite preview
-  backend:       # Flask + Hermes orchestrator
+  backend:       # nodejs with the vercel ai sdk + Hermes orchestrator
   db:            # postgres:17
   llama-server:  # local inference sidecar, OpenAI-compatible endpoint, GGUF model volume-mounted
 ```

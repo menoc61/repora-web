@@ -961,7 +961,7 @@ Le tableau 12 présente les différents langages utilisés dans le projet :
   -----------------------------------------------------------------------
   Langage / Technologie      Rôle
   -------------------------- --------------------------------------------
-  Python                     Backend flask(logique métier, modèles)
+  ts                     Backend nodejs with the vercel ai sdk(logique métier, modèles)
 
   TypeScript                 Interfaces dynamiques
 
@@ -982,7 +982,7 @@ La transformation numérique des organisations s'accompagne d'un besoin croissan
 
 Pour apporter une réponse concrète à cette problématique, l'objectif principal de ce projet a été de concevoir et d'implémenter une plateforme intelligente de génération automatique des cahiers des charges, intégrant des agents spécialisés basés sur l'intelligence artificielle. Cette plateforme s'inscrit dans une dynamique de modernisation des processus d'ingénierie logicielle en proposant un outil capable d'assister les analystes, les chefs de projet, les développeurs ainsi que les étudiants dans la rédaction de documents de spécification de qualité.
 
-Pour atteindre cet objectif, une étude approfondie des méthodes traditionnelles de rédaction des cahiers des charges ainsi qu'une analyse des solutions existantes ont d'abord été réalisées. Cette étude a permis d'identifier les limites des approches actuelles et de définir les besoins fonctionnels et non fonctionnels de la plateforme. La conception s'est ensuite appuyée sur le langage UML afin de modéliser l'ensemble du système, tandis que le développement a été réalisé à l'aide de technologies modernes telles que **React**, **Flask**, **PostgreSQL**, **Docker** et des modèles d'intelligence artificielle, suivant une approche de développement progressive et modulaire.
+Pour atteindre cet objectif, une étude approfondie des méthodes traditionnelles de rédaction des cahiers des charges ainsi qu'une analyse des solutions existantes ont d'abord été réalisées. Cette étude a permis d'identifier les limites des approches actuelles et de définir les besoins fonctionnels et non fonctionnels de la plateforme. La conception s'est ensuite appuyée sur le langage UML afin de modéliser l'ensemble du système, tandis que le développement a été réalisé à l'aide de technologies modernes telles que **React**, **nodejs with the vercel ai sdk**, **PostgreSQL**, **Docker** et des modèles d'intelligence artificielle, suivant une approche de développement progressive et modulaire.
 
 Au final, ce projet a abouti à une plateforme intelligente permettant la création et la gestion des projets, la collecte des besoins fonctionnels et non fonctionnels, la génération automatique des différentes sections du cahier des charges, la production des diagrammes UML ainsi que l'exportation du document final. Les résultats obtenus montrent une amélioration significative du temps de production des cahiers des charges, une meilleure cohérence des documents générés et une réduction des erreurs liées à la rédaction manuelle.
 
@@ -1000,7 +1000,7 @@ Au final, ce projet a abouti à une plateforme intelligente permettant la créat
 
 **\[2\]** FastAPI, *Documentation officielle*, \[En ligne\]. Disponible sur : <https://fastapi.tiangolo.com>. \[Consulté le 17 juin 2026\].
 
-**\[3\]** Python Software Foundation, *Python Documentation*, \[En ligne\]. Disponible sur : <https://docs.python.org/3>. \[Consulté le 17 juin 2026\].
+**\[3\]** ts Software Foundation, *ts Documentation*, \[En ligne\]. Disponible sur : <https://docs.ts.org/3>. \[Consulté le 17 juin 2026\].
 
 **\[4\]** PostgreSQL Global Development Group, *Documentation PostgreSQL*, \[En ligne\]. Disponible sur : <https://www.postgresql.org/docs>. \[Consulté le 18 juin 2026\].
 

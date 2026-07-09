@@ -1,0 +1,35 @@
+services:
+  frontend:
+    build: .
+    ports: ["3000:80"]
+    depends_on: [backend]
+
+  backend:
+    build: backend/
+    ports: ["3001:3001"]
+    environment:
+      - DATABASE_URL=postgres://repora:repora@db:5432/repora
+      - JWT_SECRET=${JWT_SECRET:-dev-secret}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
+      - LLAMA_CPP_URL=http://llama-server:8080/v1
+      - CORS_ORIGIN=http://localhost:3000
+    depends_on: [db]
+
+  db:
+    image: postgres:17
+    environment:
+      - POSTGRES_USER=repora
+      - POSTGRES_PASSWORD=repora
+      - POSTGRES_DB=repora
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+
+  llama-server:
+    profiles: ["local-ai"]
+    image: ghcr.io/ggml-org/llama.cpp:server
+    volumes: [./models:/models]
+    command: ["--model", "/models/model.gguf", "--port", "8080", "--host", "0.0.0.0"]
+    ports: ["8080:8080"]
+
+volumes:
+  pgdata:
