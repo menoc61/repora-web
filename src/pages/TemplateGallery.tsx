@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { useTemplates, useCreateDocumentFromTemplate } from '../hooks/useQueries'
+import { useTemplates, useCreateDocumentFromTemplate, useGenerateDocument } from '../hooks/useQueries'
 import type { Template } from '../schemas'
 
 interface TemplateCard {
@@ -34,8 +34,11 @@ function agentDotClass(status: AgentStatus): string {
 
 export default function TemplateGallery() {
   const [active, setActive] = useState<string>('Tous les modeles')
+  const [searchQuery, setSearchQuery] = useState('')
   const { data: apiTemplates = [], isLoading } = useTemplates()
   const createFromTemplate = useCreateDocumentFromTemplate()
+  const generateDoc = useGenerateDocument()
+  const navigate = useNavigate()
 
   const cards: TemplateCard[] = apiTemplates.length > 0
     ? apiTemplates.map((t) => ({
@@ -43,16 +46,35 @@ export default function TemplateGallery() {
         dept: t.department,
         icon: t.icon,
         color: 'bg-blue-50 text-secondary',
+        // TODO: API does not return agent data; wire to GET /templates/:id/agents when endpoint exists
         agents: [] as [string, string][],
       }))
     : TEMPLATES
 
-  const filtered = active === 'Tous les modeles' ? cards : cards.filter((c) => c.dept === active)
+  let filtered = active === 'Tous les modeles' ? cards : cards.filter((c) => c.dept === active)
+  if (searchQuery.trim()) {
+    const q = searchQuery.toLowerCase()
+    filtered = filtered.filter((c) =>
+      c.title.toLowerCase().includes(q) || c.dept.toLowerCase().includes(q)
+    )
+  }
 
-  const handleUseTemplate = (tpl: TemplateCard) => {
+  const handleUseTemplate = async (tpl: TemplateCard) => {
     const t = apiTemplates.find((at) => at.title === tpl.title)
-    if (t) {
-      createFromTemplate.mutate({ templateId: t.id, projectName: tpl.title })
+    if (!t) return
+    try {
+      // Create project + document from template (backend sets template outline)
+      const project = await createFromTemplate.mutateAsync({ templateId: t.id, projectName: tpl.title })
+      const docId = project.documentId ?? project.id
+      // Trigger generation with templateId for template-aware pipeline
+      await generateDoc.mutateAsync({
+        projectId: project.id,
+        prompt: tpl.title,
+        templateId: t.id,
+      })
+      navigate({ to: '/editor', search: { id: docId } })
+    } catch {
+      // Errors surfaced via mutation states
     }
   }
 
@@ -61,12 +83,12 @@ export default function TemplateGallery() {
       <div className="h-16 flex items-center justify-between px-gutter bg-surface-studio border-b border-outline-variant">
         <div className="relative w-full max-w-md">
           <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" />
-          <Input className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-2 font-body-sm text-body-sm focus:ring-2 focus:ring-ai-vibrant outline-none" placeholder="Rechercher modeles, agents ou tags..." />
+          <Input className="w-full bg-surface-container-low border border-outline-variant rounded-lg pl-10 pr-4 py-2 font-body-sm text-body-sm focus:ring-2 focus:ring-ai-vibrant outline-none" placeholder="Rechercher modeles, agents ou tags..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
         </div>
         <nav className="hidden md:flex gap-6">
-          <a className="font-label-md text-label-md text-on-surface-variant hover:text-secondary" href="#">Espace de travail</a>
-          <a className="font-label-md text-label-md text-primary border-b-2 border-secondary pb-1" href="#">Bibliotheque</a>
-          <a className="font-label-md text-label-md text-on-surface-variant hover:text-secondary" href="#">Agents</a>
+          <Link to="/workspace" className="font-label-md text-label-md text-on-surface-variant hover:text-secondary">Espace de travail</Link>
+          <Link to="/library" className="font-label-md text-label-md text-primary border-b-2 border-secondary pb-1">Bibliotheque</Link>
+          <Link to="/agents" className="font-label-md text-label-md text-on-surface-variant hover:text-secondary">Agents</Link>
         </nav>
       </div>
 
@@ -107,17 +129,21 @@ export default function TemplateGallery() {
               <div className="mt-auto pt-4 border-t border-outline-variant/30">
                 <p className="font-label-sm text-[11px] text-on-surface-variant uppercase mb-3">Agents actifs</p>
                 <div className="flex flex-wrap gap-2 mb-6">
-                  {t.agents.map(([name, st]) => (
-                    <div key={name} className="flex items-center gap-1 bg-surface-studio border border-outline-variant px-2 py-1 rounded">
-                      <div className={`w-1.5 h-1.5 rounded-full ${agentDotClass(st as AgentStatus)}`} />
-                      <span className="font-label-sm text-label-sm text-on-primary-fixed-variant">{name}</span>
-                    </div>
-                  ))}
+                  {t.agents.length > 0 ? (
+                    t.agents.map(([name, st]) => (
+                      <div key={name} className="flex items-center gap-1 bg-surface-studio border border-outline-variant px-2 py-1 rounded">
+                        <div className={`w-1.5 h-1.5 rounded-full ${agentDotClass(st as AgentStatus)}`} />
+                        <span className="font-label-sm text-label-sm text-on-primary-fixed-variant">{name}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <span className="font-label-sm text-label-sm text-on-surface-variant italic">Aucun agent associe</span>
+                  )}
                 </div>
                 <Button
                   className="w-full bg-surface-container-highest text-on-surface font-label-md text-label-md hover:bg-primary-container hover:text-white"
                   onClick={() => handleUseTemplate(t)}
-                  disabled={createFromTemplate.isPending}
+                  disabled={createFromTemplate.isPending || generateDoc.isPending}
                 >
                   {createFromTemplate.isPending ? 'Creation...' : 'Utiliser le modele'}
                 </Button>
