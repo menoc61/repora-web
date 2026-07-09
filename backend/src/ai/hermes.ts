@@ -68,20 +68,39 @@ export async function discoverOllamaModel(): Promise<string> {
     return discoveredModel
   }
 
-  // 2. Auto-discover from Ollama
+  // 2. Use ollama list CLI for reliable detection
   try {
-    const baseUrl = config.ollamaUrl.replace(/\/v1\/?$/, '')
-    const res = await fetch(`${baseUrl}/api/tags`)
-    if (!res.ok) return discoveredModel
-    const data = (await res.json()) as { models?: Array<{ name: string }> }
-    if (data.models && data.models.length > 0) {
-      availableModels = data.models.map(m => m.name)
+    const { execSync } = await import('child_process')
+    const stdout = execSync('ollama list', { encoding: 'utf-8', timeout: 5000 })
+    const lines = stdout.trim().split('\n').slice(1) // skip header
+    const models = lines
+      .map(line => line.trim().split(/\s+/)[0])
+      .filter(Boolean)
+    if (models.length > 0) {
+      availableModels = models
       discoveredModel = availableModels[0]
       setDefaultModel(discoveredModel)
-      console.log(`[Hermes] Auto-discovered ${availableModels.length} Ollama model(s): ${availableModels.join(', ')}`)
+      console.log(`[Hermes] Detected ${availableModels.length} Ollama model(s) via CLI: ${availableModels.join(', ')}`)
       console.log(`[Hermes] Default model: ${discoveredModel} (set OLLAMA_MODEL env var to override)`)
+    } else {
+      console.log('[Hermes] No models found via ollama list CLI')
     }
-  } catch { /* use default */ }
+  } catch (e: unknown) {
+    // 3. Fallback: try Ollama HTTP API
+    try {
+      const baseUrl = config.ollamaUrl.replace(/\/v1\/?$/, '')
+      const res = await fetch(`${baseUrl}/api/tags`)
+      if (!res.ok) return discoveredModel
+      const data = (await res.json()) as { models?: Array<{ name: string }> }
+      if (data.models && data.models.length > 0) {
+        availableModels = data.models.map(m => m.name)
+        discoveredModel = availableModels[0]
+        setDefaultModel(discoveredModel)
+        console.log(`[Hermes] Detected via API: ${availableModels.join(', ')}`)
+        console.log(`[Hermes] Default model: ${discoveredModel}`)
+      }
+    } catch { /* use default */ }
+  }
   return discoveredModel
 }
 
