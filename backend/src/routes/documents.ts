@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { requireAuth } from '../middleware/auth'
 import { getDocument, createValidationToken } from '../services/document.service'
 import { logAudit } from '../services/audit.service'
+import { getActiveGeneration, clearActiveGeneration } from '../ai/hermes'
 
 export const documentRouter = Router()
 
@@ -14,7 +15,11 @@ documentRouter.get('/:id', requireAuth, async (req, res, next) => {
 
 documentRouter.get('/:id/stream', requireAuth, async (req, res, next) => {
   try {
-    const doc = await getDocument(req.params.id as string)
+    const generation = getActiveGeneration(req.params.id as string)
+    if (!generation) {
+      res.status(404).json({ error: { code: 'no_active_generation', message: 'No active generation for this document' } })
+      return
+    }
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -26,23 +31,16 @@ documentRouter.get('/:id/stream', requireAuth, async (req, res, next) => {
       res.write(`data: ${JSON.stringify(data)}\n\n`)
     }
 
-    const delay = (ms: number) => new Promise(r => setTimeout(r, ms))
-
-    sendEvent({ type: 'agent_status', agent: 'Hermes', status: 'thinking' })
-    await delay(200)
-
-    for (const section of doc.sections) {
-      sendEvent({ type: 'agent_status', agent: 'Hermes', status: 'writing' })
-      await delay(200)
-      sendEvent({ type: 'token', token: `# ${section.title}\n\nContent for ${section.title}...` })
-      await delay(200)
-      sendEvent({ type: 'section_complete', section_id: section.id, title: section.title })
-      await delay(200)
+    const gen = await generation
+    for await (const event of gen) {
+      sendEvent(event)
     }
 
-    sendEvent({ type: 'done', document_id: req.params.id as string })
     res.end()
-  } catch (err) { next(err) }
+  } catch (err) {
+    clearActiveGeneration(req.params.id as string)
+    next(err)
+  }
 })
 
 documentRouter.post('/:id/validation-token', requireAuth, async (req, res, next) => {

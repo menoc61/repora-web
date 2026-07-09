@@ -60,7 +60,7 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
     description: 'Drafts prose content for document sections',
     systemPrompt: 'You are a technical writer. Draft clear, professional content for each section based on the outline and requirements.',
     defaultModel: 'gpt-4o',
-    defaultProvider: 'byok',
+    defaultProvider: 'openai',
     tools: { getProjectContext, writeSection },
   },
   UML: {
@@ -84,7 +84,7 @@ export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
     description: 'Reviews document for consistency and quality',
     systemPrompt: 'You are a quality assurance reviewer. Check document consistency, terminology alignment, and completeness.',
     defaultModel: 'claude-sonnet-4-6',
-    defaultProvider: 'byok',
+    defaultProvider: 'anthropic',
     tools: { getProjectContext },
   },
 }

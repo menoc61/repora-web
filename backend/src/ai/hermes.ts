@@ -47,25 +47,48 @@ export async function* runAgent(
   yield { type: 'done', agent: agentName }
 }
 
+const activeGenerations = new Map<string, Promise<AsyncGenerator<HermesEvent>>>()
+
+export function setActiveGeneration(documentId: string, gen: Promise<AsyncGenerator<HermesEvent>>) {
+  activeGenerations.set(documentId, gen)
+}
+
+export function getActiveGeneration(documentId: string): Promise<AsyncGenerator<HermesEvent>> | undefined {
+  return activeGenerations.get(documentId)
+}
+
+export function clearActiveGeneration(documentId: string) {
+  activeGenerations.delete(documentId)
+}
+
 export async function orchestrateGeneration(projectId: string, prompt: string, documentId: string): Promise<AsyncGenerator<HermesEvent>> {
   async function* orchestrate() {
-    const plannerGen = runAgent('Planner', prompt, { projectId, documentId })
-    for await (const event of plannerGen) {
-      yield event
-    }
+    try {
+      const plannerGen = runAgent('Planner', prompt, { projectId, documentId })
+      for await (const event of plannerGen) {
+        yield event
+      }
 
-    const writerGen = runAgent('Writer', 'Draft each section from the outline', { projectId, documentId })
-    for await (const event of writerGen) {
-      yield event
-    }
+      const writerGen = runAgent('Writer', 'Draft each section from the outline', { projectId, documentId })
+      for await (const event of writerGen) {
+        yield event
+      }
 
-    const reviewerGen = runAgent('Reviewer', 'Review the complete document', { projectId, documentId })
-    for await (const event of reviewerGen) {
-      yield event
-    }
+      const reviewerGen = runAgent('Reviewer', 'Review the complete document', { projectId, documentId })
+      for await (const event of reviewerGen) {
+        yield event
+      }
 
-    yield { type: 'done', document_id: documentId }
+      yield { type: 'done', document_id: documentId }
+    } finally {
+      clearActiveGeneration(documentId)
+    }
   }
 
   return orchestrate()
+}
+
+export function initiateGeneration(projectId: string, prompt: string, documentId: string): void {
+  const gen = orchestrateGeneration(projectId, prompt, documentId)
+  setActiveGeneration(documentId, gen)
 }

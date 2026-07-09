@@ -9,7 +9,7 @@ import {
   generateDocument,
 } from '../services/project.service'
 import { logAudit } from '../services/audit.service'
-import { orchestrateGeneration } from '../ai/hermes'
+import { initiateGeneration } from '../ai/hermes'
 
 export const projectRouter = Router()
 
@@ -57,7 +57,7 @@ projectRouter.post('/:id/generate', requireAuth, async (req, res, next) => {
   try {
     const result = await generateDocument(req.params.id as string, req.user!.userId)
     const project = await getProjectById(req.params.id as string, req.user!.userId)
-    orchestrateGeneration(req.params.id as string, project.brief || '', result.document_id)
+    initiateGeneration(req.params.id as string, project.brief || '', result.document_id)
     await logAudit({ userId: req.user!.userId, action: 'document.generated', target: result.document_id, metadata: { projectId: req.params.id as string } })
     res.status(201).json(result)
   } catch (err) { next(err) }

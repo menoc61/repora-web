@@ -21,14 +21,14 @@ adminRouter.delete('/users/:id', (_req: Request, res: Response) => {
   res.status(501).json({ error: { code: 'not_implemented', message: 'Not implemented' } })
 })
 
-adminRouter.get('/agents', requireAuth, async (req, res, next) => {
+adminRouter.get('/agents', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
   try {
     const agents = await listAgents()
     res.json(agents)
   } catch (err) { next(err) }
 })
 
-adminRouter.patch('/agents/:name', requireAuth, async (req, res, next) => {
+adminRouter.patch('/agents/:name', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
   try {
     const name = String(req.params.name)
     if (!name) return next(new AppError(400, 'missing_name', 'Agent name is required'))
