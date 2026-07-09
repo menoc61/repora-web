@@ -1,0 +1,1 @@
+export { AGENT_REGISTRY } from './registry'
