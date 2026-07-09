@@ -52,3 +52,16 @@ documentRouter.post('/:id/validation-token', requireAuth, async (req, res, next)
     res.json({ token })
   } catch (err) { next(err) }
 })
+
+documentRouter.get('/:id/export', requireAuth, async (req, res, next) => {
+  try {
+    const format = (req.query.format as string) || 'pdf'
+    const doc = await getDocument(req.params.id as string)
+    const content = doc.sections.map(s => s.content).join('\n\n')
+    const filename = `document-${req.params.id.slice(0, 8)}.${format}`
+
+    res.setHeader('Content-Type', format === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.send(Buffer.from(content))
+  } catch (err) { next(err) }
+})
