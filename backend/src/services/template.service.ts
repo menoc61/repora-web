@@ -1,38 +1,31 @@
-const TEMPLATES = [
-  {
-    id: '1',
-    name: 'Cahier des Charges Standard',
-    category: 'Legal',
-    description: 'Modele standard pour un cahier des charges complet avec sections obligatoires.',
-    sections: ['Introduction', 'Objectifs', 'Perimetre', 'Exigences Fonctionnelles', 'Exigences Techniques', 'Contraintes', 'Livrables', 'Planning'],
-  },
-  {
-    id: '2',
-    name: 'Specification Technique',
-    category: 'Engineering',
-    description: 'Document de specification technique detaille pour les equipes de developpement.',
-    sections: ['Vue d\'ensemble', 'Architecture', 'Composants', 'Interfaces', 'Base de donnees', 'Securite', 'Deploiement'],
-  },
-  {
-    id: '3',
-    name: 'Rapport Financier',
-    category: 'Finance',
-    description: 'Modele de rapport financier avec analyse des couts et budget.',
-    sections: ['Resume executif', 'Analyse des couts', 'Budget previsionnel', 'Retour sur investissement', 'Risques financiers', 'Recommandations'],
-  },
-  {
-    id: '4',
-    name: 'Audit de Securite',
-    category: 'Security',
-    description: 'Modele pour un rapport d\'audit de securite complet.',
-    sections: ['Perimetre de l\'audit', 'Methodologie', 'Vulnerabilites identifiees', 'Evaluation des risques', 'Recommandations', 'Plan d\'action'],
-  },
+import { db, schema } from '../db'
+import { eq } from 'drizzle-orm'
+
+const DEFAULT_TEMPLATES = [
+  { name: 'Cahier des Charges Standard', category: 'Juridique', description: 'Cahier des charges complet avec sections standard', sections: ['Contexte', 'Exigences', 'Architecture', 'Planification'] },
+  { name: 'Specification Technique', category: 'Ingenierie', description: 'Specification technique detaillee pour projets logiciels', sections: ['Vue d\'ensemble', 'Architecture', 'API', 'Securite', 'Deploiement'] },
+  { name: 'Rapport Financier', category: 'Finance', description: 'Rapport financier structure avec analyses', sections: ['Resume', 'Analyse', 'Projections', 'Risques'] },
+  { name: 'Audit de Securite', category: 'Securite', description: 'Rapport d\'audit de securite complet', sections: ['Perimetre', 'Vulnerabilites', 'Correctifs', 'Recommandations'] },
+  { name: 'Analyse de Marche', category: 'Marketing', description: 'Etude de marche et analyse concurrentielle', sections: ['Contexte', 'Concurrence', 'Opportunites', 'Strategie'] },
 ]
 
-export function listTemplates() {
-  return TEMPLATES
+async function seedTemplates() {
+  const existing = await db.select().from(schema.templates).limit(1)
+  if (existing.length === 0) {
+    await db.insert(schema.templates).values(DEFAULT_TEMPLATES)
+  }
 }
 
-export function getTemplate(id: string) {
-  return TEMPLATES.find(t => t.id === id) ?? null
+export async function listTemplates(category?: string) {
+  await seedTemplates()
+  if (category) {
+    return db.select().from(schema.templates).where(eq(schema.templates.category, category))
+  }
+  return db.select().from(schema.templates)
+}
+
+export async function getTemplate(id: string) {
+  await seedTemplates()
+  const [t] = await db.select().from(schema.templates).where(eq(schema.templates.id, id)).limit(1)
+  return t ?? null
 }

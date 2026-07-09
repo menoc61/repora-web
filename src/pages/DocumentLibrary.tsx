@@ -4,6 +4,7 @@ import TopBar from '../layout/TopBar'
 import Icon from '../components/Icon'
 import StatusBadge from '../components/StatusBadge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import {
   Table,
   TableHeader,
@@ -56,6 +57,7 @@ export default function DocumentLibrary() {
   const [department, setDepartment] = useState<string>('all')
   const [status, setStatus] = useState<string>('all')
   const [owner, setOwner] = useState<string>('all')
+  const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const exportMutation = useExportDocument()
@@ -63,6 +65,7 @@ export default function DocumentLibrary() {
   const filters: DocumentFilters = {
     ...(department !== 'all' ? { department } : {}),
     ...(status !== 'all' ? { status } : {}),
+    ...(search ? { search } : {}),
   }
   const { data: documents = [] } = useDocuments(filters)
 
@@ -85,6 +88,7 @@ export default function DocumentLibrary() {
     setDepartment('all')
     setStatus('all')
     setOwner('all')
+    setSearch('')
     setPage(1)
     setSelectedIds(new Set())
   }
@@ -163,6 +167,14 @@ export default function DocumentLibrary() {
                 <SelectItem value="lead">Chef d&apos;equipe</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="Rechercher..."
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              className="bg-surface-container-low border border-outline-variant rounded-lg px-3 py-1.5 font-label-md text-label-md focus:ring-1 focus:ring-ai-vibrant outline-none h-9 w-48"
+            />
           </div>
           <div className="h-6 w-px bg-outline-variant mx-2 hidden lg:block" />
           <div className="flex items-center gap-4 ml-auto">

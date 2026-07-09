@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth'
-import { getDocument, createValidationToken } from '../services/document.service'
+import { getDocument, listDocuments, createValidationToken } from '../services/document.service'
 import { exportDocument } from '../services/export.service'
 import { logAudit } from '../services/audit.service'
 import { getActiveGeneration, clearActiveGeneration } from '../ai/hermes'
@@ -9,6 +9,15 @@ import { auditLogs } from '../db/schema'
 import { eq, desc } from 'drizzle-orm'
 
 export const documentRouter = Router()
+
+documentRouter.get('/', requireAuth, async (req, res, next) => {
+  try {
+    const status = req.query.status as string | undefined
+    const search = req.query.search as string | undefined
+    const docs = await listDocuments(req.user!.userId, { status, search })
+    res.json(docs)
+  } catch (err) { next(err) }
+})
 
 documentRouter.get('/:id', requireAuth, async (req, res, next) => {
   try {

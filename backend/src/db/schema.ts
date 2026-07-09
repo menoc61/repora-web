@@ -78,6 +78,15 @@ export const validations = pgTable('validations', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
+export const templates = pgTable('templates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+  category: text('category').notNull(),
+  description: text('description'),
+  sections: jsonb('sections').$type<string[]>().default([]),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const agentConfigs = pgTable('agent_configs', {
   id: uuid('id').defaultRandom().primaryKey(),
   agentName: text('agent_name').notNull().unique(),

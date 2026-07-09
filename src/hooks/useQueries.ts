@@ -45,6 +45,17 @@ interface BackendLog {
   target: string
 }
 
+interface BackendDocumentRow {
+  id: string
+  projectId: string
+  projectName: string | null
+  status: string
+  outline: Record<string, unknown> | null
+  createdAt: string
+  updatedAt: string
+  sectionCount: number
+}
+
 interface BackendGenerateResponse {
   document_id: string
   status: string
@@ -93,6 +104,23 @@ function mapBackendDocument(d: BackendDocument): Document {
     version: 'v1.0.0',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    tags: [],
+  }
+}
+
+function mapDocRowToDocument(d: BackendDocumentRow): Document {
+  return {
+    id: d.id,
+    projectId: d.projectId,
+    title: ((d.outline?.title as string) ?? d.projectName ?? 'Untitled') as string,
+    status: (['draft', 'review', 'final', 'active', 'autonomous', 'archived'].includes(d.status) ? d.status : 'draft') as Document['status'],
+    department: hashDepartment(d.projectId),
+    author: { name: 'Repora AI' },
+    collaborators: [],
+    content: '',
+    version: 'v1.0.0',
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt,
     tags: [],
   }
 }
@@ -147,15 +175,15 @@ export function useDocuments(filters?: DocumentFilters) {
   return useQuery({
     queryKey: ['documents', filters],
     queryFn: async () => {
-      // Backend has no /documents list endpoint — projects serve as the document list.
-      const rows = await api.get<BackendProject[]>('/projects')
-      let docs = rows.map(mapProjectToDocument)
-      if (filters?.status && filters.status !== 'all') docs = docs.filter((d) => d.status === filters.status)
+      const params = new URLSearchParams()
+      if (filters?.status && filters.status !== 'all') params.set('status', filters.status)
+      if (filters?.search) params.set('search', filters.search)
+      const qs = params.toString()
+      const path = `/documents${qs ? `?${qs}` : ''}`
+
+      const rows = await api.get<BackendDocumentRow[]>(path)
+      let docs = rows.map(mapDocRowToDocument)
       if (filters?.department && filters.department !== 'all') docs = docs.filter((d) => d.department === filters.department)
-      if (filters?.search) {
-        const q = filters.search.toLowerCase()
-        docs = docs.filter((d) => d.title.toLowerCase().includes(q))
-      }
       return docs
     },
   })
