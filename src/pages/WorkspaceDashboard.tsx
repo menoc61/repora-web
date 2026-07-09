@@ -30,9 +30,9 @@ export default function WorkspaceDashboard() {
     try {
       // First create a project from the prompt, then dispatch generation.
       const project = await createProject.mutateAsync({ name: prompt.slice(0, 80), brief: prompt })
-      await generateDoc.mutateAsync({ projectId: project.id, prompt })
+      const result = await generateDoc.mutateAsync({ projectId: project.id, prompt })
       setActiveView('editor')
-      navigate({ to: '/editor' })
+      navigate({ to: '/editor', search: { id: result.document_id } })
     } catch {
       /* shown via pending/error states */
     }
@@ -84,6 +84,7 @@ export default function WorkspaceDashboard() {
               <Link
                 key={d.id}
                 to="/editor"
+                search={{ id: d.id }}
                 onClick={() => setActiveView('editor')}
                 className="col-span-12 md:col-span-4"
               >

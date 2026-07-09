@@ -9,6 +9,7 @@ interface BackendProject {
   name: string
   status: string
   brief?: string
+  documentId?: string | null
 }
 
 interface BackendSection {
@@ -63,7 +64,8 @@ function hashDepartment(id: string): string {
 function mapProjectToDocument(p: BackendProject): Document {
   const now = new Date().toISOString()
   return {
-    id: p.id,
+    id: p.documentId ?? p.id,
+    projectId: p.id,
     title: p.name,
     status: (['draft', 'review', 'final', 'active', 'autonomous'].includes(p.status) ? p.status : 'draft') as Document['status'],
     department: hashDepartment(p.id),

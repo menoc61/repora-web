@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import { Link, useSearch } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { AgentStatus } from '../components/AgentStatus'
 import { Button } from '../components/ui/button'
-import { useDocument, useAgents } from '../hooks/useQueries'
+import { useDocument, useAgents, useExportDocument, useValidationToken } from '../hooks/useQueries'
 
 interface OutlineItemProps {
   label: string
@@ -12,13 +13,35 @@ interface OutlineItemProps {
 }
 
 export default function Editor() {
-  const search = useSearch({ strict: false }) as { id?: string }
+  const search = useSearch({ from: '/editor' })
   const docId = search.id
   const { data: document, isLoading } = useDocument(docId)
   const { data: agents = [] } = useAgents()
+  const exportDoc = useExportDocument()
+  const validationToken = useValidationToken(docId)
+  const [shareUrl, setShareUrl] = useState<string | null>(null)
   const title = document?.title ?? 'Untitled Document'
   const status = document?.status ?? 'draft'
   const statusLabel = status === 'review' ? 'UNDER REVIEW' : status.toUpperCase()
+
+  async function handleExport(format: 'pdf' | 'docx') {
+    if (!docId) return
+    const blob = await exportDoc.mutateAsync({ id: docId, format })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${title}.${format}`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function handleShare() {
+    if (!docId) return
+    const { token } = await validationToken.mutateAsync()
+    const base = `${window.location.origin}/validate/${token}`
+    setShareUrl(base)
+    await navigator.clipboard?.writeText(base)
+  }
 
   return (
     <div className="pt-16 pl-sidebar-width pr-inspector-width h-screen flex flex-col">
@@ -42,10 +65,10 @@ export default function Editor() {
           <div className="flex -space-x-2 mr-4">
             <div className="w-8 h-8 rounded-full border-2 border-surface-studio bg-ai-vibrant flex items-center justify-center text-white font-label-sm">+3</div>
           </div>
-          <Button variant="outline" className="flex items-center gap-2 px-4 py-1.5 border border-outline-variant rounded font-label-md text-label-md hover:bg-surface-container transition-colors">
+          <Button variant="outline" onClick={() => handleExport('pdf')} disabled={!docId || exportDoc.isPending} className="flex items-center gap-2 px-4 py-1.5 border border-outline-variant rounded font-label-md text-label-md hover:bg-surface-container transition-colors">
             <Icon name="export_notes" className="text-[18px]" /> Export
           </Button>
-          <Button className="flex items-center gap-2 px-4 py-1.5 bg-ai-vibrant text-white rounded font-label-md text-label-md hover:opacity-90 transition-all">
+          <Button onClick={handleShare} disabled={!docId || validationToken.isPending} className="flex items-center gap-2 px-4 py-1.5 bg-ai-vibrant text-white rounded font-label-md text-label-md hover:opacity-90 transition-all">
             <Icon name="share" className="text-[18px]" /> Share
           </Button>
           <div className="flex items-center gap-2 ml-2 pl-4 border-l border-outline-variant">
@@ -56,11 +79,18 @@ export default function Editor() {
         </div>
       </header>
 
+      {shareUrl && (
+        <div className="px-gutter py-2 bg-ai-glow text-ai-vibrant font-label-sm text-label-sm flex items-center gap-2">
+          <Icon name="link" className="text-[16px]" />
+          Validation link copied: {shareUrl}
+        </div>
+      )}
+
       {/* Editor canvas */}
       <section className="flex-1 bg-white overflow-y-auto hide-scrollbar relative">
         <div className="max-w-[800px] mx-auto py-20 px-12 min-h-full">
           <div className="mb-12">
-            <h1 className="font-headline-lg text-headline-lg text-primary leading-tight mb-4">Strategic Growth Roadmap: 2024 Enterprise Markets</h1>
+            <h1 className="font-headline-lg text-headline-lg text-primary leading-tight mb-4">{title}</h1>
             <div className="flex items-center gap-4 text-on-surface-variant">
               <span className="font-label-sm text-label-sm bg-surface-container px-2 py-1 rounded">INTERNAL ONLY</span>
               <span className="font-label-sm text-label-sm">Modified 4 minutes ago by AI Orchestrator</span>
@@ -68,27 +98,17 @@ export default function Editor() {
           </div>
 
           <div className="space-y-6 font-body-md text-on-surface leading-relaxed">
-            <div className="p-2 rounded group relative hover:bg-[#F1F5F9]">
-              <p>Following the consolidation of our regional hubs, the primary objective for Q3 remains the aggressive capture of market share within the High-Frequency Trading (HFT) and Decentralized Finance (DeFi) infrastructure sectors.</p>
-            </div>
-            <div className="p-2 rounded group relative bg-ai-glow/20 border-l-2 border-ai-vibrant">
-              <div className="flex items-center gap-2 mb-2">
-                <Icon name="psychology" className="text-[16px] text-ai-vibrant" />
-                <span className="font-label-sm text-label-sm text-ai-vibrant font-bold">AI ASSISTANT: REFINING BLOCK...</span>
-              </div>
-              <p className="italic text-on-surface-variant">"Generating comparative analysis for competitive pricing models in the APAC region to complement this section..."</p>
-              <div className="mt-3 w-full bg-outline-variant h-1 rounded overflow-hidden">
-                <div className="bg-ai-vibrant h-full animate-wave-active w-3/4" />
-              </div>
-            </div>
-            <div className="p-2 rounded group relative">
-              <h2 className="font-headline-md text-headline-md text-primary mt-8 mb-4">Core Market Drivers</h2>
-              <ul className="list-disc pl-6 space-y-3">
-                <li>Regulatory alignment across G7 jurisdictions regarding digital asset taxonomy.</li>
-                <li>Increased demand for "Sovereign Intelligence" - local data processing without cross-border transit.</li>
-                <li>Transition from legacy cloud providers to specialized high-performance AI computation clusters.</li>
-              </ul>
-            </div>
+            {isLoading && <p className="text-on-surface-variant">Loading document…</p>}
+            {!isLoading && document && (
+              document.content ? (
+                <div className="p-2 rounded group relative hover:bg-[#F1F5F9] whitespace-pre-wrap">{document.content}</div>
+              ) : (
+                <div className="p-8 border-2 border-dashed border-outline-variant rounded-xl flex flex-col items-center justify-center text-on-surface-variant">
+                  <Icon name="auto_awesome" className="text-[32px] mb-2 text-ai-vibrant" />
+                  <span className="font-label-md text-label-md">No content yet. Generate this document from the workspace to draft it with the AI Orchestrator.</span>
+                </div>
+              )
+            )}
             <div className="mt-12 p-8 border-2 border-dashed border-outline-variant rounded-xl flex flex-col items-center justify-center text-on-surface-variant hover:border-ai-vibrant hover:bg-ai-glow/10 transition-all cursor-pointer group">
               <Icon name="add_circle" className="text-[32px] mb-2 group-hover:text-ai-vibrant" />
               <span className="font-label-md text-label-md">Click or drag to insert new block</span>

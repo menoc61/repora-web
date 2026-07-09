@@ -75,16 +75,34 @@ const signupRoute = createRoute({
 })
 
 // Protected routes — require auth
+const editorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/editor',
+  component: Editor,
+  beforeLoad: () => requireAuth(),
+  validateSearch: (search: Record<string, unknown>) => ({
+    id: typeof search.id === 'string' ? search.id : undefined,
+  }),
+})
+
+const exportRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/export',
+  component: ExportPreview,
+  beforeLoad: () => requireAuth(),
+  validateSearch: (search: Record<string, unknown>) => ({
+    id: typeof search.id === 'string' ? search.id : undefined,
+  }),
+})
+
 const protectedRoutes = [
   { path: '/', component: WorkspaceDashboard },
   { path: '/workspace', component: WorkspaceDashboard },
   { path: '/library', component: DocumentLibrary },
   { path: '/templates', component: TemplateGallery },
   { path: '/agents', component: AgentWorkshop },
-  { path: '/editor', component: Editor },
   { path: '/analytics', component: Analytics },
   { path: '/collaboration', component: CollaborationHub },
-  { path: '/export', component: ExportPreview },
   { path: '/settings', component: Settings },
   { path: '/infrastructure', component: Infrastructure },
   { path: '/sharing', component: Sharing },
@@ -94,6 +112,8 @@ const protectedRoutes = [
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
+  editorRoute,
+  exportRoute,
   ...protectedRoutes.map((r) =>
     createRoute({
       getParentRoute: () => rootRoute,

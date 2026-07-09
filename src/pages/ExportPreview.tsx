@@ -1,6 +1,7 @@
 import Icon from '../components/Icon'
-import { Link } from '@tanstack/react-router'
+import { Link, useSearch } from '@tanstack/react-router'
 import { Button } from '../components/ui/button'
+import { useExportDocument, useValidationToken } from '../hooks/useQueries'
 
 interface Format {
   icon: string
@@ -16,18 +17,41 @@ const FORMATS: Format[] = [
 ]
 
 export default function ExportPreview() {
+  const search = useSearch({ from: '/export' })
+  const docId = search.id
+  const exportDoc = useExportDocument()
+  const validationToken = useValidationToken(docId)
+
+  async function handleExport(format: 'pdf' | 'docx') {
+    if (!docId) return
+    const blob = await exportDoc.mutateAsync({ id: docId, format })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `document.${format}`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function handleShare() {
+    if (!docId) return
+    const { token } = await validationToken.mutateAsync()
+    const base = `${window.location.origin}/validate/${token}`
+    await navigator.clipboard?.writeText(base)
+  }
+
   return (
     <>
       <header className="fixed top-0 right-0 left-0 z-40 bg-surface border-b border-outline-variant flex items-center justify-between px-margin-desktop h-16 w-full">
         <div className="flex items-center gap-4">
-          <Link to="/editor" className="p-2 hover:bg-surface-variant/50 transition-colors rounded"><Icon name="arrow_back" className="text-on-surface-variant" /></Link>
+          <Link to="/editor" search={{ id: undefined }} className="p-2 hover:bg-surface-variant/50 transition-colors rounded"><Icon name="arrow_back" className="text-on-surface-variant" /></Link>
           <h1 className="font-headline-md text-headline-md font-bold text-primary">Repora AI</h1>
           <div className="h-4 w-px bg-outline-variant mx-2" />
           <span className="font-label-md text-label-md text-on-surface-variant">Export Preview: Quarterly Analysis 2024</span>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="px-4 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface hover:bg-surface-variant/50 transition-all bg-transparent"><span>Export</span></Button>
-          <Button variant="default" className="px-5 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-all flex items-center gap-2"><Icon name="download" className="text-[18px]" /><span>Share</span></Button>
+          <Button variant="outline" onClick={() => handleExport('pdf')} disabled={!docId || exportDoc.isPending} className="px-4 py-2 border border-outline-variant rounded-lg font-label-md text-label-md text-on-surface hover:bg-surface-variant/50 transition-all bg-transparent"><span>Export</span></Button>
+          <Button variant="default" onClick={handleShare} disabled={!docId || validationToken.isPending} className="px-5 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-all flex items-center gap-2"><Icon name="download" className="text-[18px]" /><span>Share</span></Button>
         </div>
       </header>
 

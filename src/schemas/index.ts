@@ -11,6 +11,7 @@ export const CollaboratorSchema = z.object({
 
 export const DocumentSchema = z.object({
   id: z.string().uuid(),
+  projectId: z.string().optional(),
   title: z.string().min(1).max(200),
   status: z.enum(['draft', 'review', 'final', 'active', 'autonomous', 'archived']),
   department: z.string(),

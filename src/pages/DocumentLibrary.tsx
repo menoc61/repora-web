@@ -73,7 +73,7 @@ export default function DocumentLibrary() {
               <Icon name="download" />
               Bulk Export
             </Button>
-            <Link to="/editor" className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity">
+            <Link to="/editor" search={{ id: undefined }} className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity">
               <Icon name="add" />
               Create Document
             </Link>
@@ -156,7 +156,7 @@ export default function DocumentLibrary() {
                 documents.map((r) => (
                   <TableRow key={r.id} className="hover:bg-surface-container-low transition-colors group">
                     <TableCell className="px-6 py-5">
-                      <Link to="/editor" className="flex items-center gap-4">
+                      <Link to="/editor" search={{ id: r.id }} className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded bg-surface-container-high flex items-center justify-center text-on-surface-variant">
                           <Icon name="description" />
                         </div>

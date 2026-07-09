@@ -193,7 +193,7 @@ export default function CollaborationHub() {
               </div>
               <div className="divide-y divide-outline-variant">
                 {activeDocs.map((d) => (
-                  <Link key={d.title} to="/editor" className="p-6 hover:bg-surface-studio transition-colors group cursor-pointer flex items-start justify-between">
+                  <Link key={d.title} to="/editor" search={{ id: undefined }} className="p-6 hover:bg-surface-studio transition-colors group cursor-pointer flex items-start justify-between">
                     <div className="flex gap-4">
                       <div className="w-12 h-12 rounded bg-surface-container-high flex items-center justify-center text-secondary"><Icon name={d.icon} className="text-[28px]" /></div>
                       <div>
