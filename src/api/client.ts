@@ -22,12 +22,14 @@ function clearAuth() {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
   headers?: Record<string, string>
   signal?: AbortSignal
   /** Set to true for blob/binary responses (PDF/DOCX export) */
   blob?: boolean
+  /** Set to true to skip auth header (public endpoints like /validate) */
+  public?: boolean
 }
 
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
@@ -36,7 +38,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     Accept: 'application/json',
     ...(opts.headers ?? {}),
   }
-  if (token) headers.Authorization = `Bearer ${token}`
+  if (token && !opts.public) headers.Authorization = `Bearer ${token}`
   if (opts.body !== undefined && !(opts.body instanceof FormData)) {
     headers['Content-Type'] = 'application/json'
   }
@@ -49,7 +51,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   })
 
   if (res.status === 401) {
-    clearAuth()
+    if (!opts.public) clearAuth()
     throw new ApiError(401, 'unauthorized', 'Session expired')
   }
 
@@ -70,6 +72,8 @@ export const api = {
   get: <T>(path: string, opts?: Omit<RequestOptions, 'method' | 'body'>) => request<T>(path, { ...opts, method: 'GET' }),
   post: <T>(path: string, body?: unknown, opts?: Omit<RequestOptions, 'method'>) =>
     request<T>(path, { ...opts, method: 'POST', body }),
+  put: <T>(path: string, body?: unknown, opts?: Omit<RequestOptions, 'method'>) =>
+    request<T>(path, { ...opts, method: 'PUT', body }),
   patch: <T>(path: string, body?: unknown, opts?: Omit<RequestOptions, 'method'>) =>
     request<T>(path, { ...opts, method: 'PATCH', body }),
   delete: <T>(path: string, opts?: Omit<RequestOptions, 'method' | 'body'>) =>
@@ -79,13 +83,13 @@ export const api = {
 }
 
 /** SSE helper for document streaming — returns an EventSource-like async iterator. */
-export async function* sseStream(path: string): AsyncGenerator<Record<string, unknown>> {
-  const token = getToken()
+export async function* sseStream(path: string, opts?: { public?: boolean }): AsyncGenerator<Record<string, unknown>> {
+  const authorization = opts?.public ? null : getToken()
   const res = await fetch(`${BASE}${path}`, {
     method: 'GET',
     headers: {
       Accept: 'text/event-stream',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authorization ? { Authorization: `Bearer ${authorization}` } : {}),
     },
   })
   if (!res.ok || !res.body) {

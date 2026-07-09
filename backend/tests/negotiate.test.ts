@@ -114,7 +114,7 @@ describe('evaluateWriterOutput', () => {
     // French warning is triggered but doesn't cause failure on its own
     // (only length check and placeholder check are hard failures)
     expect(result.passed).toBe(true)
-    expect(result.issues).toEqual([])
+    expect(result.issues).toEqual(['content may not be in French'])
   })
 
   it('detects French content correctly via common French words', () => {

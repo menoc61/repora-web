@@ -96,6 +96,7 @@ export const agentConfigs = pgTable('agent_configs', {
   topP: real('top_p').default(0.9),
   maxTokens: integer('max_tokens').default(4096),
   enabled: boolean('enabled').default(true).notNull(),
+  metadata: jsonb('metadata'),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
 

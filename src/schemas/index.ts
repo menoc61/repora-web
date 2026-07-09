@@ -22,6 +22,13 @@ export const DocumentSchema = z.object({
   createdAt: z.string().datetime().optional(),
   updatedAt: z.string().datetime().optional(),
   tags: z.array(z.string()).default([]),
+  outline: z.record(z.string(), z.unknown()).optional(),
+  sections: z.array(z.object({
+    id: z.string(),
+    title: z.string(),
+    content: z.string(),
+    status: z.string(),
+  })).optional(),
 })
 
 export const UserSchema = z.object({

@@ -54,6 +54,43 @@ export async function listDocuments(userId: string, filters?: { status?: string;
   return docs
 }
 
+export async function getDocumentByValidationToken(token: string) {
+  const [validation] = await db.select().from(schema.validations)
+    .where(eq(schema.validations.validatorToken, token))
+    .limit(1)
+  if (!validation) throw new AppError(404, 'not_found', 'Invalid validation token')
+
+  const [doc] = await db.select().from(schema.documents)
+    .where(eq(schema.documents.id, validation.documentId))
+    .limit(1)
+  if (!doc) throw new AppError(404, 'not_found', 'Document not found')
+
+  const sectionsList = await db.select().from(schema.sections)
+    .where(eq(schema.sections.documentId, doc.id))
+    .orderBy(schema.sections.order)
+
+  const outline = doc.outline as Record<string, unknown> | null
+
+  return {
+    validation: {
+      id: validation.id,
+      decision: validation.decision,
+      decidedAt: validation.decidedAt?.toISOString() ?? null,
+    },
+    document: {
+      id: doc.id,
+      title: (outline?.title as string) ?? 'Untitled',
+      status: doc.status,
+      sections: sectionsList.map((s) => ({
+        id: s.id,
+        title: s.title,
+        content: s.content,
+        status: s.status,
+      })),
+    },
+  }
+}
+
 export async function createValidationToken(documentId: string) {
   const [doc] = await db.select({ id: schema.documents.id }).from(schema.documents)
     .where(eq(schema.documents.id, documentId)).limit(1)

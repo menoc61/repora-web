@@ -25,6 +25,8 @@ authRouter.post('/login', async (req, res, next) => {
 })
 
 authRouter.post('/logout', (_req, res) => {
+  // Stateless JWT: logout is handled by client-side token deletion.
+  // No server-side token blacklist is maintained.
   res.json({ ok: true })
 })
 
