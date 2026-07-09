@@ -1,10 +1,38 @@
-import { streamText } from 'ai'
+import { streamText, isStepCount } from 'ai'
 import { AGENT_REGISTRY } from './agents/registry'
 import { getLanguageModel } from './providers/interface'
 import type { ProviderType } from './providers/interface'
 
-export interface HermesEvent {
-  type: 'agent_status' | 'token' | 'tool_call' | 'tool_result' | 'section_complete' | 'done'
+export type HermesEvent = {
+  type: 'agent_status'
+  agent: string
+  status: string
+  [key: string]: unknown
+} | {
+  type: 'token'
+  token: string
+  agent: string
+  [key: string]: unknown
+} | {
+  type: 'tool_call'
+  agent: string
+  tool: string
+  args: unknown
+  [key: string]: unknown
+} | {
+  type: 'tool_result'
+  agent: string
+  tool: string
+  result: unknown
+  [key: string]: unknown
+} | {
+  type: 'section_complete'
+  section_id?: string
+  title?: string
+  [key: string]: unknown
+} | {
+  type: 'done'
+  document_id?: string
   [key: string]: unknown
 }
 
@@ -21,24 +49,24 @@ export async function* runAgent(
 
   const model = getLanguageModel(agentDef.defaultProvider as ProviderType, agentDef.defaultModel, apiKey)
 
-  const result = streamText({
+  const stream = await streamText({
     model,
     system: agentDef.systemPrompt,
     prompt,
-    tools: agentDef.tools,
-    maxSteps: 5,
+    tools: agentDef.tools as Parameters<typeof streamText>[0]['tools'],
+    stopWhen: isStepCount(5),
   })
 
-  for await (const event of result.fullStream) {
+  for await (const event of stream.fullStream) {
     switch (event.type) {
       case 'text-delta':
-        yield { type: 'token', token: event.textDelta, agent: agentName }
+        yield { type: 'token', token: event.text, agent: agentName }
         break
       case 'tool-call':
-        yield { type: 'tool_call', agent: agentName, tool: event.toolName, args: event.args }
+        yield { type: 'tool_call', agent: agentName, tool: event.toolName, args: event.input }
         break
       case 'tool-result':
-        yield { type: 'tool_result', agent: agentName, tool: event.toolName, result: event.result }
+        yield { type: 'tool_result', agent: agentName, tool: event.toolName, result: event.output }
         break
     }
   }
@@ -62,7 +90,7 @@ export function clearActiveGeneration(documentId: string) {
 }
 
 export async function orchestrateGeneration(projectId: string, prompt: string, documentId: string): Promise<AsyncGenerator<HermesEvent>> {
-  async function* orchestrate() {
+  async function* orchestrate(): AsyncGenerator<HermesEvent> {
     try {
       const plannerGen = runAgent('Planner', prompt, { projectId, documentId })
       for await (const event of plannerGen) {
@@ -79,7 +107,7 @@ export async function orchestrateGeneration(projectId: string, prompt: string, d
         yield event
       }
 
-      yield { type: 'done', document_id: documentId }
+      yield { type: 'done' as const, document_id: documentId }
     } finally {
       clearActiveGeneration(documentId)
     }

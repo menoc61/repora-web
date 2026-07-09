@@ -3,7 +3,7 @@ import { config } from '../../config'
 
 export type ProviderType = 'llama_cpp' | 'openai' | 'anthropic' | 'google'
 
-export function createProvider(provider: ProviderType, apiKey?: string) {
+function createProvider(provider: ProviderType, apiKey?: string) {
   switch (provider) {
     case 'llama_cpp':
       return createOpenAICompatible({ name: 'llama', baseURL: config.llamaCppUrl })

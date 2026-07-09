@@ -1,4 +1,3 @@
-import { tool } from 'ai'
 import { z } from 'zod'
 
 export interface AgentDefinition {
@@ -7,12 +6,19 @@ export interface AgentDefinition {
   systemPrompt: string
   defaultModel: string
   defaultProvider: string
-  tools: Record<string, ReturnType<typeof tool>>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tools: Record<string, any>
 }
 
-const getProjectContext = tool({
+const dynamicTool: <T extends Record<string, z.ZodTypeAny>>(opts: {
+  description?: string
+  inputSchema: z.ZodObject<T>
+  execute: (input: z.infer<z.ZodObject<T>>) => Promise<Record<string, unknown>>
+}) => Record<string, unknown> = (opts) => opts as unknown as Record<string, unknown>
+
+const getProjectContext = dynamicTool({
   description: 'Get project brief and requirements',
-  parameters: z.object({ projectId: z.string() }),
+  inputSchema: z.object({ projectId: z.string() }),
   execute: async ({ projectId }) => {
     const { db } = await import('../../db')
     const { projects } = await import('../../db/schema')
@@ -22,9 +28,9 @@ const getProjectContext = tool({
   },
 })
 
-const saveOutline = tool({
+const saveOutline = dynamicTool({
   description: 'Save document outline',
-  parameters: z.object({ documentId: z.string(), outline: z.any() }),
+  inputSchema: z.object({ documentId: z.string(), outline: z.any() }),
   execute: async ({ documentId, outline }) => {
     const { db } = await import('../../db')
     const { documents } = await import('../../db/schema')
@@ -34,9 +40,9 @@ const saveOutline = tool({
   },
 })
 
-const writeSection = tool({
+const writeSection = dynamicTool({
   description: 'Write content for a document section',
-  parameters: z.object({ sectionId: z.string(), content: z.string() }),
+  inputSchema: z.object({ sectionId: z.string(), content: z.string() }),
   execute: async ({ sectionId, content }) => {
     const { db } = await import('../../db')
     const { sections } = await import('../../db/schema')
