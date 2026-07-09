@@ -142,10 +142,11 @@ Derived from the thesis's MLD (Modèle Logique de Données), generalized for Rep
 - **requirements** — id, project_id, type (`functional` / `non_functional`), text, source_actor
 - **documents** — id, project_id, status (`draft`/`in_review`/`validated`/`rejected`), outline (JSON)
 - **sections** — id, document_id, order, title, content, status, generated_by_agent, model_used
-- **diagrams** — id, project_id, type (`use_case`/`sequence`/`activity`/`class`/`deployment`), plantuml_source, rendered_url
+- **diagrams** — id, project_id, type (`use_case`/`sequence`/`activity`/`class`/`deployment`), plantuml_source, rendered_url (PlantUML-encoded SVG URL)
 - **comments** — id, section_id, author_id, text, resolved (bool)
 - **validations** — id, document_id, validator_token (single-use secure link), decision, section_reasons (JSON), decided_at
-- **agent_configs** — id, agent_name, provider (`llama_cpp`/`byok`), model_id, temperature, top_p, max_tokens, enabled
+- **templates** — id, name, category, description, sections (JSON string[]), created_at
+- **agent_configs** — id, agent_name, provider (`ollama`/`llama_cpp`/`byok`), model_id, temperature, top_p, max_tokens, enabled
 - **api_keys** — id, user_id, provider, encrypted_key, created_at
 - **audit_logs** — id, user_id, action, target, timestamp
 
@@ -202,6 +203,7 @@ Gutters: `24px` (`spacing.gutter`). Layout margins: `24px`–`32px` (6x–8x of 
 - **Status Badges** — small-caps mono, low-opacity (10–15%) backgrounds: gray = draft, amber = review, emerald = final (maps directly to `status-draft`/`status-review`/`status-final` tokens).
 - **Tree View** (sidebar document nav) — high-density list, 4px vertical padding, chevron-based nesting.
 - **Validator Portal** — a stripped-down, read-only render of the block editor (no inspector, no agent chips) behind the single-use secure link, with a persistent Validate/Reject bar and a required-reason modal on rejection per section.
+- **Onboarding Wizard** — a 5-step guided requirements elicitation flow (Context → Functional Reqs → Non-Functional Reqs → Actors → Review). Each step auto-saves to the `requirements` table. The final step triggers the Hermes generation pipeline with all collected context injected into the Planner prompt. This prevents empty/generic documents by ensuring agents have rich context before generation begins.
 
 ---
 
@@ -225,17 +227,27 @@ Mapped directly from the thesis's functional module list (§II.2.1):
 
 ## 10. Deployment
 
-Docker-first, matching the thesis's containerization approach:
+Docker-first, one-command startup:
+
+```bash
+git clone <repo-url> && cd repora-web && docker compose up
+```
+
+Services auto-start with migrations + seed (idempotent):
 
 ```yaml
 services:
-  frontend:      # React PWA, static build served via nginx or Vite preview
-  backend:       # nodejs with the vercel ai sdk + Hermes orchestrator
-  db:            # postgres:17
-  llama-server:  # local inference sidecar, OpenAI-compatible endpoint, GGUF model volume-mounted
+  frontend:      # React PWA, static build served via nginx, http://localhost:3000
+  backend:       # nodejs + Hermes orchestrator + auto-seed, http://localhost:8001
+  db:            # postgres:17 with healthcheck (pg_isready), localhost:5433
 ```
 
-CI/CD pipeline stages (per thesis §II.6.1): test → verify env vars/secrets (incl. BYOK key presence, never their values) → build (incl. Docker images) → deploy.
+The backend entrypoint (`docker-entrypoint.sh`) automatically:
+1. Runs `drizzle-kit push` (database migrations)
+2. Runs `npx tsx dist/db/seed.js` (idempotent demo data seed)
+3. Starts the Express server on port 8000
+
+Ollama is accessed via `host.docker.internal:11434` (configurable via `OLLAMA_HOST` env var for Linux).
 
 ---
 

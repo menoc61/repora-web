@@ -1,3 +1,16 @@
+# Docker Compose — Repora Web
+# ─────────────────────────────────────────────────────────────
+# Quick start:  docker compose up
+# Frontend → http://localhost:3000
+# Backend  → http://localhost:8001
+#
+# Ollama (local LLM):
+#   Windows/Mac:  Uses host.docker.internal (auto-detected by Docker Desktop)
+#   Linux:        Set OLLAMA_HOST=172.17.0.1 in .env or pass via CLI:
+#                 OLLAMA_HOST=172.17.0.1 docker compose up
+#
+# For BYOK cloud models, set credentials via Admin panel after login.
+
 services:
   frontend:
     build: .
@@ -13,7 +26,7 @@ services:
       - DATABASE_URL=postgres://repora:repora@db:5432/repora
       - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
-      - OLLAMA_URL=http://host.docker.internal:11434/v1
+      - OLLAMA_URL=http://${OLLAMA_HOST:-host.docker.internal}:11434/v1
       - CORS_ORIGIN=http://localhost:3000
     depends_on:
       db:
