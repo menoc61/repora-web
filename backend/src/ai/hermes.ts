@@ -176,7 +176,7 @@ export function clearActiveGeneration(documentId: string) {
 
 import { orchestrateGeneration } from './pipeline/orchestrate'
 
-export function initiateGeneration(projectId: string, prompt: string, documentId: string): void {
-  const gen = orchestrateGeneration(projectId, prompt, documentId)
+export function initiateGeneration(projectId: string, prompt: string, documentId: string, templateId?: string): void {
+  const gen = orchestrateGeneration(projectId, prompt, documentId, templateId)
   setActiveGeneration(documentId, gen)
 }

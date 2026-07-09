@@ -1,7 +1,8 @@
 import { runAgent, clearActiveGeneration, type HermesEvent } from '../hermes'
 import { createContext, type GenerationContext } from '../context'
 import type { OutlineJson } from '../../services/outline.service'
-import { createSectionsFromOutline, generateStaticOutline } from '../../services/outline.service'
+import { createSectionsFromOutline, generateStaticOutline, mergeTemplateWithOutline } from '../../services/outline.service'
+import { getTemplateForGeneration } from '../../services/template.service'
 import { evaluateWriterOutput, rescopeHandoff, adjustContext } from './negotiate'
 
 // JSON extraction helpers (moved from hermes.ts — needed by the Planner stage)
@@ -61,6 +62,31 @@ export async function orchestrateGeneration(
       const ctx: GenerationContext = createContext(documentId, projectId)
 
       // ==================================================================
+      // STEP 0: TEMPLATE SEEDING — if a template is provided, inject its
+      // structure into the Planner prompt before generation begins.
+      // ==================================================================
+      let templateOutline: OutlineJson | null = null
+
+      if (templateId) {
+        const template = await getTemplateForGeneration(templateId)
+        if (template) {
+          templateOutline = template.outline
+          adjustContext(ctx, 'templateId', templateId)
+          adjustContext(ctx, 'templateName', template.name)
+          yield { type: 'context_updated', agent: 'Hermes', key: 'templateName', value: template.name }
+          console.log(`[Hermes] Template "${template.name}" loaded for generation`)
+        } else {
+          console.warn(`[Hermes] Template ${templateId} not found, proceeding without template`)
+          yield {
+            type: 'generation_error',
+            agent: 'Hermes',
+            message: `Template ${templateId} not found`,
+            error_type: 'template_not_found',
+          }
+        }
+      }
+
+      // ==================================================================
       // STEP 1: PLANNER — generate dynamic outline via LLM
       // ==================================================================
       yield { type: 'context_updated', agent: 'Hermes', key: 'pipelineStage', value: 'planner' }
@@ -69,8 +95,14 @@ export async function orchestrateGeneration(
       let outlineJson: OutlineJson | null = null
       let collectedText = ''
 
-      // Build planner prompt (template seeding happens in Task 2)
-      const plannerPrompt = `Analyze the following project brief and produce a structured document outline as a JSON object:\n\n"${prompt}"`
+      // Build planner prompt (template seeding)
+      let plannerPrompt = `Analyze the following project brief and produce a structured document outline as a JSON object:\n\n"${prompt}"`
+
+      // Inject template structure into Planner prompt
+      if (templateOutline) {
+        const chapterTitles = templateOutline.chapters.map(c => `- ${c.title}`).join('\n')
+        plannerPrompt += `\n\nUtilise la structure suivante comme base pour le plan du document :\n${chapterTitles}`
+      }
 
       const plannerGen = runAgent(
         'Planner',
@@ -100,6 +132,24 @@ export async function orchestrateGeneration(
         outlineJson = generateStaticOutline(prompt)
         ctx.outline = outlineJson
         adjustContext(ctx, 'outlineSource', 'static_fallback')
+      }
+
+      // Merge template outline with planner outline (after Planner completes)
+      if (templateOutline && outlineJson) {
+        try {
+          outlineJson = mergeTemplateWithOutline(templateOutline, outlineJson)
+          ctx.outline = outlineJson
+          adjustContext(ctx, 'outlineSource', 'template_merged')
+          console.log('[Hermes] Template outline merged with Planner output')
+        } catch (err) {
+          console.warn('[Hermes] Template merge failed, using Planner output only:', err)
+          yield {
+            type: 'generation_error',
+            agent: 'Hermes',
+            message: `Template merge failed: ${(err as Error).message}`,
+            error_type: 'template_merge_error',
+          }
+        }
       }
 
       // Adjust context with outline metadata

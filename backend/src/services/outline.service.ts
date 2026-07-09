@@ -11,7 +11,9 @@ export interface GeneratedSection {
   order: number
 }
 
-const DEFAULT_OUTLINE: OutlineJson = {
+// Static fallback outline used when the Planner agent's LLM call fails.
+// This provides a sensible default structure for a "cahier des charges".
+export const DEFAULT_OUTLINE: OutlineJson = {
   title: 'Cahier des Charges',
   chapters: [
     {
@@ -64,16 +66,18 @@ const DEFAULT_OUTLINE: OutlineJson = {
   ],
 }
 
-export async function generateOutline(projectName: string, documentId: string): Promise<GeneratedSection[]> {
-  const outline: OutlineJson = {
+// Fallback: returns the static outline with the project name as title.
+// Called by hermes.ts when the Planner LLM fails to produce a valid outline.
+export function generateStaticOutline(projectName: string): OutlineJson {
+  return {
     ...DEFAULT_OUTLINE,
     title: projectName || 'Cahier des Charges',
   }
-
-  const result = await createSectionsFromOutline(documentId, outline)
-  return result
 }
 
+// Persist an outline into the sections table and update the document outline field.
+// Replaces any existing sections for the document. Used by hermes.ts after obtaining
+// an outline (whether from the Planner LLM or the static fallback).
 export async function createSectionsFromOutline(
   documentId: string,
   outline: OutlineJson,
@@ -109,4 +113,97 @@ export async function createSectionsFromOutline(
   }
 
   return created
+}
+
+/**
+ * Merge a template outline into a Planner-generated outline.
+ * - Uses the template's title if the Planner produced a generic title
+ * - Uses the template's chapter structure as the base
+ * - For matching chapters (fuzzy title match), uses Planner sections over template placeholders
+ * - Appends Planner-only chapters that don't match any template chapter
+ *
+ * @param templateOutline - The canonical template structure (admin-created)
+ * @param plannerOutline - The outline produced by the Planner agent
+ * @returns The merged outline
+ */
+export function mergeTemplateWithOutline(
+  templateOutline: OutlineJson,
+  plannerOutline: OutlineJson,
+): OutlineJson {
+  // Use template title unless planner has a specific, non-generic title
+  const genericTitles = ['cahier des charges', 'untitled', 'cahier de charges', 'document']
+  const plannerTitleLower = plannerOutline.title.toLowerCase().trim()
+  const useTemplateTitle = plannerTitleLower === '' ||
+    genericTitles.some(g => plannerTitleLower.includes(g)) ||
+    plannerTitleLower === 'untitled'
+
+  const mergedTitle = useTemplateTitle ? templateOutline.title : plannerOutline.title
+
+  // Helper: fuzzy match two chapter titles
+  const fuzzyMatch = (a: string, b: string): boolean => {
+    const na = a.toLowerCase().trim()
+    const nb = b.toLowerCase().trim()
+    return na === nb || na.includes(nb) || nb.includes(na)
+  }
+
+  // Build merged chapters starting from template structure
+  const mergedChapters: OutlineJson['chapters'] = []
+  const matchedPlannerIndices = new Set<number>()
+
+  for (const tc of templateOutline.chapters) {
+    // Try to find a matching Planner chapter
+    const plannerMatchIdx = plannerOutline.chapters.findIndex((pc, idx) => {
+      if (matchedPlannerIndices.has(idx)) return false
+      return fuzzyMatch(tc.title, pc.title)
+    })
+
+    if (plannerMatchIdx >= 0) {
+      matchedPlannerIndices.add(plannerMatchIdx)
+      const pc = plannerOutline.chapters[plannerMatchIdx]
+
+      // Use Planner sections if they are substantial; otherwise keep template sections
+      const hasSubstantialPlannerSections = pc.sections.some(
+        s => s.title.trim().length > 0,
+      )
+
+      if (hasSubstantialPlannerSections) {
+        mergedChapters.push({
+          title: pc.title || tc.title,
+          sections: pc.sections.map(s => ({
+            title: s.title || `Section ${s.order}`,
+            order: s.order,
+          })),
+        })
+      } else {
+        mergedChapters.push({
+          title: tc.title,
+          sections: tc.sections.map(s => ({
+            title: s.title,
+            order: s.order,
+          })),
+        })
+      }
+    } else {
+      // No matching Planner chapter — keep template chapter as-is
+      mergedChapters.push({
+        title: tc.title,
+        sections: tc.sections.map(s => ({
+          title: s.title,
+          order: s.order,
+        })),
+      })
+    }
+  }
+
+  // Append any Planner chapters that didn't match template chapters
+  for (let i = 0; i < plannerOutline.chapters.length; i++) {
+    if (!matchedPlannerIndices.has(i)) {
+      mergedChapters.push(plannerOutline.chapters[i])
+    }
+  }
+
+  return {
+    title: mergedTitle,
+    chapters: mergedChapters,
+  }
 }
