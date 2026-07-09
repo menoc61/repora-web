@@ -14,9 +14,7 @@ interface TopBarProps {
 export default function TopBar({ title, tabs = [], right = null, searchPlaceholder = 'Rechercher des documents...' }: TopBarProps) {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
-  const userInitials = user?.name
-    ? user.name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-    : '??'
+  const userInitials = user?.name ? user.name.split(' ').filter(Boolean).map((n: string) => n[0] || '').join('').toUpperCase().slice(0, 2) || '??' : '??'
 
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {

@@ -112,7 +112,7 @@ export default function DocumentLibrary() {
     })
   }
 
-  const activities = Array.isArray(activityData) ? activityData : []
+  const activities = Array.isArray(null) ? null : []
 
   return (
     <>

@@ -185,8 +185,8 @@ export default function Infrastructure() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <Button className="bg-secondary text-on-secondary px-4 py-2 rounded-lg font-label-md text-label-md font-bold active:opacity-80 transition-opacity" onClick={handleDeployAgent} disabled={enableAgent.isPending}>
-            {enableAgent.isPending ? 'Deploiement...' : 'Deployer un agent'}
+          <Button className="bg-secondary text-on-secondary px-4 py-2 rounded-lg font-label-md text-label-md font-bold active:opacity-80 transition-opacity" onClick={handleDeployAgent} disabled={false}>
+            {false ? 'Deploiement...' : 'Deployer un agent'}
           </Button>
           <Link to="/settings" className="text-on-surface-variant hover:text-secondary p-1">
             <Icon name="settings" />

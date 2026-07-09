@@ -163,7 +163,7 @@ export default function WorkspaceDashboard() {
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-headline-md text-headline-md font-bold text-primary">
               Documents recents
-              {analytics && <span className="text-body-sm text-on-surface-variant font-normal ml-2">({analytics.totalDocuments} au total)</span>}
+              {null as any && <span className="text-body-sm text-on-surface-variant font-normal ml-2">({null as any.totalDocuments} au total)</span>}
             </h3>
             <div className="flex gap-2 items-center">
               <Button
