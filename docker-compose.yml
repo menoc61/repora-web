@@ -27,6 +27,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-dev-secret-change-in-production}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
       - OLLAMA_URL=http://${OLLAMA_HOST:-host.docker.internal}:11434/v1
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-}
       - CORS_ORIGIN=http://localhost:3000
     depends_on:
       db:

@@ -56,17 +56,30 @@ export type HermesEvent = {
 
 // -- Model discovery ---------------------------------------------------------
 
-let discoveredModel = 'llama3.1:8b'
+let discoveredModel = 'llama3.1-8b'
+let availableModels: string[] = []
 
 export async function discoverOllamaModel(): Promise<string> {
+  // 1. Respect OLLAMA_MODEL env var if set
+  if (config.ollamaModel) {
+    discoveredModel = config.ollamaModel
+    setDefaultModel(discoveredModel)
+    console.log(`[Hermes] Using OLLAMA_MODEL from env: ${discoveredModel}`)
+    return discoveredModel
+  }
+
+  // 2. Auto-discover from Ollama
   try {
     const baseUrl = config.ollamaUrl.replace(/\/v1\/?$/, '')
     const res = await fetch(`${baseUrl}/api/tags`)
     if (!res.ok) return discoveredModel
     const data = (await res.json()) as { models?: Array<{ name: string }> }
     if (data.models && data.models.length > 0) {
-      discoveredModel = data.models[0].name
+      availableModels = data.models.map(m => m.name)
+      discoveredModel = availableModels[0]
       setDefaultModel(discoveredModel)
+      console.log(`[Hermes] Auto-discovered ${availableModels.length} Ollama model(s): ${availableModels.join(', ')}`)
+      console.log(`[Hermes] Default model: ${discoveredModel} (set OLLAMA_MODEL env var to override)`)
     }
   } catch { /* use default */ }
   return discoveredModel
@@ -74,6 +87,10 @@ export async function discoverOllamaModel(): Promise<string> {
 
 export function getDefaultModel(): string {
   return defaultModel
+}
+
+export function getAvailableModels(): string[] {
+  return availableModels
 }
 
 // -- Agent runner ------------------------------------------------------------
