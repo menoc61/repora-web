@@ -853,7 +853,10 @@ export function useCreateDiagram() {
   return useMutation({
     mutationFn: async ({ projectId, type, source }: { projectId: string; type: string; source?: string }) =>
       api.post<{ id: string; rendered_url: string }>(`/projects/${projectId}/diagrams`, { type, source: source ?? '' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['diagrams'] }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['diagrams'] })
+      if (data?.id) qc.invalidateQueries({ queryKey: ['diagram', data.id] })
+    },
   })
 }
 
