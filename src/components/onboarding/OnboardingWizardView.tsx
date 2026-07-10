@@ -192,7 +192,7 @@ export default function OnboardingWizardView({ projectId }: OnboardingWizardView
     return (
       <div className="min-h-screen bg-surface-studio flex items-center justify-center">
         <div className="text-center">
-          <Icon name="error_outline" className="text-5xl text-amber-500 mb-4 block mx-auto" />
+          <Icon name="error_outline" className="text-5xl text-status-review mb-4 block mx-auto" />
           <p className="font-body-lg text-primary-container mb-4">Aucun projet specifie. Creez d'abord un projet.</p>
           <Button onClick={() => navigate({ to: '/workspace' })}>Retour a l'accueil</Button>
         </div>
@@ -252,7 +252,7 @@ export default function OnboardingWizardView({ projectId }: OnboardingWizardView
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-700 font-body-sm flex items-start gap-2">
+          <div className="mb-6 p-4 bg-error-container border border-on-error-container rounded text-on-error-container font-body-sm flex items-start gap-2">
             <Icon name="error_outline" className="mt-0.5 shrink-0" />
             <span>{error}</span>
             <button onClick={() => setError(null)} className="ml-auto shrink-0"><Icon name="close" /></button>

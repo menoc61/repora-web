@@ -22,7 +22,7 @@ export default function MetricsPanel({ metrics }: MetricsPanelProps) {
         </div>
         <div className="flex justify-between font-label-sm text-label-sm opacity-60">
           <span>Score de collaboration</span>
-          <span className="text-green-400">{metrics?.collaborationScore ?? 0}%</span>
+          <span className="text-status-final">{metrics?.collaborationScore ?? 0}%</span>
         </div>
       </div>
     </div>

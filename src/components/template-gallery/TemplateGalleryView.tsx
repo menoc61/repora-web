@@ -22,7 +22,7 @@ export default function TemplateGalleryView() {
         title: t.title,
         dept: t.department,
         icon: t.icon,
-        color: 'bg-blue-50 text-secondary',
+        color: 'bg-secondary-container text-secondary',
         // TODO: API does not return agent data; wire to GET /templates/:id/agents when endpoint exists
         agents: [] as [string, string][],
       }))

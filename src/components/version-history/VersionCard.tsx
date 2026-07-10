@@ -39,7 +39,7 @@ export default function VersionCard({ version, active, selected, onSelect }: Ver
               <Icon name="person" className="text-[12px] text-white" />
             </div>
           ) : (
-            <div className="w-5 h-5 rounded-full bg-gray-200" />
+            <div className="w-5 h-5 rounded-full bg-surface-container" />
           )}
           <span className="font-label-md text-label-md">{version.user}</span>
         </div>

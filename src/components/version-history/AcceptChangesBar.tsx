@@ -61,7 +61,7 @@ export default function AcceptChangesBar({
               <div key={`${c.email}-${idx}`} className="flex items-center justify-between p-2 rounded hover:bg-surface-studio cursor-pointer transition-colors">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <div className="w-8 h-8 rounded-full bg-gray-200" />
+                    <div className="w-8 h-8 rounded-full bg-surface-container" />
                     <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 ${ROLE_COLORS[c.role] ?? 'bg-outline'} border-2 border-white rounded-full`} />
                   </div>
                   <span className="font-body-sm text-body-sm">{c.name}</span>

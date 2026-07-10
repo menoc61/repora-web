@@ -18,7 +18,7 @@ export default function DocumentCard({ doc, viewMode, onOpen }: DocumentCardProp
       onClick={() => onOpen(doc.id)}
       className={viewMode === 'grid' ? 'col-span-12 md:col-span-4' : 'w-full'}
     >
-      <Card className="p-5 hover:shadow-xl hover:shadow-slate-200/50 transition-all group cursor-pointer h-full">
+      <Card className="p-5 hover:shadow-xl hover:shadow-surface-container/50 transition-all group cursor-pointer h-full">
         <div className="flex justify-between items-start mb-4">
           <StatusBadge status={doc.status as 'draft' | 'review' | 'final' | 'active' | 'autonomous'} />
           <Icon name="more_vert" className="text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -33,8 +33,8 @@ export default function DocumentCard({ doc, viewMode, onOpen }: DocumentCardProp
         )}
         <div className="flex items-center justify-between mt-auto">
           <div className="flex -space-x-2">
-            <div className="w-6 h-6 rounded-full border-2 border-white bg-slate-200" />
-            <div className="w-6 h-6 rounded-full border-2 border-white bg-slate-300" />
+            <div className="w-6 h-6 rounded-full border-2 border-white bg-surface-container" />
+            <div className="w-6 h-6 rounded-full border-2 border-white bg-outline-variant" />
           </div>
           <span className="font-label-sm text-label-sm text-on-surface-variant opacity-60">
             {doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString() : ''}

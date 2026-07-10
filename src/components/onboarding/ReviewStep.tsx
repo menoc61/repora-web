@@ -35,7 +35,7 @@ export default function ReviewStep({ context, funcReqs, nonFuncReqs, actors, onE
             <button onClick={() => onEditStep(1)} className="text-xs text-ai-vibrant hover:underline ml-auto">Modifier</button>
           </h3>
           {funcReqs.filter(r => r.text.trim()).length === 0 ? (
-            <p className="text-amber-600 font-body-sm flex items-center gap-1"><Icon name="warning" className="text-sm" /> Aucune exigence fonctionnelle — le document risque d'etre vide</p>
+            <p className="text-status-review font-body-sm flex items-center gap-1"><Icon name="warning" className="text-sm" /> Aucune exigence fonctionnelle — le document risque d'etre vide</p>
           ) : (
             <ul className="font-body-sm text-primary-container space-y-1 list-disc list-inside">
               {funcReqs.filter(r => r.text.trim()).slice(0, 10).map(r => (
@@ -66,7 +66,7 @@ export default function ReviewStep({ context, funcReqs, nonFuncReqs, actors, onE
             <button onClick={() => onEditStep(3)} className="text-xs text-ai-vibrant hover:underline ml-auto">Modifier</button>
           </h3>
           {actors.length === 0 ? (
-            <p className="text-amber-600 font-body-sm flex items-center gap-1"><Icon name="warning" className="text-sm" /> Aucun acteur defini</p>
+            <p className="text-status-review font-body-sm flex items-center gap-1"><Icon name="warning" className="text-sm" /> Aucun acteur defini</p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {actors.map(a => (

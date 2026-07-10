@@ -52,7 +52,7 @@ export default function FunctionalStep({ reqs, onAdd, onUpdate, onRemove, actors
             </div>
             <button
               onClick={() => onRemove(req.id)}
-              className="p-2 text-secondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+              className="p-2 text-secondary hover:text-error opacity-0 group-hover:opacity-100 transition-all shrink-0"
             >
               <Icon name="delete" />
             </button>

@@ -46,7 +46,7 @@ export default function ActorsStep({ actors, presets, onToggle, onAddCustom }: A
             {actors.map(a => (
               <span key={a} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-ai-vibrant/5 text-ai-vibrant font-body-sm border border-ai-vibrant/20">
                 {a}
-                <button onClick={() => onToggle(a)} className="ml-1 hover:text-red-500"><Icon name="close" className="text-xs" /></button>
+                <button onClick={() => onToggle(a)} className="ml-1 hover:text-error"><Icon name="close" className="text-xs" /></button>
               </span>
             ))}
           </div>
