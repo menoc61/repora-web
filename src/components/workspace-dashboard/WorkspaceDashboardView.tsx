@@ -5,6 +5,7 @@ import Icon from '../../components/Icon'
 import { Button } from '../../components/ui/button'
 import { useDocuments, useActivity, useCreateProject, useAgents, useProjects } from '../../hooks/useQueries'
 import { useWorkspaceStore } from '../../stores'
+import { useGenerationStore } from '../../stores/generationStore'
 import { mapActivityItem } from './activity'
 import PromptHero from './PromptHero'
 import ProjectGrid from './ProjectGrid'
@@ -19,6 +20,9 @@ export default function WorkspaceDashboardView() {
   const { data: projects = [], isLoading: projectsLoading } = useProjects()
   const { data: activity = [], isLoading: activityLoading } = useActivity()
   const setActiveView = useWorkspaceStore((s) => s.setActiveView)
+  const activeSessions = useGenerationStore((s) =>
+    s.sessions.filter((sess) => sess.status !== 'completed' && sess.status !== 'failed'),
+  )
   const createProject = useCreateProject()
   const { data: agents = [] } = useAgents()
   const [prompt, setPrompt] = useState('')
@@ -85,6 +89,46 @@ export default function WorkspaceDashboardView() {
         <PromptHero prompt={prompt} onPromptChange={setPrompt} onGenerate={handleGenerate} generating={createProject.isPending} />
 
         <ProjectGrid projects={projects} loading={projectsLoading} onOpen={onOpenProject} />
+
+        {activeSessions.length > 0 && (
+          <section className="mb-8">
+            <h3 className="font-headline-md text-headline-md font-bold text-primary-container mb-4">
+              Generations en cours
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {activeSessions.map((s) => (
+                <div
+                  key={s.sessionId}
+                  className="bg-white border border-outline-variant rounded-lg p-4 flex flex-col gap-3"
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                        s.status === 'generating'
+                          ? 'bg-ai-vibrant animate-pulse'
+                          : 'bg-status-review'
+                      }`}
+                    />
+                    <span className="font-label-md font-mono text-primary-container truncate">
+                      {s.title}
+                    </span>
+                  </div>
+                  <span className="font-label-sm font-mono text-secondary">
+                    Demarree {new Date(s.startedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                  <Link
+                    to="/editor"
+                    search={{ id: s.documentId }}
+                    className="mt-auto inline-flex items-center gap-1.5 font-label-sm font-mono text-ai-vibrant hover:underline"
+                  >
+                    <Icon name="arrow_forward" className="text-base" />
+                    Reprendre
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section>
           <div className="flex items-center justify-between mb-6">

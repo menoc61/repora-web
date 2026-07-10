@@ -131,6 +131,9 @@ export interface ISettingsActions {
 class SettingsStore implements ISettingsState {
   settings: Settings = {
     aiProvider: 'ollama',
+    ollamaUrl: 'http://localhost:11434',
+    temperature: 0.7,
+    maxTokens: 4096,
     theme: 'light',
     language: 'en',
     autoSave: true,
@@ -147,7 +150,7 @@ class SettingsStore implements ISettingsState {
 
   resetSettings(): void {
     this._set(() => ({
-      settings: { aiProvider: 'ollama', theme: 'light', language: 'en', autoSave: true, syncMode: 'websocket' },
+      settings: { aiProvider: 'ollama', ollamaUrl: 'http://localhost:11434', temperature: 0.7, maxTokens: 4096, theme: 'light', language: 'en', autoSave: true, syncMode: 'websocket' },
     }))
   }
 }

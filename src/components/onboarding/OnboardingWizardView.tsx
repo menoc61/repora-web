@@ -4,6 +4,7 @@ import Icon from '../Icon'
 import { Button } from '../ui/button'
 import { api } from '../../api/client'
 import { useRequirements, useAddRequirement, useGenerateDocument } from '../../hooks/useQueries'
+import { useGenerationStore } from '../../stores/generationStore'
 import { Project, Requirement, SectionRequirement, STEPS, NFR_PRESETS, ACTOR_PRESETS } from './types'
 import ContextStep from './ContextStep'
 import FunctionalStep from './FunctionalStep'
@@ -129,6 +130,8 @@ export default function OnboardingWizardView({ projectId }: OnboardingWizardView
     setGenerating(true)
     try {
       const result = await generateDocument.mutateAsync({ projectId })
+      const genStore = useGenerationStore.getState()
+      genStore.startSession({ projectId, documentId: result.document_id, title: project?.name ?? 'Document' })
       navigate({ to: '/editor', search: { id: result.document_id } })
     } catch (e) {
       setError((e as Error).message)

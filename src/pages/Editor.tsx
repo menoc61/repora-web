@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Link, useSearch } from '@tanstack/react-router'
 import '@blocknote/mantine/style.css'
 import {
@@ -8,6 +8,7 @@ import {
   useDocumentStream,
 } from '../hooks/useQueries'
 import Icon from '../components/Icon'
+import { useGenerationStore } from '../stores/generationStore'
 import {
   EditorCanvas,
   type OutlineSection,
@@ -52,10 +53,24 @@ function EditorPage({ docId }: { docId: string }) {
   const { data: agents = [] } = useAgents()
   const { events: sseEvents, isStreaming: isGenerating } = useDocumentStream(docId)
   const exportDoc = useExportDocument()
+  const genStore = useGenerationStore()
   const [shareOpen, setShareOpen] = useState(false)
   const [sharePending, setSharePending] = useState(false)
   const [liveWordCount, setLiveWordCount] = useState(0)
   const [liveOutline, setLiveOutline] = useState<OutlineSection[]>([])
+
+  useEffect(() => {
+    const sessions = genStore.sessions
+    const session = sessions.find((s) => s.documentId === docId)
+    if (session) {
+      if (isGenerating && session.status !== 'generating') {
+        genStore.updateSession(session.sessionId, { status: 'generating' })
+      }
+      if (!isGenerating && session.status === 'generating') {
+        genStore.completeSession(session.sessionId)
+      }
+    }
+  }, [isGenerating, docId, genStore])
 
   const title = document?.title ?? 'Document sans titre'
   const status = document?.status ?? 'draft'

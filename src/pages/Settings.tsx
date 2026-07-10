@@ -3,7 +3,10 @@ import Icon from '../components/Icon'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { useMe, useApiKeys, useCreateApiKey, useDeleteApiKey, useAgents, usePatchAgent, useHealth } from '@/hooks/useQueries'
+import { useSettingsStore } from '../stores'
+import { useGenerationStore } from '../stores/generationStore'
 
 interface ToggleProps {
   checked?: boolean
@@ -18,6 +21,8 @@ export default function Settings() {
   const createApiKey = useCreateApiKey()
   const deleteApiKey = useDeleteApiKey()
   const { data: health } = useHealth()
+  const { settings, updateSettings } = useSettingsStore()
+  const { sessions, removeSession } = useGenerationStore()
   const [showKeyModal, setShowKeyModal] = useState(false)
   const [newProvider, setNewProvider] = useState('')
   const [newKey, setNewKey] = useState('')
@@ -265,6 +270,125 @@ export default function Settings() {
               </div>
             </section>
           </div>
+
+          <section className="space-y-6">
+            <div className="border-b border-outline-variant pb-4">
+              <h2 className="font-headline-md text-headline-md text-primary">Preferences IA</h2>
+              <p className="font-body-md text-body-md text-on-surface-variant">Configurer les parametres par defaut pour les modeles d&apos;IA.</p>
+            </div>
+            <div className="bg-white border border-outline-variant rounded-lg p-6 space-y-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="font-label-sm text-label-sm text-outline uppercase">Fournisseur par defaut</label>
+                <Select value={settings.aiProvider} onValueChange={(v) => updateSettings({ aiProvider: v as typeof settings.aiProvider })}>
+                  <SelectTrigger className="bg-surface-studio border border-outline-variant rounded-lg px-3 py-2 font-label-sm focus:ring-1 focus:ring-ai-vibrant outline-none">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ollama">Ollama (local)</SelectItem>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="anthropic">Anthropic</SelectItem>
+                    <SelectItem value="custom">Personnalise</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="font-label-sm text-label-sm text-outline uppercase">URL du serveur local</label>
+                <Input
+                  className="bg-surface-studio border border-outline-variant rounded-lg px-3 py-2 font-label-sm focus:ring-1 focus:ring-ai-vibrant outline-none"
+                  placeholder="http://localhost:11434"
+                  value={settings.ollamaUrl ?? ''}
+                  onChange={(e) => updateSettings({ ollamaUrl: (e.target as HTMLInputElement).value })}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="font-label-sm text-label-sm text-outline uppercase">Temperature par defaut</label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  className="bg-surface-studio border border-outline-variant rounded-lg px-3 py-2 font-label-sm focus:ring-1 focus:ring-ai-vibrant outline-none"
+                  value={settings.temperature ?? 0.7}
+                  onChange={(e) => updateSettings({ temperature: parseFloat((e.target as HTMLInputElement).value) || 0 })}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="font-label-sm text-label-sm text-outline uppercase">Tokens max par section</label>
+                <Input
+                  type="number"
+                  className="bg-surface-studio border border-outline-variant rounded-lg px-3 py-2 font-label-sm focus:ring-1 focus:ring-ai-vibrant outline-none"
+                  value={settings.maxTokens ?? 4096}
+                  onChange={(e) => updateSettings({ maxTokens: parseInt((e.target as HTMLInputElement).value, 10) || 0 })}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-6">
+            <div className="border-b border-outline-variant pb-4">
+              <h2 className="font-headline-md text-headline-md text-primary">Sessions de generation</h2>
+              <p className="font-body-md text-body-md text-on-surface-variant">Gerer les sessions de generation de documents en cours et terminees.</p>
+            </div>
+            {sessions.length === 0 ? (
+              <div className="bg-white border border-outline-variant rounded-lg p-6 text-center">
+                <p className="font-body-sm text-body-sm text-on-surface-variant italic">Aucune generation en cours.</p>
+              </div>
+            ) : (
+              <div className="bg-white border border-outline-variant rounded-lg overflow-hidden">
+                <Table className="w-full text-left border-collapse">
+                  <TableHeader className="bg-surface-studio border-b border-outline-variant">
+                    <TableRow>
+                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline">DOCUMENT</TableHead>
+                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline">STATUT</TableHead>
+                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline">DEMARRE LE</TableHead>
+                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline text-right">ACTION</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-outline-variant">
+                    {sessions.map((session) => (
+                      <TableRow key={session.sessionId} className="hover:bg-surface-container-low transition-colors">
+                        <TableCell className="px-6 py-4">
+                          <span className="font-body-md text-body-md font-medium">{session.title}</span>
+                        </TableCell>
+                        <TableCell className="px-6 py-4">
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-2 h-2 rounded-full ${session.status === 'generating' ? 'bg-status-draft' : session.status === 'completed' ? 'bg-status-final' : 'bg-error'}`} />
+                            <span className="font-label-sm text-label-sm">
+                              {session.status === 'generating' ? 'En cours' : session.status === 'completed' ? 'Termine' : 'Echoue'}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="px-6 py-4">
+                          <span className="font-label-sm text-label-sm text-on-surface-variant">
+                            {new Date(session.startedAt).toLocaleString()}
+                          </span>
+                        </TableCell>
+                        <TableCell className="px-6 py-4 text-right">
+                          {session.status === 'generating' ? (
+                            <Button
+                              variant="link"
+                              className="text-ai-vibrant font-label-md text-label-md p-0 h-auto"
+                              onClick={() => window.location.href = `/editor?search={id: ${session.documentId}}`}
+                            >
+                              Reprendre
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="link"
+                              className="text-error font-label-md text-label-md p-0 h-auto"
+                              onClick={() => removeSession(session.sessionId)}
+                            >
+                              Supprimer
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </section>
 
         </div>
       </div>

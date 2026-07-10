@@ -41,8 +41,11 @@ export const UserSchema = z.object({
 })
 
 export const SettingsSchema = z.object({
-  aiProvider: z.enum(['ollama', 'anthropic', 'openai']).default('ollama'),
+  aiProvider: z.enum(['ollama', 'anthropic', 'openai', 'custom']).default('ollama'),
   endpoint: z.string().url().optional(),
+  ollamaUrl: z.string().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().int().positive().optional(),
   theme: z.enum(['light', 'dark', 'system']).default('light'),
   language: z.string().default('en'),
   autoSave: z.boolean().default(true),
