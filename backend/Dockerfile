@@ -11,7 +11,9 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY package*.json ./
 COPY drizzle.config.ts ./
-COPY docker-entrypoint.sh ./
+COPY --from=builder /app/src/db/schema.ts ./src/db/schema.ts
+COPY --from=builder /app/src/db/migrations ./src/db/migrations
+COPY docker-entrypoint.sh wait-for-db.js ./
 RUN chmod +x docker-entrypoint.sh
 EXPOSE 8000
 CMD ["./docker-entrypoint.sh"]

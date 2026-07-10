@@ -37,6 +37,24 @@ graph LR
 
 > **Linux** : si `host.docker.internal` ne fonctionne pas, creez un fichier `.env` avec `OLLAMA_HOST=172.17.0.1`.
 
+### Configuration
+
+Copiez `.env.example` en `.env` et ajustez si necessaire. Les valeurs par defaut suffisent pour un demarrage rapide.
+
+```env
+# Facultatif — defaut : detection auto via API Ollama
+OLLAMA_MODEL=ornith:latest
+
+# Facultatif — defaut : host.docker.internal
+OLLAMA_HOST=host.docker.internal
+```
+
+Le backend detecte automatiquement le modele installe dans Ollama. La variable `OLLAMA_MODEL` permet de forcer un modele specifique.
+
+### Redemarrage automatique
+
+Tous les services Docker sont configures avec `restart: unless-stopped`. En cas de redemarrage de Docker Desktop ou du systeme, Repora revient automatiquement. Aucune intervention manuelle requise.
+
 ### Comptes de demo
 
 | Role | Email | Mot de passe |
@@ -436,12 +454,12 @@ graph TD
 
 ### Infrastructure
 
-| Service | Technologie | Port |
-|---------|------------|------|
-| Frontend | nginx:alpine (SPA) | 3000:80 |
-| Backend | Node 22 Alpine (tsx) | 8001:8000 |
-| Database | postgres:17 | 5433:5432 |
-| LLM Local | Ollama (host) | 11434 |
+| Service | Technologie | Port | Redemarrage |
+|---------|------------|------|-------------|
+| Frontend | nginx:alpine (SPA) | 3000:80 | unless-stopped |
+| Backend | Node 22 Alpine (tsx) | 8001:8000 | unless-stopped |
+| Database | postgres:17 | 5433:5432 | unless-stopped |
+| LLM Local | Ollama (host) | 11434 | — |
 
 ---
 
@@ -516,8 +534,9 @@ repora-web/
 │   │   ├── db/schema.ts          # 12 table Drizzle definitions
 │   │   ├── db/seed.ts            # Demo data seeder (French)
 │   │   └── config.ts             # Environment configuration
-│   ├── docker-entrypoint.sh      # Auto migration + seed on Docker start
-│   └── Dockerfile                # Multi-stage Node 22 Alpine
+│   ├── docker-entrypoint.sh      # Auto migration + seed on Docker start (attente DB)
+│   ├── wait-for-db.js            # Utilitaire d'attente PostgreSQL
+│   └── Dockerfile                # Multi-stage Node 22 Alpine + schema/migrations
 ├── docker-compose.yml            # 3 services (frontend, backend, db)
 ├── nginx.conf                    # SPA fallback + /api proxy
 ├── DESIGN.md                     # Visual design system (authoritative)
@@ -535,6 +554,46 @@ repora-web/
 - **Navigation** : `<Link to="/path">` de `@tanstack/react-router`
 - **Langue** : Interface et documents generes en francais
 - **Design System** : `DESIGN.md` fait autorite pour toutes les decisions visuelles
+
+---
+
+## Depannage
+
+### Page blanche (Docker)
+
+**Symptome :** Le navigateur affiche une page blanche a `http://localhost:3000`.
+
+**Causes possibles :**
+1. **Conteneur frontend arrete** — verifiez avec `docker compose ps`. Le service doit etre `Up`. En cas d'arret (Exited), relancez avec `docker compose up -d`.
+2. **Build stale** — les hash des fichiers JS/CSS ne correspondent pas. Reconstruisez avec `docker compose up -d --build` pour forcer un rebuild propre.
+3. **Conflit de ports** — un autre service utilise deja le port 3000. Arretez-le ou modifiez le mappage dans `docker-compose.yml`.
+
+### Backend inaccessible
+
+**Symptome :** `http://localhost:8001/healthz` ne repond pas.
+
+**Causes possibles :**
+1. **Base de donnees non prete** — le backend attend que PostgreSQL soit disponible (jusqu'a 30 secondes). Verifiez avec `docker compose logs backend`.
+2. **Port 8001 deja utilise** — modifiez le mappage dans `docker-compose.yml`.
+3. **Migrations echouees** — verifiez les logs : `docker compose logs backend | grep -i "migration\|error"`. La base conserve les donnees du volume persistant `pgdata`.
+
+### Les agents IA ne generent pas de contenu
+
+**Symptome :** Les sections restent en statut "pending" apres generation.
+
+**Causes :**
+1. **Ollama non accessible** — le backend tente de se connecter a `host.docker.internal:11434`. Sous Linux, utilisez `OLLAMA_HOST=172.17.0.1 docker compose up`.
+2. **Modele non trouve** — verifiez `ollama list` et definissez `OLLAMA_MODEL` dans `.env`.
+3. **Timeout** — la generation peut prendre plusieurs minutes avec des modeles locaux. Surveillez les logs avec `docker compose logs -f backend`.
+
+### Ports
+
+| Service | Externe | Interne |
+|---------|---------|---------|
+| Frontend | `3000` | `80` (nginx) |
+| Backend | `8001` | `8000` (Express) |
+| PostgreSQL | `5433` | `5432` |
+| Ollama (hote) | `11434` | — |
 
 ---
 
