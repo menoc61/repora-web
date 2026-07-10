@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import TopBar from '../../layout/TopBar'
 import Icon from '../../components/Icon'
@@ -20,8 +20,10 @@ export default function WorkspaceDashboardView() {
   const { data: projects = [], isLoading: projectsLoading } = useProjects()
   const { data: activity = [], isLoading: activityLoading } = useActivity()
   const setActiveView = useWorkspaceStore((s) => s.setActiveView)
-  const activeSessions = useGenerationStore((s) =>
-    s.sessions.filter((sess) => sess.status !== 'completed' && sess.status !== 'failed'),
+  const sessions = useGenerationStore((s) => s.sessions)
+  const activeSessions = useMemo(
+    () => sessions.filter((sess) => sess.status !== 'completed' && sess.status !== 'failed'),
+    [sessions],
   )
   const createProject = useCreateProject()
   const { data: agents = [] } = useAgents()

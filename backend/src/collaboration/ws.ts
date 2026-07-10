@@ -137,6 +137,13 @@ export function createCollaborationServer(server: http.Server) {
 
   wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
     const url = new URL(req.url || '', 'http://localhost')
+
+    if (url.pathname === '/notifications') {
+      notificationClients.add(ws)
+      ws.on('close', () => notificationClients.delete(ws))
+      return
+    }
+
     const docName = url.pathname.replace('/collab/', '')
     if (!docName) return
 
@@ -153,14 +160,6 @@ export function createCollaborationServer(server: http.Server) {
 
     messageListener(ws, doc, awareness, docName)
     console.log(`Collaboration: client connected to document ${docName}`)
-  })
-
-  // Notification channel — clients connect to get real-time events
-  wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
-    const url = new URL(req.url || '', 'http://localhost')
-    if (url.pathname !== '/notifications') return
-    notificationClients.add(ws)
-    ws.on('close', () => notificationClients.delete(ws))
   })
 
   console.log('Collaboration WebSocket server ready')
