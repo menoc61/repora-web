@@ -32,7 +32,7 @@ export default function DocumentTable({
   onOpenHistory,
 }: DocumentTableProps) {
   return (
-    <Table className="border-collapse text-left w-full">
+    <Table className="border-collapse text-left">
         <TableHeader>
           <TableRow className="bg-surface-container-low border-b border-outline-variant">
             <TableHead className="px-4 py-4 w-10 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">
