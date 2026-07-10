@@ -93,10 +93,7 @@ export default function DocumentLibraryView() {
   }
 
   const handleDepartmentChange = (v: string) => setDepartment(v)
-  const handleStatusChange = (v: string) => {
-    setStatus(v)
-    setPage(1)
-  }
+  const handleStatusChange = (v: string) => setStatus(v)
   const handleOwnerChange = (v: string) => setOwner(v)
   const handleSearchChange = (v: string) => {
     setSearch(v)
