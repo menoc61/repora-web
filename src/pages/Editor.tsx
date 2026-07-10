@@ -6,17 +6,16 @@ import {
   useExportDocument,
   useAgents,
   useDocumentStream,
-  useCreateDiagram,
 } from '../hooks/useQueries'
 import Icon from '../components/Icon'
 import { AgentStatus } from '../components/AgentStatus'
-import { Button } from '../components/ui/button'
 import { EditorCanvas, type OutlineSection } from '../components/editor/EditorCanvas'
 import { EditorHeader } from '../components/editor/EditorHeader'
 import { InspectorPanel } from '../components/editor/InspectorPanel'
 import { AgentProgressPanel } from '../components/editor/AgentProgressPanel'
 import { OutlineTree } from '../components/editor/OutlineTree'
 import { ShareDialog } from '../components/editor/ShareDialog'
+import { DiagramPanel } from '../components/editor/DiagramPanel'
 
 // ── Block ↔ Section conversion ──
 
@@ -68,14 +67,10 @@ function EditorPage({ docId }: { docId: string }) {
   const { data: agents = [] } = useAgents()
   const { events: sseEvents, isStreaming: isGenerating } = useDocumentStream(docId)
   const exportDoc = useExportDocument()
-  const createDiagram = useCreateDiagram()
   const [shareOpen, setShareOpen] = useState(false)
   const [sharePending, setSharePending] = useState(false)
   const [liveWordCount, setLiveWordCount] = useState(0)
   const [liveOutline, setLiveOutline] = useState<OutlineSection[]>([])
-  const [diagramType, setDiagramType] = useState<string>('use_case')
-  const [diagrams, setDiagrams] = useState<Array<{ id: string; type: string; rendered_url: string }>>([])
-  const [diagramError, setDiagramError] = useState<string | null>(null)
 
   const title = document?.title ?? 'Document sans titre'
   const status = document?.status ?? 'draft'
@@ -133,21 +128,6 @@ function EditorPage({ docId }: { docId: string }) {
     URL.revokeObjectURL(url)
   }
 
-  async function handleGenerateDiagram() {
-    if (!document?.projectId) return
-    setDiagramError(null)
-    try {
-      const result = await createDiagram.mutateAsync({
-        projectId: document.projectId,
-        type: diagramType,
-        source: title,
-      })
-      setDiagrams((prev) => [...prev, { ...result, type: diagramType }])
-    } catch {
-      setDiagramError('Echec de la generation du diagramme.')
-    }
-  }
-
   return (
     <div className="pt-16 pl-sidebar-width pr-inspector-width h-screen flex flex-col">
       <EditorHeader
@@ -177,69 +157,7 @@ function EditorPage({ docId }: { docId: string }) {
         <AgentProgressPanel sseEvents={sseEvents} isGenerating={isGenerating} agents={agents} />
 
         <div className="flex-1 overflow-y-auto p-gutter bg-surface-studio">
-          {/* UML Diagram generation (still inline — extracted in Task 3) */}
-          <div className="mb-6 border-b border-outline-variant pb-6">
-            <h3 className="font-label-md text-label-md font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
-              <Icon name="account_tree" className="text-ai-vibrant" />
-              Diagrammes UML
-            </h3>
-            {!document?.projectId ? (
-              <p className="text-label-sm text-on-surface-variant italic">
-                Liez ce document a un projet pour generer des diagrammes.
-              </p>
-            ) : (
-              <>
-                <div className="flex gap-2 mb-3">
-                  <select
-                    className="flex-1 p-2 border border-outline-variant rounded bg-white font-body-sm text-secondary focus:outline-none focus:border-ai-vibrant"
-                    value={diagramType}
-                    onChange={(e) => setDiagramType(e.target.value)}
-                  >
-                    <option value="use_case">Cas d'utilisation</option>
-                    <option value="sequence">Sequence</option>
-                    <option value="activity">Activite</option>
-                    <option value="class">Classe</option>
-                    <option value="deployment">Deploiement</option>
-                  </select>
-                  <Button
-                    onClick={handleGenerateDiagram}
-                    disabled={createDiagram.isPending}
-                    className="bg-ai-vibrant text-white px-3 py-2 rounded font-label-sm hover:opacity-90 transition-all flex items-center gap-1"
-                  >
-                    {createDiagram.isPending ? <Icon name="progress_activity" className="animate-spin text-[16px]" /> : <Icon name="auto_awesome" className="text-[16px]" />}
-                    Generer
-                  </Button>
-                </div>
-                {diagramError && (
-                  <p className="text-label-sm text-error mb-2">{diagramError}</p>
-                )}
-                {diagrams.length > 0 && (
-                  <div className="space-y-3">
-                    {diagrams.map((d) => (
-                      <div key={d.id} className="border border-outline-variant rounded-lg overflow-hidden bg-white">
-                        <div className="flex items-center justify-between px-3 py-2 bg-surface-studio border-b border-outline-variant">
-                          <span className="font-label-sm text-label-sm uppercase">{d.type}</span>
-                          <a
-                            href={d.rendered_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-ai-vibrant hover:underline font-label-sm"
-                          >
-                            Ouvrir
-                          </a>
-                        </div>
-                        {d.rendered_url ? (
-                          <img src={d.rendered_url} alt={d.type} className="w-full p-2" />
-                        ) : (
-                          <p className="text-label-sm text-on-surface-variant p-3 italic">Rendu en cours...</p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          <DiagramPanel projectId={document?.projectId} title={title} />
 
           <OutlineTree sections={outlineSections} />
         </div>
