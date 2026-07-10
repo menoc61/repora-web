@@ -8,31 +8,16 @@ import {
   useDocumentStream,
 } from '../hooks/useQueries'
 import Icon from '../components/Icon'
-import { AgentStatus } from '../components/AgentStatus'
-import { EditorCanvas, type OutlineSection } from '../components/editor/EditorCanvas'
-import { EditorHeader } from '../components/editor/EditorHeader'
-import { InspectorPanel } from '../components/editor/InspectorPanel'
-import { AgentProgressPanel } from '../components/editor/AgentProgressPanel'
-import { OutlineTree } from '../components/editor/OutlineTree'
-import { ShareDialog } from '../components/editor/ShareDialog'
-import { DiagramPanel } from '../components/editor/DiagramPanel'
-
-// ── Block ↔ Section conversion ──
-
-function relativeTime(dateStr: string | undefined): string {
-  if (!dateStr) return 'recemment'
-  const then = new Date(dateStr).getTime()
-  if (isNaN(then)) return 'recemment'
-  const diffSec = Math.floor((Date.now() - then) / 1000)
-  if (diffSec < 0) return "a l'instant"
-  if (diffSec < 60) return `il y a ${diffSec} secondes`
-  const diffMin = Math.floor(diffSec / 60)
-  if (diffMin < 60) return `il y a ${diffMin} minute${diffMin > 1 ? 's' : ''}`
-  const diffHr = Math.floor(diffMin / 60)
-  if (diffHr < 24) return `il y a ${diffHr} heure${diffHr > 1 ? 's' : ''}`
-  const diffDay = Math.floor(diffHr / 24)
-  return `il y a ${diffDay} jour${diffDay > 1 ? 's' : ''}`
-}
+import {
+  EditorCanvas,
+  type OutlineSection,
+  EditorHeader,
+  InspectorPanel,
+  AgentProgressPanel,
+  OutlineTree,
+  ShareDialog,
+  DiagramPanel,
+} from '../components/editor'
 
 // ── Main Editor Page ──
 

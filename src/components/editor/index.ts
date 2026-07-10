@@ -1,0 +1,7 @@
+export { EditorCanvas, type OutlineSection } from './EditorCanvas'
+export { EditorHeader } from './EditorHeader'
+export { InspectorPanel } from './InspectorPanel'
+export { AgentProgressPanel } from './AgentProgressPanel'
+export { OutlineTree } from './OutlineTree'
+export { ShareDialog } from './ShareDialog'
+export { DiagramPanel } from './DiagramPanel'
