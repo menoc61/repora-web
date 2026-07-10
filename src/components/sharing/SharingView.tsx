@@ -132,6 +132,7 @@ export default function SharingView({ docId }: SharingViewProps) {
               onEditRole={handleEditRole}
               onRemove={handleRemove}
               updatePending={updateCollabMutation.isPending}
+              removePending={removeCollabMutation.isPending}
             />
           </div>
 

@@ -12,6 +12,7 @@ interface CollaboratorListProps {
   onEditRole: (email: string, newRole: string) => void
   onRemove: (email: string) => void
   updatePending: boolean
+  removePending: boolean
 }
 
 export default function CollaboratorList({
@@ -22,6 +23,7 @@ export default function CollaboratorList({
   onEditRole,
   onRemove,
   updatePending,
+  removePending,
 }: CollaboratorListProps) {
   const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null)
   const [editRoleOpen, setEditRoleOpen] = useState<number | null>(null)
@@ -73,7 +75,7 @@ export default function CollaboratorList({
                         <button
                           className="w-full text-left px-4 py-2 text-body-sm hover:bg-surface-studio flex items-center gap-2 text-error"
                           onClick={() => { onRemove(c.email ?? ''); setOpenDropdownIndex(null) }}
-                          disabled={updatePending}
+                          disabled={removePending}
                         >
                           <Icon name="person_remove" className="text-sm" />
                           Retirer
