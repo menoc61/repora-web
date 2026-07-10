@@ -12,6 +12,7 @@ import Sidebar from './layout/Sidebar'
 import { useAuthStore } from './stores'
 import { useNotificationSocket } from './hooks/useNotificationSocket'
 import ToastContainer from './components/Toast'
+import NotificationCenter from './components/NotificationCenter'
 import WorkspaceDashboard from './pages/WorkspaceDashboard'
 import DocumentLibrary from './pages/DocumentLibrary'
 import TemplateGallery from './pages/TemplateGallery'
@@ -64,6 +65,7 @@ function RootLayout() {
           <Outlet />
         </div>
         <ToastContainer />
+        <NotificationCenter />
       </div>
     </QueryClientProvider>
   )

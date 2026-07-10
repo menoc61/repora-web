@@ -8,6 +8,8 @@ import { useMe, useApiKeys, useCreateApiKey, useDeleteApiKey, useAgents, usePatc
 import { useSettingsStore } from '../stores'
 import { useGenerationStore } from '../stores/generationStore'
 import { RequireRole } from '../components/RequireRole'
+import { api } from '../api/client'
+import { notify } from '../components/Toast'
 
 interface ToggleProps {
   checked?: boolean
@@ -16,11 +18,12 @@ interface ToggleProps {
 
 export default function Settings() {
   const { data: me } = useMe()
-  const { data: agents = [] } = useAgents()
-  const patchAgent = usePatchAgent()
-  const { data: apiKeys = [] } = useApiKeys()
-  const createApiKey = useCreateApiKey()
-  const deleteApiKey = useDeleteApiKey()
+  const isAdmin = me?.role === 'admin' || me?.role === 'super_admin'
+  const { data: agents = [] } = useAgents(isAdmin)
+  const patchAgent = usePatchAgent(isAdmin)
+  const { data: apiKeys = [] } = useApiKeys(isAdmin)
+  const createApiKey = useCreateApiKey(isAdmin)
+  const deleteApiKey = useDeleteApiKey(isAdmin)
   const { data: health } = useHealth()
   const { settings, updateSettings } = useSettingsStore()
   const { sessions, removeSession } = useGenerationStore()
@@ -31,6 +34,36 @@ export default function Settings() {
   const [editProvider, setEditProvider] = useState('')
   const [editModel, setEditModel] = useState('')
   const [editEnabled, setEditEnabled] = useState(true)
+  const [profileName, setProfileName] = useState('')
+  const [profilePassword, setProfilePassword] = useState('')
+  const [profilePasswordConfirm, setProfilePasswordConfirm] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  React.useEffect(() => {
+    if (me) setProfileName(me.name)
+  }, [me])
+
+  const handleSaveProfile = async () => {
+    if (profilePassword && profilePassword !== profilePasswordConfirm) {
+      notify({ type: 'error', title: 'Erreur', message: 'Les mots de passe ne correspondent pas.' })
+      return
+    }
+    setSaving(true)
+    try {
+      const body: Record<string, string> = {}
+      if (profileName && profileName !== me?.name) body.name = profileName
+      if (profilePassword) body.password = profilePassword
+      if (Object.keys(body).length === 0) return
+      await api.patch('/auth/me', body)
+      notify({ type: 'success', title: 'Profil mis a jour', message: 'Vos informations ont ete enregistrees.' })
+      setProfilePassword('')
+      setProfilePasswordConfirm('')
+    } catch (err: any) {
+      notify({ type: 'error', title: 'Erreur', message: err?.message ?? 'Echec de la mise a jour.' })
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handleSaveKey = () => {
     if (!newProvider.trim() || !newKey.trim()) return
@@ -235,19 +268,54 @@ export default function Settings() {
             <section className="space-y-6">
               <h2 className="font-headline-md text-headline-md text-primary border-b border-outline-variant pb-4">Profil utilisateur</h2>
               {me ? (
-                <div className="bg-white border border-outline-variant rounded-lg p-6 space-y-3">
-                  <div className="flex justify-between">
-                    <span className="font-label-sm text-label-sm text-outline uppercase">Nom</span>
-                    <span className="font-body-md text-body-md">{me.name}</span>
+                <div className="bg-white border border-outline-variant rounded-lg p-6 space-y-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-label-sm text-label-sm text-outline uppercase">Nom</label>
+                    <Input
+                      value={profileName}
+                      onChange={(e) => setProfileName((e.target as HTMLInputElement).value)}
+                      className="bg-surface-studio border border-outline-variant rounded-lg px-3 py-2 font-body-md"
+                    />
                   </div>
-                  <div className="flex justify-between">
-                    <span className="font-label-sm text-label-sm text-outline uppercase">Email</span>
-                    <span className="font-body-md text-body-md">{me.email}</span>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-label-sm text-label-sm text-outline uppercase">Email</label>
+                    <Input
+                      value={me.email}
+                      readOnly
+                      className="bg-surface-studio border border-outline-variant rounded-lg px-3 py-2 font-body-md text-on-surface-variant cursor-not-allowed"
+                    />
                   </div>
-                  <div className="flex justify-between">
-                    <span className="font-label-sm text-label-sm text-outline uppercase">Role</span>
-                    <span className="bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded font-label-sm">{me.role}</span>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-label-sm text-label-sm text-outline uppercase">Role</label>
+                    <span className="bg-surface-container-high text-on-surface-variant px-2 py-0.5 rounded font-label-sm w-fit">{me.role}</span>
                   </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-label-sm text-label-sm text-outline uppercase">Nouveau mot de passe</label>
+                    <Input
+                      type="password"
+                      placeholder="Laisser vide pour ne pas changer"
+                      value={profilePassword}
+                      onChange={(e) => setProfilePassword((e.target as HTMLInputElement).value)}
+                      className="bg-surface-studio border border-outline-variant rounded-lg px-3 py-2 font-body-md"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-label-sm text-label-sm text-outline uppercase">Confirmer le mot de passe</label>
+                    <Input
+                      type="password"
+                      placeholder="Confirmer le mot de passe"
+                      value={profilePasswordConfirm}
+                      onChange={(e) => setProfilePasswordConfirm((e.target as HTMLInputElement).value)}
+                      className="bg-surface-studio border border-outline-variant rounded-lg px-3 py-2 font-body-md"
+                    />
+                  </div>
+                  <Button
+                    className="bg-ai-vibrant text-white font-label-md text-label-md px-4 py-2 rounded"
+                    onClick={handleSaveProfile}
+                    disabled={saving}
+                  >
+                    {saving ? 'Enregistrement...' : 'Enregistrer'}
+                  </Button>
                 </div>
               ) : (
                 <p className="font-body-sm text-body-sm text-on-surface-variant italic">Chargement...</p>
@@ -271,6 +339,14 @@ export default function Settings() {
                 <div className="flex justify-between">
                   <span className="font-label-sm text-label-sm text-outline uppercase">Cles API</span>
                   <span className="font-body-md text-body-md">{apiKeys.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-label-sm text-label-sm text-outline uppercase">Version</span>
+                  <span className="font-body-md text-body-md">{(import.meta as any).env?.VITE_APP_VERSION ?? '1.0.0'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-label-sm text-label-sm text-outline uppercase">Environnement</span>
+                  <span className="font-body-md text-body-md">{(import.meta as any).env?.MODE ?? 'development'}</span>
                 </div>
               </div>
             </section>

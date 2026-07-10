@@ -513,14 +513,15 @@ export function useLogs() {
 
 // ── Agent Hooks ──
 
-export function useAgents() {
+export function useAgents(enabled?: boolean) {
   return useQuery({
     queryKey: ['agents'],
     queryFn: async () => api.get<BackendAgent[]>('/admin/agents'),
+    enabled: enabled !== false,
   })
 }
 
-export function usePatchAgent() {
+export function usePatchAgent(enabled?: boolean) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ name, patch }: { name: string; patch: Partial<BackendAgent> }) =>
@@ -789,14 +790,15 @@ export function useRestartServices() {
 
 // ── API Key Hooks ──
 
-export function useApiKeys() {
+export function useApiKeys(enabled?: boolean) {
   return useQuery<{ id: string; provider: string; encrypted_key: string; created_at: string }[]>({
     queryKey: ['api-keys'],
     queryFn: async () => api.get('/admin/api-keys'),
+    enabled: enabled !== false,
   })
 }
 
-export function useCreateApiKey() {
+export function useCreateApiKey(enabled?: boolean) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (data: { provider: string; apiKey: string }) =>
@@ -805,7 +807,7 @@ export function useCreateApiKey() {
   })
 }
 
-export function useDeleteApiKey() {
+export function useDeleteApiKey(enabled?: boolean) {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => api.delete(`/admin/api-keys/${id}`),

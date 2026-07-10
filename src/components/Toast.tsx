@@ -31,6 +31,12 @@ export function notify(toast: Omit<ToastNotification, 'id'>) {
   if (t.timeout && t.timeout > 0) {
     setTimeout(() => { toasts = toasts.filter(x => x.id !== t.id); emit() }, t.timeout)
   }
+  import('../stores/notificationStore').then(({ useNotificationStore }) => {
+    const type = (['info', 'success', 'warning', 'error'] as const).includes(toast.type as any)
+      ? (toast.type as 'info' | 'success' | 'warning' | 'error')
+      : 'info'
+    useNotificationStore.getState().add({ type, title: toast.title, message: toast.message })
+  })
 }
 
 export function dismissToast(id: string) {

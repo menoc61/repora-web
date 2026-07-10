@@ -3,6 +3,7 @@ import Icon from '../components/Icon'
 import { Input } from '../components/ui/input'
 import { notify } from '../components/Toast'
 import { useAuthStore } from '../stores'
+import { NotificationBell } from '../components/NotificationCenter'
 
 interface TopBarProps {
   title?: string
@@ -62,9 +63,7 @@ export default function TopBar({ title, tabs = [], right = null, searchPlacehold
 
         <div className="flex items-center gap-4">
           {right}
-          <button className="text-on-surface-variant hover:text-primary transition-colors" onClick={() => notify({ type: 'info', title: 'Notifications', message: 'Les notifications en temps reel sont actives via WebSocket.', timeout: 4000 })}>
-            <Icon name="notifications" />
-          </button>
+          <NotificationBell />
           <button className="text-on-surface-variant hover:text-primary transition-colors" onClick={() => navigate({ to: '/history' })}>
             <Icon name="history" />
           </button>
