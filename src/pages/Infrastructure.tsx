@@ -4,6 +4,7 @@ import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { useHealth, useInfraHealth, useEnableAgent } from '../hooks/useQueries'
+import { RequireRole } from '../components/RequireRole'
 
 
 interface InfraService {
@@ -124,262 +125,264 @@ export default function Infrastructure() {
   const strokeOffset = strokeDash * (1 - storagePct / 100)
 
   return (
-    <div className="flex-1 flex flex-col min-h-screen">
-      <header className="h-16 flex justify-between items-center px-gutter bg-surface-studio border-b border-outline-variant z-40">
-        <div className="flex items-center gap-8">
-          <div className="flex items-center bg-surface-container rounded-lg px-3 py-1.5 w-64 border border-outline-variant focus-within:border-secondary transition-colors">
-            <Icon name="search" className="text-on-surface-variant text-[20px]" />
-            <Input
-              className="border-none bg-transparent focus-visible:ring-0 p-0 text-body-sm w-full"
-              placeholder="Rechercher infrastructure..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm((e.target as HTMLInputElement).value)}
-            />
-          </div>
-          <nav className="hidden md:flex items-center gap-6">
-            <Link to="/workspace" className="font-label-md text-label-md text-on-surface-variant hover:text-secondary transition-colors">Espace de travail</Link>
-            <Link to="/library" className="font-label-md text-label-md text-on-surface-variant hover:text-secondary transition-colors">Bibliotheque</Link>
-            <Link to="/agents" className="font-label-md text-label-md text-on-surface-variant hover:text-secondary transition-colors">Agents</Link>
-          </nav>
-        </div>
-        <div className="flex items-center gap-4">
-          <Button className="bg-secondary text-on-secondary px-4 py-2 rounded-lg font-label-md text-label-md font-bold active:opacity-80 transition-opacity" onClick={handleDeployAgent} disabled={enableAgent.isPending}>
-            {enableAgent.isPending ? 'Deploiement...' : 'Deployer un agent'}
-          </Button>
-          <Link to="/settings" className="text-on-surface-variant hover:text-secondary p-1">
-            <Icon name="settings" />
-          </Link>
-          <button className="text-on-surface-variant hover:text-secondary p-1" onClick={() => alert('Fonctionnalite a venir')}><Icon name="notifications" /></button>
-          <button className="text-on-surface-variant hover:text-secondary p-1" onClick={() => navigate({ to: '/settings' })}><Icon name="account_circle" /></button>
-        </div>
-      </header>
-
-      <main className="flex-1 overflow-y-auto p-8 bg-surface-studio">
-        <div className="max-w-[1400px] mx-auto grid grid-cols-12 gap-6">
-          <div className="col-span-12 flex items-center justify-between bg-white p-6 rounded-xl border border-outline-variant">
-            <div className="flex items-center gap-4">
-              <div className={`w-3 h-3 rounded-full ${healthLoading ? 'bg-yellow-500 animate-pulse' : healthError ? 'bg-red-500' : health?.status === 'ok' ? 'bg-status-final animate-pulse' : 'bg-status-review'}`} />
-              <div>
-                <h2 className="font-headline-md text-headline-md leading-tight">
-                  {infraLoading
-                    ? 'Chargement...'
-                    : infraError
-                      ? 'Instance indisponible'
-                      : `Noeud d'instance : ${instanceHostname}`}
-                </h2>
-                <p className="text-on-surface-variant text-body-sm">
-                  {status} &bull; Disponibilite : {instanceUptime} &bull; Localisation : {instanceLocation}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <span className="px-3 py-1 bg-surface-container rounded-full text-label-sm font-label-sm text-on-surface-variant">
-                V {instanceVersion}
-              </span>
-              <span className="px-3 py-1 bg-ai-glow text-secondary rounded-full text-label-sm font-label-sm">
-                {instanceMode}
-              </span>
-            </div>
-          </div>
-
-          <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-outline-variant flex flex-col justify-between h-[320px]">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Statut GPU</p>
-                <h3 className="font-headline-md text-headline-md mt-1">{hasGpu ? gpuName : 'Aucun GPU detecte'}</h3>
-              </div>
-              <Icon name="smart_toy" className="text-secondary text-3xl" />
-            </div>
-            {infraLoading ? (
-              <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-sm">
-                Chargement...
-              </div>
-            ) : !hasGpu ? (
-              <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-sm">
-                Donnees GPU indisponibles
-              </div>
-            ) : (
-              <div className="space-y-6">
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-body-sm font-medium">Utilisation GPU</span>
-                    <span className="text-label-sm font-label-sm text-secondary">{gpuUtil}%</span>
-                  </div>
-                  <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                    <div className="bg-secondary h-full rounded-full transition-all duration-1000" style={{ width: `${gpuUtil}%` }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-body-sm font-medium">Allocation VRAM</span>
-                    <span className="text-label-sm font-label-sm text-status-review">
-                      {gpuVramUsed} / {gpuVramTotal} GB
-                    </span>
-                  </div>
-                  <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
-                    <div className="bg-status-review h-full rounded-full transition-all duration-1000" style={{ width: `${gpuVramPct}%` }} />
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="flex items-center gap-2">
-              <Icon
-                name={gpuActive ? 'check_circle' : 'cancel'}
-                className={`text-sm ${gpuActive ? 'text-status-final' : 'text-on-surface-variant'}`}
-                fill
+    <RequireRole role={['admin', 'super_admin']}>
+      <div className="flex-1 flex flex-col min-h-screen">
+        <header className="h-16 flex justify-between items-center px-gutter bg-surface-studio border-b border-outline-variant z-40">
+          <div className="flex items-center gap-8">
+            <div className="flex items-center bg-surface-container rounded-lg px-3 py-1.5 w-64 border border-outline-variant focus-within:border-secondary transition-colors">
+              <Icon name="search" className="text-on-surface-variant text-[20px]" />
+              <Input
+                className="border-none bg-transparent focus-visible:ring-0 p-0 text-body-sm w-full"
+                placeholder="Rechercher infrastructure..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm((e.target as HTMLInputElement).value)}
               />
-              <span className="text-label-sm font-label-sm">
-                {gpuActive ? 'Inference active' : 'Inference inactive'}
-              </span>
             </div>
+            <nav className="hidden md:flex items-center gap-6">
+              <Link to="/workspace" className="font-label-md text-label-md text-on-surface-variant hover:text-secondary transition-colors">Espace de travail</Link>
+              <Link to="/library" className="font-label-md text-label-md text-on-surface-variant hover:text-secondary transition-colors">Bibliotheque</Link>
+              <Link to="/agents" className="font-label-md text-label-md text-on-surface-variant hover:text-secondary transition-colors">Agents</Link>
+            </nav>
           </div>
-
-          <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-outline-variant flex flex-col justify-between h-[320px]">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Persistance locale</p>
-                <h3 className="font-headline-md text-headline-md mt-1">{storageName}</h3>
-              </div>
-              <Icon name="database" className="text-on-surface-variant text-3xl" />
-            </div>
-            {infraLoading ? (
-              <div className="flex flex-col items-center justify-center py-4 text-on-surface-variant text-body-sm">
-                Chargement...
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-4">
-                <div className="relative w-32 h-32">
-                  <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
-                    <circle cx="64" cy="64" r="58" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-surface-container" />
-                    <circle cx="64" cy="64" r="58" fill="transparent" stroke="currentColor" strokeWidth="8" strokeDasharray={strokeDash} strokeDashoffset={strokeOffset} className="text-secondary transition-all duration-1000" />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-headline-md font-bold">{storagePct}%</span>
-                    <span className="text-[10px] font-label-sm text-on-surface-variant">CAPACITE</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-4 border-t border-outline-variant pt-4">
-              <div>
-                <p className="text-[10px] text-on-surface-variant uppercase font-label-sm">Taille totale</p>
-                <p className="font-bold text-body-md">{storageTotal}</p>
-              </div>
-              <div>
-                <p className="text-[10px] text-on-surface-variant uppercase font-label-sm">Attente E/S</p>
-                <p className="font-bold text-body-md">{storageIowait}</p>
-              </div>
-            </div>
+          <div className="flex items-center gap-4">
+            <Button className="bg-secondary text-on-secondary px-4 py-2 rounded-lg font-label-md text-label-md font-bold active:opacity-80 transition-opacity" onClick={handleDeployAgent} disabled={enableAgent.isPending}>
+              {enableAgent.isPending ? 'Deploiement...' : 'Deployer un agent'}
+            </Button>
+            <Link to="/settings" className="text-on-surface-variant hover:text-secondary p-1">
+              <Icon name="settings" />
+            </Link>
+            <button className="text-on-surface-variant hover:text-secondary p-1" onClick={() => alert('Fonctionnalite a venir')}><Icon name="notifications" /></button>
+            <button className="text-on-surface-variant hover:text-secondary p-1" onClick={() => navigate({ to: '/settings' })}><Icon name="account_circle" /></button>
           </div>
+        </header>
 
-          <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-outline-variant flex flex-col h-[320px]">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-headline-md text-headline-md">Services</h3>
-              <Button variant="link" className="text-on-surface-variant text-body-sm font-medium p-0 h-auto cursor-not-allowed opacity-40" disabled>
-                Redemarrage reserve
-              </Button>
-            </div>
-            <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-              {infraLoading ? (
-                <div className="flex items-center justify-center h-full text-on-surface-variant text-body-sm">
-                  Chargement...
-                </div>
-              ) : infraError ? (
-                <div className="flex items-center justify-center h-full text-red-400 text-body-sm">
-                  Erreur de chargement des services
-                </div>
-              ) : filteredServices.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-on-surface-variant text-body-sm">
-                  Aucun service trouve
-                </div>
-              ) : (
-                filteredServices.map((s) => (
-                  <div key={s.name} className="flex items-center justify-between p-3 rounded-lg border border-outline-variant bg-surface-studio">
-                    <div className="flex items-center gap-3">
-                      <Icon name={serviceIcon(s.status)} className={serviceIconColor(s.status)} />
-                      <span className="font-medium text-body-sm">{s.name}</span>
-                    </div>
-                    <span className="text-label-sm font-label-sm text-on-surface-variant">
-                      {s.extra ?? (s.pid != null ? `PID: ${s.pid}` : '')}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="col-span-12 bg-on-surface p-6 rounded-xl border border-on-surface shadow-2xl h-[400px] flex flex-col font-label-sm text-label-sm">
-            <div className="flex items-center justify-between mb-4 border-b border-on-surface-variant pb-2">
+        <main className="flex-1 overflow-y-auto p-8 bg-surface-studio">
+          <div className="max-w-[1400px] mx-auto grid grid-cols-12 gap-6">
+            <div className="col-span-12 flex items-center justify-between bg-white p-6 rounded-xl border border-outline-variant">
               <div className="flex items-center gap-4">
-                <div className="flex gap-1.5">
-                  <div className="w-3 h-3 rounded-full bg-red-500" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                <div className={`w-3 h-3 rounded-full ${healthLoading ? 'bg-yellow-500 animate-pulse' : healthError ? 'bg-red-500' : health?.status === 'ok' ? 'bg-status-final animate-pulse' : 'bg-status-review'}`} />
+                <div>
+                  <h2 className="font-headline-md text-headline-md leading-tight">
+                    {infraLoading
+                      ? 'Chargement...'
+                      : infraError
+                        ? 'Instance indisponible'
+                        : `Noeud d'instance : ${instanceHostname}`}
+                  </h2>
+                  <p className="text-on-surface-variant text-body-sm">
+                    {status} &bull; Disponibilite : {instanceUptime} &bull; Localisation : {instanceLocation}
+                  </p>
                 </div>
-                <span className="text-white opacity-60">system@repora-alpha-01: /var/log</span>
               </div>
-              <div className="flex gap-4">
-                <span className="text-status-final">STATISTIQUES SYSTEME</span>
-                <span className="text-white opacity-40">UTF-8</span>
+              <div className="flex gap-2">
+                <span className="px-3 py-1 bg-surface-container rounded-full text-label-sm font-label-sm text-on-surface-variant">
+                  V {instanceVersion}
+                </span>
+                <span className="px-3 py-1 bg-ai-glow text-secondary rounded-full text-label-sm font-label-sm">
+                  {instanceMode}
+                </span>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto pr-2 text-green-400 font-mono custom-scrollbar grid grid-cols-2 gap-x-8 gap-y-2">
+
+            <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-outline-variant flex flex-col justify-between h-[320px]">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Statut GPU</p>
+                  <h3 className="font-headline-md text-headline-md mt-1">{hasGpu ? gpuName : 'Aucun GPU detecte'}</h3>
+                </div>
+                <Icon name="smart_toy" className="text-secondary text-3xl" />
+              </div>
               {infraLoading ? (
-                <div className="col-span-2 flex items-center justify-center h-full text-white/50">
+                <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-sm">
                   Chargement...
                 </div>
-              ) : infraError ? (
-                <div className="col-span-2 flex items-center justify-center h-full text-red-400">
-                  Erreur de chargement
+              ) : !hasGpu ? (
+                <div className="flex-1 flex items-center justify-center text-on-surface-variant text-body-sm">
+                  Donnees GPU indisponibles
                 </div>
               ) : (
-                <>
-                  <div className="flex gap-4"><span className="text-blue-400">HOSTNAME</span><span>{instanceHostname}</span></div>
-                  <div className="flex gap-4"><span className="text-blue-400">PLATFORM</span><span>{instancePlatform}</span></div>
-                  <div className="flex gap-4"><span className="text-blue-400">CPUS</span><span>{instanceCpus}</span></div>
-                  <div className="flex gap-4"><span className="text-blue-400">MEMORY TOTAL</span><span>{Math.round(memoryTotalMb / 1024)} GB</span></div>
-                  <div className="flex gap-4"><span className="text-blue-400">MEMORY FREE</span><span>{Math.round(memoryFreeMb / 1024)} GB</span></div>
-                  <div className="flex gap-4"><span className="text-blue-400">UPTIME</span><span>{instanceUptime}</span></div>
-                  <div className="flex gap-4"><span className="text-blue-400">GPU</span><span>{gpuName}</span></div>
-                  <div className="flex gap-4"><span className="text-blue-400">MODE</span><span>{instanceMode}</span></div>
-                </>
+                <div className="space-y-6">
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span className="text-body-sm font-medium">Utilisation GPU</span>
+                      <span className="text-label-sm font-label-sm text-secondary">{gpuUtil}%</span>
+                    </div>
+                    <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+                      <div className="bg-secondary h-full rounded-full transition-all duration-1000" style={{ width: `${gpuUtil}%` }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <span className="text-body-sm font-medium">Allocation VRAM</span>
+                      <span className="text-label-sm font-label-sm text-status-review">
+                        {gpuVramUsed} / {gpuVramTotal} GB
+                      </span>
+                    </div>
+                    <div className="w-full bg-surface-container h-2 rounded-full overflow-hidden">
+                      <div className="bg-status-review h-full rounded-full transition-all duration-1000" style={{ width: `${gpuVramPct}%` }} />
+                    </div>
+                  </div>
+                </div>
               )}
+              <div className="flex items-center gap-2">
+                <Icon
+                  name={gpuActive ? 'check_circle' : 'cancel'}
+                  className={`text-sm ${gpuActive ? 'text-status-final' : 'text-on-surface-variant'}`}
+                  fill
+                />
+                <span className="text-label-sm font-label-sm">
+                  {gpuActive ? 'Inference active' : 'Inference inactive'}
+                </span>
+              </div>
             </div>
-            <div className="mt-4 pt-2 border-t border-on-surface-variant flex gap-2">
-              <span className="text-status-final">$</span>
-              <span className="text-white/50 font-mono">Diagnostic termine — systeme operationnel</span>
-            </div>
-          </div>
 
-          <div className="col-span-12 bg-white p-6 rounded-xl border border-outline-variant">
-            <h3 className="font-headline-md text-headline-md mb-6">Charge systeme active (24h)</h3>
-            {infraLoading ? (
-              <div className="flex items-center justify-center h-24 text-on-surface-variant text-body-sm">
-                Chargement...
+            <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-outline-variant flex flex-col justify-between h-[320px]">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Persistance locale</p>
+                  <h3 className="font-headline-md text-headline-md mt-1">{storageName}</h3>
+                </div>
+                <Icon name="database" className="text-on-surface-variant text-3xl" />
               </div>
-            ) : loadHistory.length === 0 ? (
-              <div className="flex items-center justify-center h-24 text-on-surface-variant text-body-sm">
-                Donnees de charge indisponibles
+              {infraLoading ? (
+                <div className="flex flex-col items-center justify-center py-4 text-on-surface-variant text-body-sm">
+                  Chargement...
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-4">
+                  <div className="relative w-32 h-32">
+                    <svg className="w-full h-full -rotate-90" viewBox="0 0 128 128">
+                      <circle cx="64" cy="64" r="58" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-surface-container" />
+                      <circle cx="64" cy="64" r="58" fill="transparent" stroke="currentColor" strokeWidth="8" strokeDasharray={strokeDash} strokeDashoffset={strokeOffset} className="text-secondary transition-all duration-1000" />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-headline-md font-bold">{storagePct}%</span>
+                      <span className="text-[10px] font-label-sm text-on-surface-variant">CAPACITE</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4 border-t border-outline-variant pt-4">
+                <div>
+                  <p className="text-[10px] text-on-surface-variant uppercase font-label-sm">Taille totale</p>
+                  <p className="font-bold text-body-md">{storageTotal}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-on-surface-variant uppercase font-label-sm">Attente E/S</p>
+                  <p className="font-bold text-body-md">{storageIowait}</p>
+                </div>
               </div>
-            ) : (
-              <div className="flex gap-1 h-24 items-end">
-                {loadHistory.map((h, i) => (
-                  <div
-                    key={i}
-                    className={`flex-1 ${h > 80 ? 'bg-error' : h > 60 ? 'bg-status-review' : 'bg-secondary'} opacity-40 hover:opacity-100 transition-opacity rounded-t-sm`}
-                    style={{ height: `${Math.min(h, 100)}%` }}
-                  />
-                ))}
+            </div>
+
+            <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-outline-variant flex flex-col h-[320px]">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-headline-md text-headline-md">Services</h3>
+                <Button variant="link" className="text-on-surface-variant text-body-sm font-medium p-0 h-auto cursor-not-allowed opacity-40" disabled>
+                  Redemarrage reserve
+                </Button>
               </div>
-            )}
-            <div className="flex justify-between mt-2 text-[10px] font-label-sm text-on-surface-variant uppercase">
-              <span>Il y a 24 heures</span>
-              <span>Il y a 12 heures</span>
-              <span>A l&apos;instant</span>
+              <div className="space-y-3 flex-1 overflow-y-auto pr-2">
+                {infraLoading ? (
+                  <div className="flex items-center justify-center h-full text-on-surface-variant text-body-sm">
+                    Chargement...
+                  </div>
+                ) : infraError ? (
+                  <div className="flex items-center justify-center h-full text-red-400 text-body-sm">
+                    Erreur de chargement des services
+                  </div>
+                ) : filteredServices.length === 0 ? (
+                  <div className="flex items-center justify-center h-full text-on-surface-variant text-body-sm">
+                    Aucun service trouve
+                  </div>
+                ) : (
+                  filteredServices.map((s) => (
+                    <div key={s.name} className="flex items-center justify-between p-3 rounded-lg border border-outline-variant bg-surface-studio">
+                      <div className="flex items-center gap-3">
+                        <Icon name={serviceIcon(s.status)} className={serviceIconColor(s.status)} />
+                        <span className="font-medium text-body-sm">{s.name}</span>
+                      </div>
+                      <span className="text-label-sm font-label-sm text-on-surface-variant">
+                        {s.extra ?? (s.pid != null ? `PID: ${s.pid}` : '')}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="col-span-12 bg-on-surface p-6 rounded-xl border border-on-surface shadow-2xl h-[400px] flex flex-col font-label-sm text-label-sm">
+              <div className="flex items-center justify-between mb-4 border-b border-on-surface-variant pb-2">
+                <div className="flex items-center gap-4">
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                    <div className="w-3 h-3 rounded-full bg-green-500" />
+                  </div>
+                  <span className="text-white opacity-60">system@repora-alpha-01: /var/log</span>
+                </div>
+                <div className="flex gap-4">
+                  <span className="text-status-final">STATISTIQUES SYSTEME</span>
+                  <span className="text-white opacity-40">UTF-8</span>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto pr-2 text-green-400 font-mono custom-scrollbar grid grid-cols-2 gap-x-8 gap-y-2">
+                {infraLoading ? (
+                  <div className="col-span-2 flex items-center justify-center h-full text-white/50">
+                    Chargement...
+                  </div>
+                ) : infraError ? (
+                  <div className="col-span-2 flex items-center justify-center h-full text-red-400">
+                    Erreur de chargement
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-4"><span className="text-blue-400">HOSTNAME</span><span>{instanceHostname}</span></div>
+                    <div className="flex gap-4"><span className="text-blue-400">PLATFORM</span><span>{instancePlatform}</span></div>
+                    <div className="flex gap-4"><span className="text-blue-400">CPUS</span><span>{instanceCpus}</span></div>
+                    <div className="flex gap-4"><span className="text-blue-400">MEMORY TOTAL</span><span>{Math.round(memoryTotalMb / 1024)} GB</span></div>
+                    <div className="flex gap-4"><span className="text-blue-400">MEMORY FREE</span><span>{Math.round(memoryFreeMb / 1024)} GB</span></div>
+                    <div className="flex gap-4"><span className="text-blue-400">UPTIME</span><span>{instanceUptime}</span></div>
+                    <div className="flex gap-4"><span className="text-blue-400">GPU</span><span>{gpuName}</span></div>
+                    <div className="flex gap-4"><span className="text-blue-400">MODE</span><span>{instanceMode}</span></div>
+                  </>
+                )}
+              </div>
+              <div className="mt-4 pt-2 border-t border-on-surface-variant flex gap-2">
+                <span className="text-status-final">$</span>
+                <span className="text-white/50 font-mono">Diagnostic termine — systeme operationnel</span>
+              </div>
+            </div>
+
+            <div className="col-span-12 bg-white p-6 rounded-xl border border-outline-variant">
+              <h3 className="font-headline-md text-headline-md mb-6">Charge systeme active (24h)</h3>
+              {infraLoading ? (
+                <div className="flex items-center justify-center h-24 text-on-surface-variant text-body-sm">
+                  Chargement...
+                </div>
+              ) : loadHistory.length === 0 ? (
+                <div className="flex items-center justify-center h-24 text-on-surface-variant text-body-sm">
+                  Donnees de charge indisponibles
+                </div>
+              ) : (
+                <div className="flex gap-1 h-24 items-end">
+                  {loadHistory.map((h, i) => (
+                    <div
+                      key={i}
+                      className={`flex-1 ${h > 80 ? 'bg-error' : h > 60 ? 'bg-status-review' : 'bg-secondary'} opacity-40 hover:opacity-100 transition-opacity rounded-t-sm`}
+                      style={{ height: `${Math.min(h, 100)}%` }}
+                    />
+                  ))}
+                </div>
+              )}
+              <div className="flex justify-between mt-2 text-[10px] font-label-sm text-on-surface-variant uppercase">
+                <span>Il y a 24 heures</span>
+                <span>Il y a 12 heures</span>
+                <span>A l&apos;instant</span>
+              </div>
             </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
+    </RequireRole>
   )
 }

@@ -7,6 +7,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { useMe, useApiKeys, useCreateApiKey, useDeleteApiKey, useAgents, usePatchAgent, useHealth } from '@/hooks/useQueries'
 import { useSettingsStore } from '../stores'
 import { useGenerationStore } from '../stores/generationStore'
+import { RequireRole } from '../components/RequireRole'
 
 interface ToggleProps {
   checked?: boolean
@@ -81,6 +82,7 @@ export default function Settings() {
       <div className="flex-1 overflow-y-auto bg-surface-studio p-8">
         <div className="max-w-[960px] mx-auto space-y-12">
 
+          <RequireRole role={['admin', 'super_admin']}>
           <section className="space-y-6">
             <div className="border-b border-outline-variant pb-4">
               <h2 className="font-headline-md text-headline-md text-primary">Configurations des agents</h2>
@@ -167,7 +169,9 @@ export default function Settings() {
               </div>
             )}
           </section>
+          </RequireRole>
 
+          <RequireRole role={['admin', 'super_admin']}>
           <section className="space-y-6">
             <div className="flex justify-between items-end border-b border-outline-variant pb-4">
               <div>
@@ -225,6 +229,7 @@ export default function Settings() {
               </div>
             )}
           </section>
+          </RequireRole>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <section className="space-y-6">
