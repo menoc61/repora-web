@@ -6,7 +6,7 @@ export default defineConfig({
     environment: 'node',
     env: {
       PORT: '0',
-      DATABASE_URL: 'postgres://repora:repora@localhost:5433/repora',
+      DATABASE_URL: 'postgres://repora:repora@localhost:5434/repora',
     },
     setupFiles: ['./tests/setup.ts'],
     testTimeout: 30000,

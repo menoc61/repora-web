@@ -98,6 +98,7 @@ interface BackendSection {
 
 interface BackendDocument {
   id: string
+  projectId?: string | null
   status: string
   outline: Record<string, unknown>
   sections: BackendSection[]
@@ -192,6 +193,7 @@ function mapBackendDocument(d: BackendDocument): Document {
   const title = (d.outline?.title as string) ?? (sections[0]?.title ?? 'Untitled')
   return {
     id: d.id,
+    projectId: d.projectId ?? undefined,
     title,
     status: (['draft', 'review', 'final', 'active', 'autonomous'].includes(d.status) ? d.status : 'draft') as Document['status'],
     department: hashDepartment(d.id),

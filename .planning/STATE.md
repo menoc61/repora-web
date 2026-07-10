@@ -1,45 +1,44 @@
-# Repora — Project State
+# Repora — State
 
-## Active Milestone
-**Milestone 1: Core AI Orchestration**
+## Current Phase: All Phases Complete ✅
 
-## Current Phase
-**Phase 1: Hermes Multi-Agent Orchestration** — Planning Complete
+All 5 phases (0-4) have been completed:
 
-## Tech Stack (from AGENTS.md + package.json)
-- **Frontend:** React 19, Vite, TanStack Router, BlockNote, TanStack Query, Tailwind CSS
-- **Backend:** Node.js, Express 5, Vercel AI SDK v7, Drizzle ORM, PostgreSQL
-- **AI:** Vercel AI SDK `streamText`/`generateText`/`tool()`, Ollama model discovery, BYOK multi-provider
-- **Infrastructure:** Docker (frontend + backend + postgres + llama-server)
+### Phase 0: Tests & Pipeline ✅
+- 97/97 backend tests passing across 9 test files
+- DB connection stabilized (port 5434 to avoid local PostgreSQL conflicts)
+- Docker pg_hba.conf configured for remote access
+- `test-db.mjs` temp file removed
 
-## Key Decisions
-- **D-01:** Vercel AI SDK v7 standalone — no LangGraph/CrewAI. Custom orchestration on top of `streamText` + `maxSteps` + `tool()`.
-- **D-02:** 5-agent sequential pipeline: Planner → Writer → UML → Tables → Reviewer
-- **D-03:** Tools defined via SDK-native `tool()` with Zod input schemas, not custom wrapper
-- **D-04:** Shared GenerationContext passed between pipeline stages (not persisted between runs)
-- **D-05:** SSE streaming for real-time agent progress to frontend
-- **D-06:** Default model auto-discovered from Ollama; BYOK opt-in per agent
-- **D-07:** DESIGN.md ("Repora Sovereign") is the authoritative visual system for all UI
-- **D-08:** French language for generated document content; platform UI in French
+### Phase 1: Export ✅
+- PDF export via pdf-lib
+- DOCX export via docx library
+- MD export via markdown builder
+- 5 export tests added
 
-## Active Plans (Phase 1)
-| Wave | Plan | Description | Status |
-|------|------|-------------|--------|
-| 1 | 001-01 | GenerationContext + Agent Registry + Tool Migration | pending |
-| 1 | 001-02 | Hermes Negotiation Loop + Template Integration | pending |
-| 2 | 001-03 | Frontend Live Agent Progress + Page Fixes | pending |
+### Phase 2: Admin Panel ✅
+- Settings page with agent configuration table
+- BYOK API key management (add/delete/list)
+- Dynamic config without server restart
 
-## Requirement Coverage
-| ID | Description | Plan |
-|----|-------------|------|
-| HMO-01 | GenerationContext shared state | 001-01 |
-| HMO-02 | Hermes Negotiation Loop (accept/rescope/adjust) | 001-02 |
-| HMO-03 | Agent Registry with native tool() | 001-01 |
-| HMO-04 | SSE Streaming real-time events | 001-02, 001-03 |
-| HMO-05 | Frontend live agent chips + dashboard status | 001-03 |
-| HMO-06 | Default model (Ollama-discovered) + BYOK fallback | 001-02 |
-| HMO-07 | Template integration | 001-02 |
-| HMO-08 | Page fixes (all pages work with new pipeline) | 001-03 |
+### Phase 3: Validation Portal ✅
+- ValidatePortal page with section-by-section accept/reject
+- Mandatory reason modal on rejection
+- WebSocket notifications on decision
+- Single-use token with lock after first decision
 
-## Next Steps
-Run `/gsd-execute-phase 001` to execute Phase 1 plans in wave order.
+### Phase 4: Conversational Assistant ✅
+- Backend: POST /assistant/start, POST /assistant/chat, POST /assistant/generate
+- Frontend: Assistant page at /assistant/:id with chat interface
+- Structured extraction panel (context, features, constraints, actors)
+- Hermes integration via "Generate" button
+
+### Docker
+- All 3 services running (frontend:3000, backend:8001, db:5434)
+- DB healthcheck passing
+- Backend auto-migration + seed on startup
+
+### Known Issues
+- Content generation requires an active Ollama instance with a tool-calling model
+- Without Ollama, generated documents have empty "pending" sections
+- Frontend build has large bundle (1.5MB main chunk) — consider code-splitting

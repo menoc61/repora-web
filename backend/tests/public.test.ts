@@ -161,8 +161,9 @@ describe('GET /validate/:token', () => {
       .get(`/validate/${validationToken}`)
       .expect(200)
 
-    expect(res.body).toHaveProperty('document_id')
-    expect(res.body.document_id).toBe(documentId)
+    expect(res.body).toHaveProperty('document')
+    expect(res.body.document).toHaveProperty('id')
+    expect(res.body.document.id).toBe(documentId)
   })
 
   it('returns 404 for an invalid token', async () => {

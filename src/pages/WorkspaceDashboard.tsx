@@ -6,7 +6,7 @@ import StatusBadge from '../components/StatusBadge'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
 import { Input } from '../components/ui/input'
-import { useDocuments, useActivity, useCreateProject } from '../hooks/useQueries'
+import { useDocuments, useActivity, useCreateProject, useAgents, useProjects } from '../hooks/useQueries'
 import { useWorkspaceStore } from '../stores'
 import type { HermesGenerationError } from '../hooks/useQueries'
 
@@ -81,9 +81,11 @@ function mapActivityItem(item: BackendActivityItem): UIActivityItem {
 export default function WorkspaceDashboard() {
   const navigate = useNavigate()
   const { data: documents = [] } = useDocuments()
+  const { data: projects = [], isLoading: projectsLoading } = useProjects()
   const { data: activity = [], isLoading: activityLoading } = useActivity()
   const setActiveView = useWorkspaceStore((s) => s.setActiveView)
   const createProject = useCreateProject()
+  const { data: agents = [] } = useAgents()
   const [prompt, setPrompt] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
@@ -159,11 +161,45 @@ export default function WorkspaceDashboard() {
           </div>
         </section>
 
+        <section className="mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-headline-md text-headline-md font-bold text-primary">Projets actifs</h3>
+            <Link to="/workspace" className="font-label-sm text-label-sm text-ai-vibrant hover:underline">Tout voir</Link>
+          </div>
+          {projectsLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-24 bg-surface-studio rounded-xl animate-pulse border border-outline-variant" />
+              ))}
+            </div>
+          ) : projects.length === 0 ? (
+            <p className="text-body-sm text-on-surface-variant italic">Aucun projet pour le moment. Creez un document pour demarrer.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {projects.slice(0, 6).map((p) => (
+                <Link
+                  key={p.id}
+                  to="/onboarding/$id"
+                  params={{ id: p.projectId ?? p.id }}
+                  onClick={() => setActiveView('editor')}
+                  className="group bg-white border border-outline-variant rounded-xl p-5 hover:border-ai-vibrant hover:shadow-lg transition-all flex flex-col"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <StatusBadge status={p.status as 'draft' | 'review' | 'final' | 'active' | 'autonomous'} />
+                    <Icon name="arrow_forward" className="text-on-surface-variant opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                  <h4 className="font-headline-md text-[18px] font-bold text-primary mb-1 line-clamp-2">{p.title}</h4>
+                  <p className="text-body-sm text-on-surface-variant mt-auto pt-3">Reprendre le cahier des charges</p>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section>
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-headline-md text-headline-md font-bold text-primary">
               Documents recents
-              {null as any && <span className="text-body-sm text-on-surface-variant font-normal ml-2">({null as any.totalDocuments} au total)</span>}
             </h3>
             <div className="flex gap-2 items-center">
               <Button

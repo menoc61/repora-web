@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
 import { api } from '../api/client'
+import { useRequirements, useAddRequirement, useGenerateDocument } from '../hooks/useQueries'
 
 interface Project {
   id: string
@@ -69,6 +71,11 @@ export default function OnboardingWizard() {
   const [nonFuncReqs, setNonFuncReqs] = useState<SectionRequirement[]>([])
   const [actors, setActors] = useState<string[]>([])
   const [generating, setGenerating] = useState(false)
+  const [showActorModal, setShowActorModal] = useState(false)
+  const [newActorName, setNewActorName] = useState('')
+  const { data: requirements = [], isLoading: reqsLoading } = useRequirements(projectId)
+  const addRequirement = useAddRequirement()
+  const generateDocument = useGenerateDocument()
 
   // Load project
   useEffect(() => {
@@ -85,22 +92,22 @@ export default function OnboardingWizard() {
       .finally(() => setLoading(false))
   }, [projectId])
 
-  // Load existing requirements
+  // Load existing requirements from hook
+  const [reqsInitialized, setReqsInitialized] = useState(false)
   useEffect(() => {
-    if (!projectId) return
-    api.get<Requirement[]>(`/projects/${projectId}/requirements`)
-      .then(reqs => {
-        const fReqs = reqs.filter(r => r.type === 'functional')
-          .map((r, i) => ({ id: i, type: 'functional' as const, text: r.text, sourceActor: r.sourceActor || '' }))
-        const nReqs = reqs.filter(r => r.type === 'non_functional')
-          .map((r, i) => ({ id: i + 100, type: 'non_functional' as const, text: r.text, sourceActor: r.sourceActor || '' }))
-        if (fReqs.length) setFuncReqs(fReqs)
-        if (nReqs.length) setNonFuncReqs(nReqs)
-        const actorSet = new Set(reqs.map(r => r.sourceActor).filter(Boolean) as string[])
-        if (actorSet.size) setActors(Array.from(actorSet))
-      })
-      .catch(() => {})
-  }, [projectId])
+    if (!projectId || reqsLoading || reqsInitialized || !Array.isArray(requirements)) return
+    const fReqs = requirements
+      .filter(r => r.type === 'functional')
+      .map((r, i) => ({ id: i, type: 'functional' as const, text: r.text, sourceActor: r.source_actor || '' }))
+    const nReqs = requirements
+      .filter(r => r.type === 'non_functional')
+      .map((r, i) => ({ id: i + 100, type: 'non_functional' as const, text: r.text, sourceActor: r.source_actor || '' }))
+    if (fReqs.length) setFuncReqs(fReqs)
+    if (nReqs.length) setNonFuncReqs(nReqs)
+    const actorSet = new Set(requirements.map(r => r.source_actor).filter(Boolean) as string[])
+    if (actorSet.size) setActors(Array.from(actorSet))
+    setReqsInitialized(true)
+  }, [requirements, reqsLoading, projectId, reqsInitialized])
 
   // Save context
   const saveContext = useCallback(async () => {
@@ -129,16 +136,17 @@ export default function OnboardingWizard() {
       }
       for (const r of reqs) {
         if (r.text.trim()) {
-          await api.post(`/projects/${projectId}/requirements`, {
+          await addRequirement.mutateAsync({
+            projectId,
             type: r.type,
             text: r.text,
-            sourceActor: r.sourceActor || null,
+            sourceActor: r.sourceActor || undefined,
           })
         }
       }
     } catch (e) { setError((e as Error).message) }
     finally { setSaving(false) }
-  }, [projectId])
+  }, [projectId, addRequirement])
 
   // Save and next
   const handleNext = async () => {
@@ -161,7 +169,7 @@ export default function OnboardingWizard() {
     if (!projectId) return
     setGenerating(true)
     try {
-      const result = await api.post<{ document_id: string }>(`/projects/${projectId}/generate`)
+      const result = await generateDocument.mutateAsync({ projectId })
       navigate({ to: '/editor', search: { id: result.document_id } })
     } catch (e) {
       setError((e as Error).message)
@@ -198,8 +206,16 @@ export default function OnboardingWizard() {
     else setActors([...actors, actor])
   }
   const addCustomActor = () => {
-    const name = prompt('Nom de l\'acteur :')
-    if (name && !actors.includes(name)) setActors([...actors, name])
+    setNewActorName('')
+    setShowActorModal(true)
+  }
+  const confirmCustomActor = () => {
+    const name = newActorName.trim()
+    if (name && !actors.includes(name)) {
+      setActors([...actors, name])
+    }
+    setShowActorModal(false)
+    setNewActorName('')
   }
 
   if (loading) {
@@ -559,10 +575,10 @@ export default function OnboardingWizard() {
           ) : (
             <Button
               onClick={handleGenerate}
-              disabled={generating}
+              disabled={generateDocument.isPending}
               className="bg-status-final hover:bg-status-final/90 text-white"
             >
-              {generating ? (
+              {generateDocument.isPending ? (
                 <><Icon name="progress_activity" className="animate-spin" /> Generation en cours...</>
               ) : (
                 <><Icon name="auto_awesome" /> Lancer la generation du cahier des charges</>
@@ -571,6 +587,26 @@ export default function OnboardingWizard() {
           )}
         </div>
       </div>
+
+      {showActorModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setShowActorModal(false)}>
+          <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-headline-md text-headline-md mb-4">Ajouter un acteur</h3>
+            <Input
+              className="w-full bg-surface-studio border border-outline-variant rounded-lg px-4 py-2 font-body-sm mb-4"
+              placeholder="Nom de l'acteur..."
+              value={newActorName}
+              onChange={(e) => setNewActorName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') confirmCustomActor() }}
+              autoFocus
+            />
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" className="px-4 py-2" onClick={() => setShowActorModal(false)}>Annuler</Button>
+              <Button className="px-4 py-2 bg-secondary text-white" onClick={confirmCustomActor} disabled={!newActorName.trim()}>Ajouter</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

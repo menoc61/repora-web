@@ -57,7 +57,7 @@ projectRouter.delete('/:id', requireAuth, async (req, res, next) => {
 
 projectRouter.post('/:id/generate', requireAuth, async (req, res, next) => {
   try {
-    const { templateId } = req.body  // optional
+    const { templateId } = req.body ?? {}
     const result = await generateDocument(req.params.id as string, req.user!.userId)
     const project = await getProjectById(req.params.id as string, req.user!.userId)
     initiateGeneration(req.params.id as string, project.brief || '', result.document_id, templateId)

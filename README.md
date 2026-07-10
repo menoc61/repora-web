@@ -78,13 +78,13 @@ npm run db:migrate && npm run db:seed
 
 # Windows PowerShell:
 $env:OLLAMA_MODEL="ornith:latest"
-$env:DATABASE_URL="postgres://repora:repora@localhost:5433/repora"
+$env:DATABASE_URL="postgres://repora:repora@localhost:5434/repora"
 $env:CORS_ORIGIN="http://localhost:5173"
 npm run dev                          # Express → http://localhost:8000
 
 # Linux/Mac:
 OLLAMA_MODEL=ornith:latest          \
-DATABASE_URL=postgres://repora:repora@localhost:5433/repora \
+DATABASE_URL=postgres://repora:repora@localhost:5434/repora \
 CORS_ORIGIN=http://localhost:5173   \
 npm run dev
 

@@ -25,6 +25,7 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ValidatePortal from './pages/ValidatePortal'
 import OnboardingWizard from './pages/OnboardingWizard'
+import AssistantPage from './pages/Assistant'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -128,6 +129,8 @@ const protectedRoutes = [
   { path: '/settings', component: Settings },
   { path: '/infrastructure', component: Infrastructure },
   { path: '/sharing', component: Sharing },
+  { path: '/agents', component: Settings },
+  { path: '/analytics', component: WorkspaceDashboard },
 ];
 
 const historyRoute = createRoute({
@@ -147,6 +150,13 @@ const onboardingRoute = createRoute({
   beforeLoad: () => requireAuth(),
 })
 
+const assistantRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/assistant/$id',
+  component: AssistantPage,
+  beforeLoad: () => requireAuth(),
+})
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
@@ -155,6 +165,7 @@ const routeTree = rootRoute.addChildren([
   exportRoute,
   historyRoute,
   onboardingRoute,
+  assistantRoute,
   ...protectedRoutes.map((r) =>
     createRoute({
       getParentRoute: () => rootRoute,

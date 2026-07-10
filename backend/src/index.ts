@@ -4,6 +4,7 @@ import cors from 'cors'
 import { config } from './config'
 import { errorHandler } from './middleware/error'
 import { authRouter } from './routes/auth'
+import { assistantRouter } from './routes/assistant'
 import { projectRouter } from './routes/projects'
 import { documentRouter } from './routes/documents'
 import { diagramRouter } from './routes/diagrams'
@@ -39,6 +40,7 @@ app.use('/templates', templateRouter)
 app.use('/collaboration', collaborationRouter)
 app.use('/sharing', sharingRouter)
 app.use('/infrastructure', infrastructureRouter)
+app.use('/assistant', assistantRouter)
 app.use('/agents', agentRouter)
 app.use('/comments', commentRouter)
 app.use('/requirements', requirementRouter)

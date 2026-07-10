@@ -9,6 +9,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+
   server: {
     host: true,
     port: 5173,
@@ -17,6 +18,10 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ''),
+      },
+      '/notifications': {
+        target: 'http://localhost:8000',
+        ws: true,
       },
     },
   },

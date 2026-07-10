@@ -20,7 +20,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select'
-import { useDocuments, useExportDocument, useCreateProject, useGenerateDocument } from '@/hooks/useQueries'
+import { useDocuments, useExportDocument, useCreateProject, useGenerateDocument, useAnalytics } from '@/hooks/useQueries'
 import type { Document, DocumentFilters } from '@/schemas'
 import { useWorkspaceStore } from '@/stores'
 
@@ -69,10 +69,16 @@ export default function DocumentLibrary() {
     ...(search ? { search } : {}),
   }
   const { data: documents = [] } = useDocuments(filters)
+  const { data: metrics } = useAnalytics()
+
+  const [department, setDepartment] = useState('all')
+  const [owner, setOwner] = useState('all')
+  const ownerFiltered = documents.filter((d) => owner === 'all' || owner === 'me' || d.author.name.includes(owner))
 
   const totalPages = Math.max(1, Math.ceil(documents.length / PAGE_SIZE))
-  const pagedDocs = documents.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const currentPage = totalPages > 0 ? Math.min(page, totalPages) : 1
+  const safePage = Math.min(page, totalPages)
+  const pagedDocs = documents.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+  const currentPage = totalPages > 0 ? safePage : 1
   const isCreatingNew = createProject.isPending || generateDoc.isPending
 
   async function handleNewDocument() {
@@ -112,7 +118,7 @@ export default function DocumentLibrary() {
     })
   }
 
-  const activities = Array.isArray(null) ? null : []
+  const activities: { message?: string; action?: string; description?: string; timestamp?: string; time?: string; createdAt?: string }[] = []
 
   return (
     <>
@@ -297,7 +303,8 @@ export default function DocumentLibrary() {
                 <Icon name="chevron_left" />
               </button>
               {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                const pageNum = i + 1
+                const pageNum = Math.max(1, Math.min(currentPage - 2 + i, totalPages - 4))
+                if (pageNum < 1) return null
                 return (
                   <button
                     key={pageNum}

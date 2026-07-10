@@ -9,7 +9,7 @@ function getWsBase(): string {
 
 export function useNotificationSocket() {
   const wsRef = useRef<WebSocket | null>(null)
-  const reconnectRef = useRef<ReturnType<typeof setTimeout>>()
+  const reconnectRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const authenticated = useAuthStore((s) => s.isAuthenticated)
 
   useEffect(() => {

@@ -5,7 +5,13 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 
 async function seedForTests() {
-  const existingUsers = await db.select().from(users).limit(1)
+  let existingUsers
+  try {
+    existingUsers = await db.select().from(users).limit(1)
+  } catch {
+    console.log('Database unavailable — skipping seed.')
+    return
+  }
   if (existingUsers.length > 0) {
     console.log('Seed data exists, skipping seed.')
     return

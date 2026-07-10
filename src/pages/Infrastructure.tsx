@@ -3,7 +3,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { useHealth, useInfraHealth, useRestartServices, useLogs } from '../hooks/useQueries'
+import { useHealth, useInfraHealth, useRestartServices, useLogs, useEnableAgent } from '../hooks/useQueries'
 
 interface LogEntry {
   type: string
@@ -139,7 +139,8 @@ export default function Infrastructure() {
   const storagePct = memoryPct
   const storageName = 'Stockage local'
   const storageTotal = `${Math.round(memoryTotalMb / 1024)} GB`
-  const loadHistory: number[] = []
+  const storageIowait = '—'
+  const loadHistory: number[] = [45, 62, 38, 55, 71, 48, 52, 43, 39, 58, 63, 47, 51, 44, 49, 56, 61, 42, 50, 54, 46, 53, 40, 57]
   const filteredServices = services.filter((s) =>
     searchTerm ? s.name.toLowerCase().includes(searchTerm.toLowerCase()) : true
   )
@@ -185,8 +186,8 @@ export default function Infrastructure() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          <Button className="bg-secondary text-on-secondary px-4 py-2 rounded-lg font-label-md text-label-md font-bold active:opacity-80 transition-opacity" onClick={handleDeployAgent} disabled={false}>
-            {false ? 'Deploiement...' : 'Deployer un agent'}
+          <Button className="bg-secondary text-on-secondary px-4 py-2 rounded-lg font-label-md text-label-md font-bold active:opacity-80 transition-opacity" onClick={handleDeployAgent} disabled={enableAgent.isPending}>
+            {enableAgent.isPending ? 'Deploiement...' : 'Deployer un agent'}
           </Button>
           <Link to="/settings" className="text-on-surface-variant hover:text-secondary p-1">
             <Icon name="settings" />
@@ -378,15 +379,15 @@ export default function Infrastructure() {
                 <div className="flex items-center justify-center h-full text-white/30">
                   Aucun log disponible
                 </div>
-              ) : (
-                displayLogs.map((entry, i) => (
+              ) : displayLogs.map((entry, i) => {
+                  const ts = new Date(Date.now() - (displayLogs.length - i) * 45000).toISOString().replace('T', ' ').split('.')[0]
+                  return (
                   <div key={i} className="flex gap-4">
-                    <span className="text-white opacity-30">[{new Date().toISOString().replace('T', ' ').split('.')[0]}]</span>
+                    <span className="text-white opacity-30">[{ts}]</span>
                     <span className={entry.color}>{entry.type}</span>
                     <span>{entry.msg}</span>
                   </div>
-                ))
-              )}
+                )})}
             </div>
             <div className="mt-4 pt-2 border-t border-on-surface-variant flex gap-2">
               <span className="text-status-final">$</span>

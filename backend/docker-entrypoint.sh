@@ -5,7 +5,7 @@ echo "Repora Backend — Starting..."
 
 echo "Waiting for database..."
 for i in $(seq 1 15); do
-  if node --input-type=module wait-for-db.js 2>/dev/null; then
+  if node wait-for-db.js 2>/dev/null; then
     echo " Database ready"
     sleep 1
     break

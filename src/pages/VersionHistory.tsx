@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useSearch, useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
-import { useVersions, useRestoreVersion, useCollaborators, useSaveDocument, useApplyPatch } from '../hooks/useQueries'
+import { useVersions, useRestoreVersion, useCollaborators, useSaveDocument, useAcceptChanges } from '../hooks/useQueries'
 
 interface Version {
   version: string
@@ -45,7 +45,6 @@ const ROLE_COLORS: Record<string, string> = {
 export default function VersionHistory() {
   const search = useSearch({ from: '/history' })
   const docId = search.id
-  const [showMore, setShowMore] = useState(false)
   const [showRetention, setShowRetention] = useState(false)
   const [retentionDays, setRetentionDays] = useState(365)
   const [selectedVersion, setSelectedVersion] = useState<Version | null>(null)
@@ -54,7 +53,7 @@ export default function VersionHistory() {
   const { data: collaboratorsData = [], isLoading: collabsLoading } = useCollaborators()
   const restoreVersion = useRestoreVersion()
   const saveDocument = useSaveDocument()
-  const applyPatch = useApplyPatch()
+  const acceptChanges = useAcceptChanges()
   const navigate = useNavigate()
 
   const allVersions: Version[] = versionsData?.versions
@@ -70,7 +69,6 @@ export default function VersionHistory() {
       }))
     : VERSIONS
 
-  const handleLoadMore = () => setShowMore(true)
   const handleSelectVersion = (v: Version) => {
     if (v.version === 'ACTUEL') return
     setSelectedVersion(v)
@@ -86,12 +84,18 @@ export default function VersionHistory() {
   }
   const handleAcceptChanges = () => {
     if (docId) {
-      applyPatch.mutate({ id: docId, action: 'accept' })
+      acceptChanges.mutate(docId, {
+        onSuccess: () => setRestoreSuccess(true),
+        onError: () => setRestoreSuccess(false),
+      })
     }
   }
   const handleApplySuggestion = () => {
     if (docId) {
-      applyPatch.mutate({ id: docId, action: 'apply' })
+      acceptChanges.mutate(docId, {
+        onSuccess: () => setRestoreSuccess(true),
+        onError: () => setRestoreSuccess(false),
+      })
     }
   }
   const handleManageRetention = () => setShowRetention(true)
@@ -107,7 +111,7 @@ export default function VersionHistory() {
   }
 
   return (
-    <div className="pl-sidebar-width pt-16 h-screen flex overflow-hidden">
+    <div className="pt-16 h-screen flex overflow-hidden">
       <aside className="w-80 h-full bg-white border-r border-outline-variant flex flex-col">
         <div className="p-6 border-b border-outline-variant">
           <div className="flex items-center justify-between mb-2">
@@ -177,7 +181,7 @@ export default function VersionHistory() {
           )}
         </div>
         <div className="p-4 border-t border-outline-variant">
-          <Button className="w-full py-2 bg-surface-container-high hover:bg-surface-variant border border-outline-variant rounded-lg font-label-md text-label-md transition-colors" onClick={handleLoadMore}>Charger plus d&apos;historique</Button>
+          <Button className="w-full py-2 bg-surface-container-high hover:bg-surface-variant border border-outline-variant rounded-lg font-label-md text-label-md transition-colors" onClick={() => {}}>Charger plus d&apos;historique</Button>
         </div>
       </aside>
 
@@ -197,8 +201,8 @@ export default function VersionHistory() {
                 <Button variant="outline" className="flex items-center gap-2 px-4 py-2 border border-outline text-on-surface rounded-lg font-label-md text-label-md hover:bg-surface-studio transition-all" onClick={handleRestore} disabled={restoreVersion.isPending || !selectedVersion}>
                   <Icon name="restore" /> {restoreVersion.isPending ? 'Restauration...' : 'Restaurer cette version'}
                 </Button>
-                <Button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-all" onClick={handleAcceptChanges} disabled={applyPatch.isPending}>
-                  <Icon name="done_all" /> {applyPatch.isPending ? 'Application...' : 'Accepter les modifications'}
+                <Button className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-all" onClick={handleAcceptChanges} disabled={acceptChanges.isPending}>
+                  <Icon name="done_all" /> {acceptChanges.isPending ? 'Application...' : 'Accepter les modifications'}
                 </Button>
                 <Button variant="ghost" size="icon" className="p-2 hover:bg-surface-studio rounded-lg text-on-surface-variant" onClick={handleCloseComparison} title="Fermer la comparaison">
                   <Icon name="close" />
@@ -297,7 +301,7 @@ export default function VersionHistory() {
               <div className="h-1 bg-surface-variant rounded-full overflow-hidden">
                 <div className="h-full bg-ai-vibrant w-1/3" />
               </div>
-              <Button className="w-full py-1.5 text-ai-vibrant border border-ai-vibrant rounded font-label-md text-label-md hover:bg-ai-vibrant hover:text-white transition-all" onClick={handleApplySuggestion} disabled={applyPatch.isPending}>Appliquer la suggestion</Button>
+              <Button className="w-full py-1.5 text-ai-vibrant border border-ai-vibrant rounded font-label-md text-label-md hover:bg-ai-vibrant hover:text-white transition-all" onClick={handleApplySuggestion} disabled={acceptChanges.isPending}>Appliquer la suggestion</Button>
             </div>
           </div>
           <div className="space-y-3">
@@ -309,8 +313,8 @@ export default function VersionHistory() {
             ) : collaboratorsData.length === 0 ? (
               <p className="font-body-sm text-body-sm text-on-surface-variant py-2">Aucun collaborateur actif.</p>
             ) : (
-              collaboratorsData.flatMap((g: any) => g.collaborators ?? []).map((c: any) => (
-                <div key={c.email} className="flex items-center justify-between p-2 rounded hover:bg-surface-studio cursor-pointer transition-colors">
+              collaboratorsData.flatMap((g: any) => g.collaborators ?? []).map((c: any, idx: number) => (
+                <div key={`${c.email}-${idx}`} className="flex items-center justify-between p-2 rounded hover:bg-surface-studio cursor-pointer transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <div className="w-8 h-8 rounded-full bg-gray-200" />

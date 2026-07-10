@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm'
 
 export const templateRouter = Router()
 
-templateRouter.get('/', requireAuth, async (req: Request, res: Response, next) => {
+templateRouter.get('/', async (req: Request, res: Response, next) => {
   try {
     const category = req.query.category as string | undefined
     const templates = await listTemplates(category)
@@ -15,7 +15,7 @@ templateRouter.get('/', requireAuth, async (req: Request, res: Response, next) =
   } catch (err) { next(err) }
 })
 
-templateRouter.get('/:id', requireAuth, async (req: Request, res: Response, next) => {
+templateRouter.get('/:id', async (req: Request, res: Response, next) => {
   try {
     const template = await getTemplate(req.params.id as string)
     if (!template) {
