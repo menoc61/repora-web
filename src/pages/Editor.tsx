@@ -1,32 +1,19 @@
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { Link, useNavigate, useSearch } from '@tanstack/react-router'
-import { BlockNoteViewRaw as BlockNoteView, useCreateBlockNote } from '@blocknote/react'
 import '@blocknote/mantine/style.css'
 import {
   useDocument,
-  useSaveDocument,
   useExportDocument,
   useValidationToken,
   useAgents,
   useDocumentStream,
+  useCreateDiagram,
 } from '../hooks/useQueries'
-import * as Y from 'yjs'
-import { WebsocketProvider } from 'y-websocket'
 import Icon from '../components/Icon'
 import { AgentStatus } from '../components/AgentStatus'
 import { GenerationProgress } from '../components/GenerationProgress'
 import { Button } from '../components/ui/button'
-
-const COLLAB_WS_BASE = 'ws://localhost:8000/collab'
-
-// ── Types ──
-
-interface OutlineSection {
-  title: string
-  done?: boolean
-  active?: boolean
-  sub?: string[]
-}
+import { EditorCanvas, type OutlineSection } from '../components/editor/EditorCanvas'
 
 interface OutlineItemProps {
   label: string
@@ -36,62 +23,6 @@ interface OutlineItemProps {
 }
 
 // ── Block ↔ Section conversion ──
-
-function sectionsToBlocks(sections: Array<{ id: string; title: string; content: string; status: string }>) {
-  const blocks: any[] = []
-  for (const section of sections) {
-    blocks.push({
-      type: 'heading' as const,
-      props: { level: 2 },
-      content: [{ type: 'text' as const, text: section.title, styles: {} }],
-    })
-    if (section.content) {
-      const paragraphs = section.content.split('\n').filter(Boolean)
-      for (const para of paragraphs) {
-        blocks.push({
-          type: 'paragraph' as const,
-          content: [{ type: 'text' as const, text: para, styles: {} }],
-        })
-      }
-    }
-  }
-  return blocks
-}
-
-function blocksToSections(blocks: any[], sectionIds: Map<string, string>): Array<{ id?: string; title: string; content: string; status: string }> {
-  const sections: Array<{ id?: string; title: string; content: string; status: string }> = []
-  let current: { id?: string; title: string; content: string; status: string } | null = null
-
-  for (const block of blocks) {
-    const text = block.content?.map((c: any) => c.text).join('') ?? ''
-    if (block.type === 'heading') {
-      if (current) sections.push(current)
-      current = { id: sectionIds.get(text) ?? undefined, title: text, content: '', status: 'draft' }
-    } else if (current) {
-      if (current.content) current.content += '\n'
-      current.content += text
-    }
-  }
-  if (current) sections.push(current)
-  return sections
-}
-
-function extractOutlineFromBlocks(blocks: any[]): OutlineSection[] {
-  return blocks
-    .filter((b: any) => b.type === 'heading')
-    .map((b: any) => ({
-      title: b.content?.map((c: any) => c.text).join('') ?? '',
-    }))
-}
-
-function wordCountFromBlocks(blocks: any[]): number {
-  let count = 0
-  for (const block of blocks) {
-    const text = block.content?.map((c: any) => c.text ?? '').join(' ') ?? ''
-    count += text.split(/\s+/).filter(Boolean).length
-  }
-  return count
-}
 
 function relativeTime(dateStr: string | undefined): string {
   if (!dateStr) return 'recemment'
@@ -106,118 +37,6 @@ function relativeTime(dateStr: string | undefined): string {
   if (diffHr < 24) return `il y a ${diffHr} heure${diffHr > 1 ? 's' : ''}`
   const diffDay = Math.floor(diffHr / 24)
   return `il y a ${diffDay} jour${diffDay > 1 ? 's' : ''}`
-}
-
-// ── Editor Content (BlockNote + Yjs) ──
-
-interface EditorContentProps {
-  docId: string
-  document: any
-  isLoading: boolean
-  onWordCountChange: (n: number) => void
-  onOutlineChange: (sections: OutlineSection[]) => void
-}
-
-function EditorContent({ docId, document, isLoading, onWordCountChange, onOutlineChange }: EditorContentProps) {
-  const saveDocument = useSaveDocument()
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const initializedRef = useRef(false)
-
-  // Yjs + WebSocket provider — stable across renders via useState lazy init
-  const [yDoc] = useState(() => new Y.Doc())
-  const [provider] = useState(() => new WebsocketProvider(`${COLLAB_WS_BASE}/${docId}`, docId, yDoc))
-
-  useEffect(() => {
-    return () => {
-      provider.disconnect()
-      provider.destroy()
-    }
-  }, [provider])
-
-  const editor = useCreateBlockNote({
-    collaboration: {
-      provider,
-      fragment: yDoc.getXmlFragment('repora-document'),
-      user: { name: 'Repora AI', color: '#2563EB' },
-    },
-  })
-
-  // Populate editor from loaded document sections (once)
-  useEffect(() => {
-    if (!editor || isLoading || !document?.sections?.length || initializedRef.current) return
-    const fragment = yDoc.getXmlFragment('repora-document')
-    if (fragment.length > 0) {
-      initializedRef.current = true
-      return
-    }
-    const blocks = sectionsToBlocks(document.sections)
-    if (blocks.length > 0) {
-      editor.replaceBlocks(editor.document, blocks)
-    }
-    initializedRef.current = true
-  }, [editor, document, isLoading, yDoc])
-
-  // Debounced auto-save on content change
-  const handleChange = useCallback(() => {
-    if (!docId || !document) return
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => {
-      const blocks = editor.document
-      const sectionIds = new Map<string, string>()
-      if (document.sections) {
-        for (const s of document.sections) {
-          sectionIds.set(s.title, s.id)
-        }
-      }
-      const sections = blocksToSections(blocks, sectionIds)
-      saveDocument.mutate({
-        id: docId,
-        sections,
-        content: JSON.stringify(blocks),
-      })
-    }, 2000)
-  }, [docId, editor, saveDocument, document])
-
-  useEffect(() => {
-    if (!editor) return
-    const tip = (editor as any)._tiptapEditor
-    if (!tip) return
-    tip.on('update', handleChange)
-    return () => {
-      tip.off('update', handleChange)
-    }
-  }, [editor, handleChange])
-
-  // Update word count and outline from editor state
-  useEffect(() => {
-    if (!editor) return
-    const blocks = editor.document
-    onWordCountChange(wordCountFromBlocks(blocks))
-    onOutlineChange(extractOutlineFromBlocks(blocks))
-  }, [editor, onWordCountChange, onOutlineChange])
-
-  // Cleanup save timer
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    }
-  }, [])
-
-  if (isLoading) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-on-surface-variant font-label-md">
-        Chargement du document...
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex-1 overflow-y-auto hide-scrollbar">
-      <div className="max-w-[800px] mx-auto py-20 px-12 min-h-full">
-        <BlockNoteView editor={editor} theme="light" className="min-h-[60vh]" />
-      </div>
-    </div>
-  )
 }
 
 // ── Main Editor Page ──
@@ -255,9 +74,13 @@ function EditorPage({ docId, navigate }: { docId: string; navigate: ReturnType<t
   const { events: sseEvents, isStreaming: isGenerating } = useDocumentStream(docId)
   const exportDoc = useExportDocument()
   const validationToken = useValidationToken(docId)
+  const createDiagram = useCreateDiagram()
   const [shareUrl, setShareUrl] = useState<string | null>(null)
   const [liveWordCount, setLiveWordCount] = useState(0)
   const [liveOutline, setLiveOutline] = useState<OutlineSection[]>([])
+  const [diagramType, setDiagramType] = useState<string>('use_case')
+  const [diagrams, setDiagrams] = useState<Array<{ id: string; type: string; rendered_url: string }>>([])
+  const [diagramError, setDiagramError] = useState<string | null>(null)
 
   const title = document?.title ?? 'Document sans titre'
   const status = document?.status ?? 'draft'
@@ -334,6 +157,21 @@ function EditorPage({ docId, navigate }: { docId: string; navigate: ReturnType<t
     await navigator.clipboard?.writeText(base)
   }
 
+  async function handleGenerateDiagram() {
+    if (!document?.projectId) return
+    setDiagramError(null)
+    try {
+      const result = await createDiagram.mutateAsync({
+        projectId: document.projectId,
+        type: diagramType,
+        source: title,
+      })
+      setDiagrams((prev) => [...prev, { ...result, type: diagramType }])
+    } catch {
+      setDiagramError('Echec de la generation du diagramme.')
+    }
+  }
+
   return (
     <div className="pt-16 pl-sidebar-width pr-inspector-width h-screen flex flex-col">
       {/* Top nav */}
@@ -385,7 +223,7 @@ function EditorPage({ docId, navigate }: { docId: string; navigate: ReturnType<t
 
       {/* Editor canvas */}
       <section className="flex-1 bg-white overflow-y-auto hide-scrollbar relative" id="editor-canvas">
-        <EditorContent
+        <EditorCanvas
           docId={docId}
           document={document}
           isLoading={isLoading}
@@ -414,6 +252,70 @@ function EditorPage({ docId, navigate }: { docId: string; navigate: ReturnType<t
         )}
 
         <div className="flex-1 overflow-y-auto p-gutter bg-surface-studio">
+          {/* UML Diagram generation */}
+          <div className="mb-6 border-b border-outline-variant pb-6">
+            <h3 className="font-label-md text-label-md font-bold uppercase tracking-widest mb-3 flex items-center gap-2">
+              <Icon name="account_tree" className="text-ai-vibrant" />
+              Diagrammes UML
+            </h3>
+            {!document?.projectId ? (
+              <p className="text-label-sm text-on-surface-variant italic">
+                Liez ce document a un projet pour generer des diagrammes.
+              </p>
+            ) : (
+              <>
+                <div className="flex gap-2 mb-3">
+                  <select
+                    className="flex-1 p-2 border border-outline-variant rounded bg-white font-body-sm text-secondary focus:outline-none focus:border-ai-vibrant"
+                    value={diagramType}
+                    onChange={(e) => setDiagramType(e.target.value)}
+                  >
+                    <option value="use_case">Cas d'utilisation</option>
+                    <option value="sequence">Sequence</option>
+                    <option value="activity">Activite</option>
+                    <option value="class">Classe</option>
+                    <option value="deployment">Deploiement</option>
+                  </select>
+                  <Button
+                    onClick={handleGenerateDiagram}
+                    disabled={createDiagram.isPending}
+                    className="bg-ai-vibrant text-white px-3 py-2 rounded font-label-sm hover:opacity-90 transition-all flex items-center gap-1"
+                  >
+                    {createDiagram.isPending ? <Icon name="progress_activity" className="animate-spin text-[16px]" /> : <Icon name="auto_awesome" className="text-[16px]" />}
+                    Generer
+                  </Button>
+                </div>
+                {diagramError && (
+                  <p className="text-label-sm text-error mb-2">{diagramError}</p>
+                )}
+                {diagrams.length > 0 && (
+                  <div className="space-y-3">
+                    {diagrams.map((d) => (
+                      <div key={d.id} className="border border-outline-variant rounded-lg overflow-hidden bg-white">
+                        <div className="flex items-center justify-between px-3 py-2 bg-surface-studio border-b border-outline-variant">
+                          <span className="font-label-sm text-label-sm uppercase">{d.type}</span>
+                          <a
+                            href={d.rendered_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-ai-vibrant hover:underline font-label-sm"
+                          >
+                            Ouvrir
+                          </a>
+                        </div>
+                        {d.rendered_url ? (
+                          <img src={d.rendered_url} alt={d.type} className="w-full p-2" />
+                        ) : (
+                          <p className="text-label-sm text-on-surface-variant p-3 italic">Rendu en cours...</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           <h3 className="font-label-md text-label-md font-bold uppercase tracking-widest mb-4">Plan du document</h3>
           <nav className="space-y-3">
             {outlineSections.map((section) => (
