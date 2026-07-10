@@ -4,33 +4,27 @@ set -e
 echo "Repora Backend — Starting..."
 
 echo "Waiting for database..."
-for i in $(seq 1 15); do
-  if node wait-for-db.js 2>/dev/null; then
-    echo " Database ready"
-    sleep 1
+for i in $(seq 1 20); do
+  if node -e "
+    var net = require('net');
+    var m = (process.env.DATABASE_URL || '').match(/@([^:]+):(\d+)/);
+    if (!m) process.exit(1);
+    var s = net.createConnection(+m[2], m[1], function() { s.end(); process.exit(0); });
+    s.setTimeout(2000, function() { s.destroy(); process.exit(1); });
+    s.on('error', function() { process.exit(1); });
+  " 2>/dev/null; then
+    echo "  Database ready"
     break
   fi
-  echo "  attempt $i/15, waiting..."
+  echo "  attempt $i/20, waiting..."
   sleep 2
 done
 
 echo "Running database migrations..."
-npx tsx dist/db/migrate.js 2>/dev/null && echo " Migrations applied" || echo " Migration skipped"
+npx tsx dist/db/migrate.js 2>/dev/null && echo "  Migrations applied" || echo "  Migration skipped"
 
-echo "Seeding database (idempotent — safe to re-run)..."
-npx tsx dist/db/seed.js 2>/dev/null && echo " Seed complete" || echo " Seed skipped"
-
-echo "Detecting Ollama model..."
-npx tsx -e "
-  try {
-    const res = await fetch('http://\${process.env.OLLAMA_HOST:-host.docker.internal}:11434/api/tags');
-    const data = await res.json();
-    if (data.models?.length > 0) {
-      const model = data.models[0].name;
-      console.log('Ollama model:', model);
-    }
-  } catch { console.log('No Ollama detected — continuing with BYOK config'); }
-" 2>/dev/null || true
+echo "Seeding database (idempotent)..."
+npx tsx dist/db/seed.js 2>/dev/null && echo "  Seed complete" || echo "  Seed skipped"
 
 echo "Starting backend server on port 8000..."
 exec npx tsx dist/index.js

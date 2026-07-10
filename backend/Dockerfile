@@ -13,7 +13,7 @@ COPY package*.json ./
 COPY drizzle.config.ts ./
 COPY --from=builder /app/src/db/schema.ts ./src/db/schema.ts
 COPY --from=builder /app/src/db/migrations ./src/db/migrations
-COPY docker-entrypoint.sh wait-for-db.js ./
-RUN chmod +x docker-entrypoint.sh
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh && sed -i 's/\r$//' docker-entrypoint.sh
 EXPOSE 8000
-CMD ["./docker-entrypoint.sh"]
+CMD ["sh", "./docker-entrypoint.sh"]
