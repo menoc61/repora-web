@@ -717,7 +717,7 @@ export function useActivity() {
 export function useInvite() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (data: { email: string; role: string }) => api.post('/sharing/invite', data),
+    mutationFn: async (data: { email: string; role: string; documentId: string }) => api.post('/sharing/invite', data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['collaborators'] }),
   })
 }

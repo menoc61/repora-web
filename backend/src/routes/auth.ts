@@ -34,7 +34,7 @@ authRouter.get('/me', requireAuth, async (req, res, next) => {
   try {
     const [user] = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role })
       .from(users).where(eq(users.id, req.user!.userId)).limit(1)
-    if (!user) return next(new AppError(404, 'not_found', 'User not found'))
+    if (!user) return next(new AppError(401, 'user_not_found', 'User account not found'))
     res.json(user)
   } catch (err) { next(err) }
 })

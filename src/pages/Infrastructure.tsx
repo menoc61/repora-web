@@ -1,15 +1,10 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { useHealth, useInfraHealth, useRestartServices, useLogs, useEnableAgent } from '../hooks/useQueries'
+import { useHealth, useInfraHealth, useEnableAgent } from '../hooks/useQueries'
 
-interface LogEntry {
-  type: string
-  msg: string
-  color: string
-}
 
 interface InfraService {
   name: string
@@ -48,18 +43,6 @@ function formatUptime(seconds: number): string {
   return parts.join(' ')
 }
 
-function logColor(type: string): string {
-  const t = type.toUpperCase()
-  if (t === 'INFO') return 'text-blue-400'
-  if (t === 'SUCCESS' || t === 'OK') return 'text-status-final'
-  if (t === 'WARN' || t === 'WARNING') return 'text-status-review'
-  if (t === 'ERROR' || t === 'FATAL') return 'text-red-400'
-  if (t === 'DEBUG') return 'text-status-final'
-  if (t === 'STDOUT') return 'text-white/80'
-  if (t === 'CMD') return 'text-yellow-400'
-  return 'text-blue-400'
-}
-
 function serviceIcon(status: string): string {
   const s = status.toLowerCase()
   if (['running', 'ok', 'healthy', 'active', 'online'].includes(s)) return 'check_circle'
@@ -79,15 +62,10 @@ function serviceIconColor(status: string): string {
 export default function Infrastructure() {
   const { data: health, isLoading: healthLoading, error: healthError } = useHealth()
   const { data: infraHealth, isLoading: infraLoading, error: infraError } = useInfraHealth()
-  const { data: apiLogs, isLoading: logsLoading, error: logsError } = useLogs()
-  const restartServices = useRestartServices()
   const enableAgent = useEnableAgent()
   const navigate = useNavigate()
 
-  const [userCmds, setUserCmds] = useState<LogEntry[]>([])
   const [searchTerm, setSearchTerm] = useState('')
-  const [diagInput, setDiagInput] = useState('')
-  const logRef = useRef<HTMLDivElement>(null)
 
   const typedInfra = infraHealth as InfraHealthResponse | undefined
 
@@ -99,14 +77,7 @@ export default function Infrastructure() {
         ? 'OPERATIONNEL'
         : 'INCONNU'
 
-  const displayLogs = useMemo(() => {
-    const mapped: LogEntry[] = (apiLogs ?? []).map((l) => ({
-      type: l.action.toUpperCase(),
-      msg: l.target,
-      color: logColor(l.action),
-    }))
-    return [...mapped, ...userCmds]
-  }, [apiLogs, userCmds])
+
 
   // Map backend services object to array for display
   const servicesObj = typedInfra?.services
@@ -147,20 +118,6 @@ export default function Infrastructure() {
 
   const handleDeployAgent = () => {
     enableAgent.mutate('Orchestrateur')
-  }
-
-  const handleRestartAll = () => {
-    restartServices.mutate()
-  }
-
-  const handleDiagCommand = () => {
-    if (!diagInput.trim()) return
-    if (diagInput.trim() === 'cls' || diagInput.trim() === 'clear') {
-      setUserCmds([])
-    } else {
-      setUserCmds((prev) => [...prev, { type: 'CMD', msg: diagInput.trim(), color: 'text-yellow-400' }])
-    }
-    setDiagInput('')
   }
 
   const strokeDash = 2 * Math.PI * 58
@@ -318,8 +275,8 @@ export default function Infrastructure() {
           <div className="col-span-12 lg:col-span-4 bg-white p-6 rounded-xl border border-outline-variant flex flex-col h-[320px]">
             <div className="flex justify-between items-center mb-6">
               <h3 className="font-headline-md text-headline-md">Services</h3>
-              <Button variant="link" className="text-secondary text-body-sm font-medium hover:underline p-0 h-auto" onClick={handleRestartAll} disabled={restartServices.isPending}>
-                {restartServices.isPending ? 'Redemarrage...' : 'Tout redemarrer'}
+              <Button variant="link" className="text-on-surface-variant text-body-sm font-medium p-0 h-auto cursor-not-allowed opacity-40" disabled>
+                Redemarrage reserve
               </Button>
             </div>
             <div className="space-y-3 flex-1 overflow-y-auto pr-2">
@@ -362,42 +319,35 @@ export default function Infrastructure() {
                 <span className="text-white opacity-60">system@repora-alpha-01: /var/log</span>
               </div>
               <div className="flex gap-4">
-                <span className="text-status-final">FLUX EN DIRECT</span>
+                <span className="text-status-final">STATISTIQUES SYSTEME</span>
                 <span className="text-white opacity-40">UTF-8</span>
               </div>
             </div>
-            <div ref={logRef} className="flex-1 overflow-y-auto pr-2 space-y-1 text-green-400 font-mono custom-scrollbar">
-              {logsLoading ? (
-                <div className="flex items-center justify-center h-full text-white/50">
-                  Chargement des logs...
+            <div className="flex-1 overflow-y-auto pr-2 text-green-400 font-mono custom-scrollbar grid grid-cols-2 gap-x-8 gap-y-2">
+              {infraLoading ? (
+                <div className="col-span-2 flex items-center justify-center h-full text-white/50">
+                  Chargement...
                 </div>
-              ) : logsError ? (
-                <div className="flex items-center justify-center h-full text-red-400">
-                  Erreur de chargement des logs
+              ) : infraError ? (
+                <div className="col-span-2 flex items-center justify-center h-full text-red-400">
+                  Erreur de chargement
                 </div>
-              ) : displayLogs.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-white/30">
-                  Aucun log disponible
-                </div>
-              ) : displayLogs.map((entry, i) => {
-                  const ts = new Date(Date.now() - (displayLogs.length - i) * 45000).toISOString().replace('T', ' ').split('.')[0]
-                  return (
-                  <div key={i} className="flex gap-4">
-                    <span className="text-white opacity-30">[{ts}]</span>
-                    <span className={entry.color}>{entry.type}</span>
-                    <span>{entry.msg}</span>
-                  </div>
-                )})}
+              ) : (
+                <>
+                  <div className="flex gap-4"><span className="text-blue-400">HOSTNAME</span><span>{instanceHostname}</span></div>
+                  <div className="flex gap-4"><span className="text-blue-400">PLATFORM</span><span>{instancePlatform}</span></div>
+                  <div className="flex gap-4"><span className="text-blue-400">CPUS</span><span>{instanceCpus}</span></div>
+                  <div className="flex gap-4"><span className="text-blue-400">MEMORY TOTAL</span><span>{Math.round(memoryTotalMb / 1024)} GB</span></div>
+                  <div className="flex gap-4"><span className="text-blue-400">MEMORY FREE</span><span>{Math.round(memoryFreeMb / 1024)} GB</span></div>
+                  <div className="flex gap-4"><span className="text-blue-400">UPTIME</span><span>{instanceUptime}</span></div>
+                  <div className="flex gap-4"><span className="text-blue-400">GPU</span><span>{gpuName}</span></div>
+                  <div className="flex gap-4"><span className="text-blue-400">MODE</span><span>{instanceMode}</span></div>
+                </>
+              )}
             </div>
             <div className="mt-4 pt-2 border-t border-on-surface-variant flex gap-2">
               <span className="text-status-final">$</span>
-              <Input
-                className="border-none bg-transparent p-0 focus-visible:ring-0 text-white w-full font-mono outline-none"
-                placeholder="Saisir commande diagnostic..."
-                value={diagInput}
-                onChange={(e) => setDiagInput((e.target as HTMLInputElement).value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') handleDiagCommand() }}
-              />
+              <span className="text-white/50 font-mono">Diagnostic termine — systeme operationnel</span>
             </div>
           </div>
 

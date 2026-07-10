@@ -41,7 +41,7 @@ export default function CollaboratorList({
         </div>
         <div className="divide-y divide-outline-variant">
           {rows.map((c, index) => (
-            <div key={c.name} className={`p-4 flex items-center justify-between hover:bg-surface-studio transition-colors ${c.pending ? 'opacity-75' : ''}`}>
+            <div key={c.email ?? `${c.name ?? 'unknown'}-${index}`} className={`p-4 flex items-center justify-between hover:bg-surface-studio transition-colors ${c.pending ? 'opacity-75' : ''}`}>
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-full ${c.bg} flex items-center justify-center ${c.pending ? 'border-2 border-dashed border-outline' : ''}`}>
                   {c.icon ? <Icon name={c.icon} className="text-primary" fill /> : <Icon name="person" className="text-outline" />}

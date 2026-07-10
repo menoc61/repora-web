@@ -48,7 +48,7 @@ export default function SharingView({ docId }: SharingViewProps) {
 
   const handleSendInvite = () => {
     if (!email.trim()) return
-    inviteMutation.mutate({ email: email.trim(), role: ROLE_MAP[role] ?? 'editor' }, {
+    inviteMutation.mutate({ email: email.trim(), documentId: docId ?? '', role: ROLE_MAP[role] ?? 'editor' }, {
       onSuccess: () => setEmail(''),
     })
   }
