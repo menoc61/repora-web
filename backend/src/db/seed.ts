@@ -1,7 +1,9 @@
 // ── seed.ts — Semer la base de données Repora avec des données de démo en français ──
 // Compatible avec tsx (dev) ET Docker (JS compilé) grâce aux imports ESM dynamiques.
 // Les UUIDs sont en minuscules hexadécimales (a-f, 0-9) — pas de lettres au-delà de 'f'.
-// Utilise db.insert().onConflictDoNothing() pour permettre une ré-exécution sans erreur.
+// TRUNCATE CASCADE au démarrage pour garantir un état reproductible.
+// Contient : utilisateurs, 5 projets seed + 2 showcase IA, sections réelles, diagrammes PlantUML,
+// exigences, templates, agents configurés avec les modèles fonctionnels, validations, commentaires.
 
 import { config } from '../config.js'
 const queryClient = (await import('postgres')).default(config.databaseUrl)
@@ -11,6 +13,27 @@ const db = drizzle(queryClient, { schema })
 
 const bcrypt = await import('bcryptjs')
 const crypto = await import('crypto')
+const { deflateSync } = await import('zlib')
+
+// ── PlantUML URL helper ──
+function plantumlUrl(source: string): string {
+  const cleaned = source
+    .replace(/@startuml\s*\n?/g, '')
+    .replace(/@enduml\s*\n?/g, '')
+  const deflated = deflateSync(Buffer.from(cleaned, 'utf-8'))
+  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_'
+  let encoded = ''
+  for (let i = 0; i < deflated.length; i += 3) {
+    const b1 = deflated[i]
+    const b2 = deflated[i + 1] ?? 0
+    const b3 = deflated[i + 2] ?? 0
+    encoded += chars[b1 >> 2]
+    encoded += chars[((b1 & 3) << 4) | (b2 >> 4)]
+    encoded += i + 1 < deflated.length ? chars[((b2 & 15) << 2) | (b3 >> 6)] : ''
+    encoded += i + 2 < deflated.length ? chars[b3 & 63] : ''
+  }
+  return `https://www.plantuml.com/plantuml/svg/~1${encoded}`
+}
 
 // ── Tables de schéma ──
 const {
@@ -32,6 +55,19 @@ const hash = (pw: string) => bcrypt.default.hashSync(pw, 12)
 
 async function seed() {
   console.log('🌱 Semis de la base de données Repora...')
+
+  // ═══════════════════════════════════════════════════════════════
+  //  0. TRUNCATE CASCADE — État reproductible à chaque exécution
+  // ═══════════════════════════════════════════════════════════════
+  const tableNames = [
+    'audit_logs', 'api_keys', 'validations', 'comments',
+    'diagrams', 'sections', 'documents', 'requirements',
+    'templates', 'agent_configs', 'projects', 'users',
+  ]
+  for (const t of tableNames) {
+    await queryClient.unsafe(`TRUNCATE TABLE ${t} CASCADE`)
+  }
+  console.log('  🗑️  Tables vidées (TRUNCATE CASCADE)')
 
   // ═══════════════════════════════════════════════════════════════
   //  1. UTILISATEURS (6)
@@ -144,7 +180,7 @@ async function seed() {
       {
         id: 'c0000000-0000-0000-0000-000000000001',
         projectId: 'b0000000-0000-0000-0000-000000000001',
-        status: 'draft',
+        status: 'in_review',
         outline: {
           chapters: [
             'Contexte et objectifs',
@@ -158,7 +194,7 @@ async function seed() {
       {
         id: 'c0000000-0000-0000-0000-000000000002',
         projectId: 'b0000000-0000-0000-0000-000000000002',
-        status: 'draft',
+        status: 'in_review',
         outline: {
           chapters: [
             'Introduction',
@@ -171,7 +207,7 @@ async function seed() {
       {
         id: 'c0000000-0000-0000-0000-000000000003',
         projectId: 'b0000000-0000-0000-0000-000000000003',
-        status: 'draft',
+        status: 'reviewed',
         outline: {
           chapters: [
             'Périmètre de la gouvernance IA',
@@ -184,7 +220,7 @@ async function seed() {
       {
         id: 'c0000000-0000-0000-0000-000000000004',
         projectId: 'b0000000-0000-0000-0000-000000000004',
-        status: 'draft',
+        status: 'validated',
         outline: {
           chapters: [
             'Résumé exécutif',
@@ -196,7 +232,7 @@ async function seed() {
       {
         id: 'c0000000-0000-0000-0000-000000000005',
         projectId: 'b0000000-0000-0000-0000-000000000005',
-        status: 'draft',
+        status: 'rejected',
         outline: {
           chapters: [
             'Définitions et interprétation',
@@ -495,7 +531,7 @@ async function seed() {
         type: 'sequence',
         plantumlSource:
           "@startuml\nactor Utilisateur\nparticipant API\nparticipant Worker\nparticipant Cache\ndatabase DB\nUtilisateur -> API: Requête\nAPI -> Cache: Vérifier cache\nCache --> API: Hit/Miss\nAPI -> Worker: Enqueue job\nWorker -> DB: Traitement\nWorker --> API: Résultat\nAPI --> Utilisateur: Réponse\n@enduml",
-        renderedUrl: '/rendered/diag-001.svg',
+        renderedUrl: '',
       },
       {
         id: 'e0000000-0000-0000-0000-000000000002',
@@ -503,7 +539,7 @@ async function seed() {
         type: 'deployment',
         plantumlSource:
           "@startuml\nnode \"Frontend (nginx)\" as FE\nnode \"API Gateway\" as GW\nnode \"Service Auth\" as Auth\nnode \"Service Docs\" as Docs\nnode \"Worker IA\" as AI\ndatabase \"PostgreSQL\" as DB\ndatabase \"Redis\" as Cache\nFE --> GW\nGW --> Auth\nGW --> Docs\nDocs --> AI\nAI --> DB\nDocs --> Cache\n@enduml",
-        renderedUrl: '/rendered/diag-002.svg',
+        renderedUrl: '',
       },
       {
         id: 'e0000000-0000-0000-0000-000000000003',
@@ -511,7 +547,7 @@ async function seed() {
         type: 'activity',
         plantumlSource:
           '@startuml\nstart\n:Proposer un nouveau modèle IA;\n:Évaluation initiale des risques;\nif (Niveau de risque?) then (Haut)\n  :Soumettre au Comité Éthique;\n  :Audit externe obligatoire;\nelse (Moyen)\n  :Revue par le CDO;\n  :Documentation technique;\nelse (Faible)\n  :Auto-approbation;\n  :Enregistrement simple;\nendif\n:Déploiement en production;\n:Surveillance continue;\nstop\n@enduml',
-        renderedUrl: '/rendered/diag-003.svg',
+        renderedUrl: '',
       },
       {
         id: 'e0000000-0000-0000-0000-000000000004',
@@ -519,7 +555,7 @@ async function seed() {
         type: 'class',
         plantumlSource:
           "@startuml\nclass Marche {\n  +nom: string\n  +taille: number\n  +croissance: number\n  +acteurs: int\n}\nclass Segment {\n  +nom: string\n  +tam: number\n  +sam: number\n  +som: number\n}\nclass Concurrent {\n  +nom: string\n  +partMarche: number\n  +forces: string[]\n  +faiblesses: string[]\n}\nMarche \"1\" --> \"*\" Segment\nMarche \"1\" --> \"*\" Concurrent\n@enduml",
-        renderedUrl: '/rendered/diag-004.svg',
+        renderedUrl: '',
       },
     ])
     .onConflictDoNothing()
@@ -761,7 +797,7 @@ async function seed() {
         id: 'f0000000-0000-0000-0000-000000000001',
         agentName: 'Hermes',
         provider: 'ollama',
-        modelId: 'llama3.1:8b',
+        modelId: 'nemotron-3-super:cloud',
         temperature: 0.5,
         topP: 0.95,
         maxTokens: 8192,
@@ -776,7 +812,7 @@ async function seed() {
         id: 'f0000000-0000-0000-0000-000000000002',
         agentName: 'Planner',
         provider: 'ollama',
-        modelId: 'llama3.1:8b',
+        modelId: 'qwen2.5-coder:latest',
         temperature: 0.3,
         topP: 0.9,
         maxTokens: 4096,
@@ -791,7 +827,7 @@ async function seed() {
         id: 'f0000000-0000-0000-0000-000000000003',
         agentName: 'Writer',
         provider: 'ollama',
-        modelId: 'llama3.1:8b',
+        modelId: 'nemotron-3-super:cloud',
         temperature: 0.7,
         topP: 0.9,
         maxTokens: 8192,
@@ -806,7 +842,7 @@ async function seed() {
         id: 'f0000000-0000-0000-0000-000000000004',
         agentName: 'UML',
         provider: 'ollama',
-        modelId: 'llama3.1:8b',
+        modelId: 'nemotron-3-super:cloud',
         temperature: 0.2,
         topP: 0.9,
         maxTokens: 4096,
@@ -821,7 +857,7 @@ async function seed() {
         id: 'f0000000-0000-0000-0000-000000000005',
         agentName: 'Tables',
         provider: 'ollama',
-        modelId: 'llama3.1:8b',
+        modelId: 'nemotron-3-super:cloud',
         temperature: 0.2,
         topP: 0.9,
         maxTokens: 4096,
@@ -836,7 +872,7 @@ async function seed() {
         id: 'f0000000-0000-0000-0000-000000000006',
         agentName: 'Reviewer',
         provider: 'ollama',
-        modelId: 'llama3.1:8b',
+        modelId: 'qwen2.5-coder:latest',
         temperature: 0.3,
         topP: 0.9,
         maxTokens: 8192,
@@ -1097,6 +1133,324 @@ async function seed() {
     ])
     .onConflictDoNothing()
   console.log('  ✅ 30 entrées de journal d\'audit')
+
+  // ═══════════════════════════════════════════════════════════════
+  // 13. PROJETS SHOWCASE — Contenu généré par IA (nemotron-3-super:cloud)
+  // ═══════════════════════════════════════════════════════════════
+  // Showcase 1 : Bibliothèque Numérique — document complet avec sections réelles
+  await db
+    .insert(projects)
+    .values([
+      {
+        id: 'b1000000-0000-0000-0000-000000000001',
+        ownerId: 'a0000000-0000-0000-0000-000000000002',
+        name: 'Gestionnaire de Bibliothèque Numérique',
+        brief:
+          "Application web de gestion de bibliothèque numérique avec catalogage, emprunt, et réservation. Le système doit offrir une interface moderne pour les usagers et les bibliothécaires, avec recherche avancée par titre/auteur/genre, gestion des emprunts en ligne, tableau de bord analytique, et conformité aux normes d'accessibilité WCAG 2.1 AA.",
+        status: 'draft',
+      },
+      {
+        id: 'b1000000-0000-0000-0000-000000000002',
+        ownerId: 'a0000000-0000-0000-0000-000000000003',
+        name: 'Plateforme de Gestion de Projets Collaboratifs',
+        brief:
+          "Application web de gestion de projets avec suivi des tâches et collaboration en équipe. Tableau de bord Kanban, suivi du temps, gestion des ressources, rapports de progression, et notifications en temps réel. L'application doit supporter le multi-projet et les rôles (chef de projet, membre, observateur).",
+        status: 'draft',
+      },
+    ])
+    .onConflictDoNothing()
+  console.log('  ✅ 2 projets showcase')
+
+  // ── Documents showcase ──
+  await db
+    .insert(documents)
+    .values([
+      {
+        id: 'c1000000-0000-0000-0000-000000000001',
+        projectId: 'b1000000-0000-0000-0000-000000000001',
+        status: 'reviewed',
+        outline: {
+          sections: [
+            'Introduction — Contexte du projet',
+            'Introduction — Objectifs',
+            'Introduction — Périmètre',
+            'Exigences Fonctionnelles — Catalogage des ouvrages',
+            'Exigences Fonctionnelles — Système d\'emprunt et de réservation',
+            'Exigences Non-Fonctionnelles — Performance et temps de réponse',
+            'Exigences Non-Fonctionnelles — Sécurité et confidentialité',
+            'Architecture Technique — Vue d\'ensemble',
+            'Architecture Technique — Modèle de données',
+            'Plan de Mise en Œuvre — Phases du projet',
+          ],
+          _pipelineStage: 'reviewed',
+        },
+      },
+      {
+        id: 'c1000000-0000-0000-0000-000000000002',
+        projectId: 'b1000000-0000-0000-0000-000000000002',
+        status: 'reviewed',
+        outline: {
+          sections: [
+            '1. Introduction — Contexte',
+            '1. Introduction — Objectifs',
+            '1. Introduction — Périmètre',
+            '2. Exigences Fonctionnelles — Fonctionnalités principales',
+            '2. Exigences Fonctionnelles — Cas d\'utilisation',
+            '3. Exigences Non-Fonctionnelles — Performance',
+            '4. Architecture Technique — Vue d\'ensemble',
+            '4. Architecture Technique — Composants et modules',
+            '5. Plan de Mise en Œuvre — Phases du projet',
+            '6. Références et Glossaire',
+          ],
+          _pipelineStage: 'reviewed',
+        },
+      },
+    ])
+    .onConflictDoNothing()
+  console.log('  ✅ 2 documents showcase')
+
+  // ── Sections showcase 1 : Bibliothèque Numérique (8 sections, contenu réel IA) ──
+  await db
+    .insert(sections)
+    .values([
+      {
+        id: 'd1000000-0000-0000-0000-000000000001',
+        documentId: 'c1000000-0000-0000-0000-000000000001',
+        order: 1,
+        title: 'Introduction — Contexte du projet',
+        content:
+          "Le projet vise à développer une application web de gestion de bibliothèque numérique destinée à moderniser les services offerts aux usagers et aux bibliothécaires. Cette plateforme permettra le catalogage complet des ouvrages, la recherche avancée par titre, auteur ou genre, ainsi que la gestion des prêts et des réservations en ligne. Elle s'inscrit dans une démarche de transformation numérique visant à améliorer l'accessibilité des ressources, à optimiser les processus internes de catalogage, d'emprunt et de réservation. La solution devra être conforme aux normes d'accessibilité WCAG 2.1 AA et supporter un minimum de 500 utilisateurs simultanés avec un temps de réponse inférieur à 2 secondes.",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+      {
+        id: 'd1000000-0000-0000-0000-000000000002',
+        documentId: 'c1000000-0000-0000-0000-000000000001',
+        order: 2,
+        title: 'Introduction — Objectifs',
+        content:
+          "Le présent cahier des charges définit les spécifications fonctionnelles et techniques nécessaires au développement d'une application web de gestion de bibliothèque numérique. Le projet s'inscrit dans une démarche de modernisation des services documentaires visant à offrir aux usagers un accès simplifié, sécurisé et disponible en continu aux ressources de la bibliothèque, tout en optimisant les processus internes de catalogage, d'emprunt et de réservation. L'objectif principal est de créer une plateforme centralisée qui facilite la découverte, l'emprunt et la gestion des ouvrages tout en fournissant aux bibliothécaires des outils d'administration puissants et intuitifs.",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+      {
+        id: 'd1000000-0000-0000-0000-000000000003',
+        documentId: 'c1000000-0000-0000-0000-000000000001',
+        order: 4,
+        title: 'Exigences Fonctionnelles — Catalogage des ouvrages',
+        content:
+          "Le module de catalogage permet la création, la mise à jour, la suppression et la consultation des notices bibliographiques correspondant aux ouvrages numériques ou physiques de la bibliothèque. Il constitue le référentiel unique auquel les modules d'emprunt, de réservation et de statistique font appel. Toutes les opérations de catalogage doivent être tracées dans un journal d'audit. La fiche d'un ouvrage comprend : titre, auteur(s), genre, ISBN, année de publication, éditeur, nombre de pages, langue, résumé, mots-clés, nombre d'exemplaires disponibles, localisation physique, et photographie de couverture. La recherche avancée doit supporter la recherche par titre, auteur, genre, ISBN, mots-clés avec autocomplétion et résultats triables par pertinence, date ou popularité.",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+      {
+        id: 'd1000000-0000-0000-0000-000000000004',
+        documentId: 'c1000000-0000-0000-0000-000000000001',
+        order: 5,
+        title: "Système d'emprunt et de réservation en ligne",
+        content:
+          "Le module d'emprunt gère le cycle de vie complet d'un prêt : demande, validation, prolongation et retour. Les règles métier incluent : un usager ne peut emprunter plus de 5 ouvrages simultanément, la durée maximale d'emprunt est de 21 jours renouvelable une fois, les pénalités de retard sont de 0,50 EUR par jour et par ouvrage. Le système de réservation permet de réserver un ouvrage momentanément indisponible ; l'usager est notifié par email et/ou push lorsque l'ouvrage est disponible, avec un délai de récupération de 72 heures. L'historique complet des emprunts et réservations est accessible à l'usage et au bibliothécaire.",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+      {
+        id: 'd1000000-0000-0000-0000-000000000005',
+        documentId: 'c1000000-0000-0000-0000-000000000001',
+        order: 6,
+        title: 'Exigences Non-Fonctionnelles — Performance et temps de réponse',
+        content:
+          "L'application web de gestion de bibliothèque numérique doit garantir une expérience utilisateur fluide et réactive, même en période d'utilisation intensive. Les exigences de performance définissent les temps de réponse maximaux acceptables pour les interactions principales ainsi que les niveaux de charge que le système doit soutenir sans dégradation significative du service. Temps de réponse par transaction : recherche d'ouvrage < 1s, consultation fiche < 500ms, emprunt/réservation < 2s, tableau de bord < 3s. Le système doit supporter 500 utilisateurs simultanés avec un débit de 100 requêtes par seconde. Le temps de disponibilité cible est de 99,9% (moins de 8,76 heures d'arrêt par an).",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+      {
+        id: 'd1000000-0000-0000-0000-000000000006',
+        documentId: 'c1000000-0000-0000-0000-000000000001',
+        order: 8,
+        title: 'Architecture Technique — Vue d\'ensemble',
+        content:
+          "L'architecture de l'application suit le pattern MVC (Model-View-Controller) avec une séparation claire entre le frontend (React/TypeScript), le backend (Node.js/Express) et la base de données (PostgreSQL). Le cache distribué Redis assure les performances de lecture pour les recherches fréquentes. L'API REST suit les conventions OpenAPI 3.0 et est documentée via Swagger. L'authentification utilise JWT avec refresh tokens, et le stockage des fichiers (couvertures) est assuré par MinIO (compatible S3). Le déploiement est containerisé avec Docker Compose pour le développement et Kubernetes pour la production.",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+      {
+        id: 'd1000000-0000-0000-0000-000000000007',
+        documentId: 'c1000000-0000-0000-0000-000000000001',
+        order: 9,
+        title: 'Architecture Technique — Modèle de données',
+        content:
+          "Le modèle de données relationnel comprend les entités principales : Livres (id, titre, auteur, genre, isbn, annee_publication, editeur, nombre_pages, langue, resume, mots_cles, nombre_exemplaires, localisation, couverture_url), Utilisateurs (id, nom, email, mot_de_passe_hash, role, date_inscription, actif), Emprunts (id, utilisateur_id, livre_id, date_emprunt, date_retour_prevue, date_retour_effectif, statut, renouvellements), Reservations (id, utilisateur_id, livre_id, date_reservation, date_expiration, statut), Commentaires (id, utilisateur_id, livre_id, note, texte, date_creation). Les indexes sont créés sur les colonnes de recherche fréquente (titre, auteur, genre, isbn) et les clés étrangères.",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+      {
+        id: 'd1000000-0000-0000-0000-000000000008',
+        documentId: 'c1000000-0000-0000-0000-000000000001',
+        order: 10,
+        title: 'Plan de Mise en Œuvre — Phases du projet',
+        content:
+          "Le projet est décomposé en 5 phases sur une durée totale de 16 semaines : Phase 1 — Fondations (semaines 1-3) : architecture technique, modélisation de la base de données, configuration de l'environnement de développement, CI/CD. Phase 2 — Module Catalogage (semaines 4-6) : CRUD des ouvrages, recherche avancée, import/export CSV. Phase 3 — Module Emprunt/Réservation (semaines 7-10) : gestion du cycle de vie des prêts, notifications, pénalités de retard. Phase 4 — Interface Usager & Admin (semaines 11-13) : tableau de bord, profil utilisateur, administration des comptes. Phase 5 — Tests & Déploiement (semaines 14-16) : tests d'intégration, tests de performance, documentation, mise en production.",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+    ])
+    .onConflictDoNothing()
+  console.log('  ✅ 8 sections showcase (Bibliothèque)')
+
+  // ── Sections showcase 2 : Gestion de Projets (5 sections, contenu réel IA) ──
+  await db
+    .insert(sections)
+    .values([
+      {
+        id: 'd1000000-0000-0000-0000-000000000011',
+        documentId: 'c1000000-0000-0000-0000-000000000002',
+        order: 1,
+        title: '1. Introduction — Contexte',
+        content:
+          "Le présent cahier des charges définit les spécifications fonctionnelles et techniques de l'application web dédiée à la gestion de projets collaboratifs. Cette application vise à répondre aux besoins croissants des équipes pluridisciplinaires nécessitant un outil centralisé pour planifier, suivre et coordonner leurs activités tout en favorisant la transparence et la communication interne. Dans un contexte où la complexité des projets augmente et où les équipes sont de plus en plus distribuées, il est essentiel de disposer d'un outil capable de centraliser les informations, de suivre l'avancement en temps réel et de faciliter la collaboration entre les membres de l'équipe.",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+      {
+        id: 'd1000000-0000-0000-0000-000000000012',
+        documentId: 'c1000000-0000-0000-0000-000000000002',
+        order: 4,
+        title: '2. Exigences Fonctionnelles — Fonctionnalités principales',
+        content:
+          "Le système doit offrir un ensemble de fonctionnalités permettant la gestion complète du cycle de vie des projets, depuis leur initiation jusqu'à leur clôture, tout en favorisant la collaboration entre les membres de l'équipe. Les fonctionnalités principales incluent : création et paramétrage de projets avec description, dates limites et membres assignés ; tableau de bord Kanban interactif avec glisser-déposer des cartes entre colonnes (À faire, En cours, En revue, Terminé) ; création et assignment de tâches avec priorité, estimation de temps, dépendances et pièces jointes ; suivi du temps passé par tâche avec chronomètre intégré ; système de commentaires et mentions (@membre) sur les tâches ; notifications en temps réel pour les assignments, commentaires et changements de statut ; rapports de progression avec diagrammes de Gantt et métriques de vélocité.",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+      {
+        id: 'd1000000-0000-0000-0000-000000000013',
+        documentId: 'c1000000-0000-0000-0000-000000000002',
+        order: 5,
+        title: "2. Exigences Fonctionnelles — Cas d'utilisation",
+        content:
+          "Cette section décrit les cas d'utilisation fonctionnels du système de gestion de projets web, en détaillant les interactions entre les acteurs et le système. Acteurs identifiés : Chef de projet (création de projets, assignment des tâches, consultation des rapports), Membre d'équipe (gestion de ses tâches, suivi du temps, commentaires), Observateur (consultation en lecture seule des projets assignés), Administrateur (gestion des utilisateurs et des paramètres globaux). Cas d'utilisation principaux : UC1 — Créer un projet, UC2 — Ajouter une tâche au Kanban, UC3 — Assigner une tâche à un membre, UC4 — Suivre le temps sur une tâche, UC5 — Consulter les rapports de progression, UC6 — Gérer les notifications.",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+      {
+        id: 'd1000000-0000-0000-0000-000000000014',
+        documentId: 'c1000000-0000-0000-0000-000000000002',
+        order: 10,
+        title: '5. Plan de Mise en Œuvre — Phases du projet',
+        content:
+          "Le projet est décomposé en 5 phases sur 14 semaines : Phase 1 — Architecture et fondations (semaines 1-2) : conception de la base de données, mise en place de l'architecture backend/frontend, authentification et autorisation. Phase 2 — Gestion des projets et tâches (semaines 3-5) : CRUD projets, Kanban interactif, gestion des tâches avec priorités et dépendances. Phase 3 — Collaboration et temps (semaines 6-8) : commentaires, mentions, chronomètre, notifications WebSocket. Phase 4 — Reporting et administration (semaines 9-11) : tableaux de bord analytiques, rapports exportables, administration des utilisateurs. Phase 5 — Tests et déploiement (semaines 12-14) : tests d'intégration E2E, optimisation des performances, documentation API, déploiement en production.",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+      {
+        id: 'd1000000-0000-0000-0000-000000000015',
+        documentId: 'c1000000-0000-0000-0000-000000000002',
+        order: 11,
+        title: '6. Références et Glossaire',
+        content:
+          "Glossaire des termes clés : Kanban — méthode de gestion de projet visuelle utilisant des colonnes (À faire, En cours, Terminé) pour suivre l'avancement des tâches. Sprint — période de travail de durée fixe (généralement 2 semaines) au cours de laquelle une équipe s'engage à réaliser un ensemble de tâches. Vélocité — mesure de la quantité de travail qu'une équipe peut réaliser en un sprint, utilisée pour la planification. Backlog — liste priorisée de toutes les fonctionnalités, corrections et améliorations à apporter au projet. Story Points — unité de mesure de la complexité relative d'une tâche, utilisée en planification agile. Références : Guide PMBOK 7e édition, Scrum Guide 2020, Convention de nommage REST API (Microsoft).",
+        status: 'done',
+        generatedByAgent: 'Writer',
+        modelUsed: 'nemotron-3-super:cloud',
+      },
+    ])
+    .onConflictDoNothing()
+  console.log('  ✅ 5 sections showcase (Projets)')
+
+  // ── Diagrammes showcase — PlantUML réels générés par l'agent UML ──
+  await db
+    .insert(diagrams)
+    .values([
+      {
+        id: 'e1000000-0000-0000-0000-000000000001',
+        projectId: 'b1000000-0000-0000-0000-000000000001',
+        type: 'use_case',
+        plantumlSource:
+          "@startuml\nleft to right direction\nactor Adherent\nactor Bibliothecaire\nactor Administrateur\nactor \"Systeme de notification\" as Notification\n\nusecase \"Rechercher ouvrage\" as UC1\nusecase \"Consulter notice\" as UC2\nusecase \"Emprunter ouvrage\" as UC3\nusecase \"Reserver ouvrage\" as UC4\nusecase \"Gerer catalogue\" as UC5\nusecase \"Gerer emprunts\" as UC6\nusecase \"Gerer utilisateurs\" as UC7\nusecase \"Consulter statistiques\" as UC8\nusecase \"Notifier usager\" as UC9\n\nAdherent --> UC1\nAdherent --> UC2\nAdherent --> UC3\nAdherent --> UC4\nBibliothecaire --> UC5\nBibliothecaire --> UC6\nAdministrateur --> UC7\nAdministrateur --> UC8\nUC3 ..> Notification\nUC4 ..> Notification\n@enduml",
+        renderedUrl: '',
+      },
+      {
+        id: 'e1000000-0000-0000-0000-000000000002',
+        projectId: 'b1000000-0000-0000-0000-000000000001',
+        type: 'sequence',
+        plantumlSource:
+          "@startuml\ntitle Sequence Diagram: Emprunter un ouvrage\nactor Adherent\nboundary \"Frontend (UI)\" as UI\ncontrol \"Loan Service\" as LoanSvc\ncontrol \"User Service\" as UserSvc\ncontrol \"Catalog Service\" as CatalogSvc\ncontrol \"Notification Service\" as NotifSvc\ndatabase \"PostgreSQL\" as DB\n\nAdherent -> UI: Selectionne ouvrage + clique Emprunter\nUI -> LoanSvc: POST /api/loans\nLoanSvc -> UserSvc: Verifier eligibilite utilisateur\nUserSvc --> LoanSvc: Eligible (quota < 5)\nLoanSvc -> CatalogSvc: Verifier disponibilite\nCatalogSvc --> LoanSvc: Exemplaire disponible\nLoanSvc -> DB: Creer enregistrement emprunt\nDB --> LoanSvc: Emprunt cree\nLoanSvc -> CatalogSvc: Decremente exemplaires\nLoanSvc -> NotifSvc: Envoyer confirmation\nNotifSvc --> Adherent: Email + push confirmation\nLoanSvc --> UI: Emprunt confirme (201)\n@enduml",
+        renderedUrl: '',
+      },
+      {
+        id: 'e1000000-0000-0000-0000-000000000003',
+        projectId: 'b1000000-0000-0000-0000-000000000001',
+        type: 'class',
+        plantumlSource:
+          "@startuml\nclass Livre {\n    +id: UUID\n    +titre: String\n    +auteur: String\n    +genre: String\n    +isbn: String\n    +anneePublication: Integer\n    +editeur: String\n    +nombreExemplaires: Integer\n    +localisation: String\n    +couvertureUrl: String\n}\nclass Utilisateur {\n    +id: UUID\n    +nom: String\n    +email: String\n    +role: Enum[ADHERENT, BIBLIOTHECAIRE, ADMIN]\n    +dateInscription: Date\n    +actif: Boolean\n}\nclass Emprunt {\n    +id: UUID\n    +dateEmprunt: DateTime\n    +dateRetourPrevue: Date\n    +dateRetourEffectif: Date?\n    +statut: Enum[EN_COURS, RETOURNE, EN_RETARD]\n    +renouvellements: Integer\n}\nclass Reservation {\n    +id: UUID\n    +dateReservation: DateTime\n    +dateExpiration: DateTime\n    +statut: Enum[EN_ATTENTE, DISPONIBLE, EXPIREE, ANNULEE]\n}\nUtilisateur \"1\" --> \"*\" Emprunt\nLivre \"1\" --> \"*\" Emprunt\nUtilisateur \"1\" --> \"*\" Reservation\nLivre \"1\" --> \"*\" Reservation\n@enduml",
+        renderedUrl: '',
+      },
+      {
+        id: 'e1000000-0000-0000-0000-000000000004',
+        projectId: 'b1000000-0000-0000-0000-000000000001',
+        type: 'activity',
+        plantumlSource:
+          "@startuml\ntitle Processus d'emprunt d'un ouvrage\nstart\n:Adherent se connecte;\n:Adherent recherche un ouvrage;\n:Adherent selectionne un exemplaire disponible;\nif (Quota d'emprunt depasse?) then (Oui)\n  :Afficher message d'erreur;\n  stop\nelse (Non)\n  :Creer demande d'emprunt;\n  :Verifier disponibilite;\n  if (Exemplaire disponible?) then (Oui)\n    :Creer enregistrement emprunt;\n    :Mettre a jour stock;\n    :Envoyer notification de confirmation;\n    stop\n  else (Non)\n    :Proposer reservation;\n    :Ajouter a la file d'attente;\n    :Notifier quand disponible;\n    stop\n  endif\nendif\n@enduml",
+        renderedUrl: '',
+      },
+      {
+        id: 'e1000000-0000-0000-0000-000000000005',
+        projectId: 'b1000000-0000-0000-0000-000000000002',
+        type: 'sequence',
+        plantumlSource:
+          "@startuml\ntitle Sequence: Creation de tache Kanban\nactor \"Chef de Projet\" as CP\nboundary \"Frontend\" as UI\ncontrol \"Project Service\" as PS\ncontrol \"Task Service\" as TS\ndatabase \"PostgreSQL\" as DB\ncontrol \"Notification WS\" as WS\n\nCP -> UI: Cree tache avec titre, priorite, assigne\nUI -> PS: POST /api/projects/:id/tasks\nPS -> TS: Creer tache\nTS -> DB: INSERT INTO tasks\nDB --> TS: Tache creee\nTS --> PS: OK\nPS -> WS: Broadcaster evenement\nWS --> CP: Notification temps reel\nPS --> UI: Tache ajoutee au Kanban\n@enduml",
+        renderedUrl: '',
+      },
+    ])
+    .onConflictDoNothing()
+  console.log('  ✅ 5 diagrammes showcase')
+
+  // ── Exigences showcase ──
+  await db
+    .insert(requirements)
+    .values([
+      {
+        id: 'c1000000-0000-0000-0000-000000000011',
+        projectId: 'b1000000-0000-0000-0000-000000000001',
+        type: 'functional',
+        text: "Le système doit offrir une recherche avancée par titre, auteur, genre et mots-clés avec autocomplétion et résultats triables.",
+        sourceActor: 'Bibliothécaire',
+      },
+      {
+        id: 'c1000000-0000-0000-0000-000000000012',
+        projectId: 'b1000000-0000-0000-0000-000000000001',
+        type: 'non_functional',
+        text: "Le système doit supporter 500 utilisateurs simultanés avec un temps de réponse inférieur à 2 secondes pour les opérations de recherche.",
+        sourceActor: 'Architecte Technique',
+      },
+      {
+        id: 'c1000000-0000-0000-0000-000000000013',
+        projectId: 'b1000000-0000-0000-0000-000000000002',
+        type: 'functional',
+        text: "Le tableau de bord Kanban doit permettre le glisser-déposer des tâches entre colonnes avec mise à jour en temps réel.",
+        sourceActor: 'Chef de Projet',
+      },
+      {
+        id: 'c1000000-0000-0000-0000-000000000014',
+        projectId: 'b1000000-0000-0000-0000-000000000002',
+        type: 'non_functional',
+        text: "Les notifications doivent être diffusées en temps réel via WebSocket avec latence inférieure à 500ms.",
+        sourceActor: 'Développeur Full-Stack',
+      },
+    ])
+    .onConflictDoNothing()
+  console.log('  ✅ 4 exigences showcase')
 
   console.log('🌱 Semis terminé avec succès !')
 }

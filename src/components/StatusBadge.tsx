@@ -8,8 +8,12 @@ const statusVariants = cva(
       status: {
         draft: 'bg-status-draft/10 text-status-draft border-status-draft/20',
         review: 'bg-status-review/10 text-status-review border-status-review/20',
+        in_review: 'bg-status-review/10 text-status-review border-status-review/20',
         final: 'bg-status-final/10 text-status-final border-status-final/20',
+        validated: 'bg-status-final/10 text-status-final border-status-final/20',
         active: 'bg-status-final/10 text-status-final border-status-final/20',
+        rejected: 'bg-error/10 text-error border-error/20',
+        reviewed: 'bg-status-review/10 text-status-review border-status-review/20',
         autonomous: 'bg-ai-vibrant/10 text-ai-vibrant border-ai-vibrant/20',
       },
     },
@@ -20,8 +24,12 @@ const statusVariants = cva(
 const LABELS: Record<string, string> = {
   draft: 'BROUILLON',
   review: 'REVISION',
+  in_review: 'EN REVISION',
   final: 'VALIDE',
+  validated: 'VALIDE',
   active: 'EDITION ACTIVE',
+  rejected: 'REJETE',
+  reviewed: 'EXAMINE',
   autonomous: 'AUTONOME',
 }
 
@@ -31,9 +39,10 @@ interface StatusBadgeProps extends VariantProps<typeof statusVariants> {
 }
 
 export default function StatusBadge({ status = 'draft', className, children }: StatusBadgeProps) {
+  const key = (status as string) || 'draft'
   return (
-    <span className={cn(statusVariants({ status }), className)}>
-      {children || LABELS[status as string] || 'BROUILLON'}
+    <span className={cn(statusVariants({ status: key as any }), className)}>
+      {children || LABELS[key] || 'BROUILLON'}
     </span>
   )
 }

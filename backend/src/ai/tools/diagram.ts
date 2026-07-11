@@ -10,6 +10,7 @@
 import { tool } from 'ai'
 import { z } from 'zod'
 import { deflateSync } from 'zlib'
+import { config } from '../../config'
 
 function encodePlantUML(source: string): string {
   let cleaned = source
@@ -49,7 +50,7 @@ export const saveDiagram = tool({
     const { db } = await import('../../db')
     const { diagrams: diagramsTable } = await import('../../db/schema')
     const encoded = encodePlantUML(plantumlSource)
-    const renderedUrl = `https://www.plantuml.com/plantuml/svg/${encoded}`
+    const renderedUrl = `${config.plantumlUrl}/svg/${encoded}`
     const [diagram] = await db
       .insert(diagramsTable)
       .values({

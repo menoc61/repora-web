@@ -1,12 +1,12 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Link, useSearch } from '@tanstack/react-router'
-import '@blocknote/mantine/style.css'
 import {
   useDocument,
   useExportDocument,
   useAgents,
   useDocumentStream,
 } from '../hooks/useQueries'
+import { useCollabStatus } from '../hooks/useCollabStatus'
 import Icon from '../components/Icon'
 import { useGenerationStore } from '../stores/generationStore'
 import {
@@ -19,6 +19,7 @@ import {
   ShareDialog,
   DiagramPanel,
 } from '../components/editor'
+import EditorFormatToolbar from '../components/editor/EditorFormatToolbar'
 
 // ── Main Editor Page ──
 
@@ -35,7 +36,7 @@ export default function Editor() {
 
   if (!docId) {
     return (
-      <div className="pt-16 pl-sidebar-width h-screen flex items-center justify-center text-on-surface-variant font-label-md">
+      <div className="h-screen flex items-center justify-center text-on-surface-variant font-label-md">
         <div className="text-center space-y-4">
           <Icon name="auto_awesome" className="text-[48px] mx-auto text-ai-vibrant" />
           <p>Aucun document selectionne.</p>
@@ -58,6 +59,9 @@ function EditorPage({ docId }: { docId: string }) {
   const [sharePending, setSharePending] = useState(false)
   const [liveWordCount, setLiveWordCount] = useState(0)
   const [liveOutline, setLiveOutline] = useState<OutlineSection[]>([])
+  const [editorInstance, setEditorInstance] = useState<any>(null)
+  const [collabProvider, setCollabProvider] = useState<any>(null)
+  const collabStatus = useCollabStatus(collabProvider)
 
   useEffect(() => {
     if (!docId) return
@@ -82,7 +86,7 @@ function EditorPage({ docId }: { docId: string }) {
     if (Array.isArray(sections) && sections.length > 0) {
       let firstIncomplete = false
       return sections.map((s: any): OutlineSection => {
-        const done = s.status === 'final' || s.status === 'done'
+        const done = s.status === 'final' || s.status === 'done' || s.status === 'reviewed' || s.status === 'validated'
         const isActive = !firstIncomplete && !done
         if (isActive) firstIncomplete = true
         return { title: s.title, done, active: isActive }
@@ -91,23 +95,23 @@ function EditorPage({ docId }: { docId: string }) {
     return FALLBACK_OUTLINE
   }, [document, liveOutline])
 
-  const wordCount = liveWordCount > 0 ? liveWordCount : 1248
+  const wordCount = liveWordCount > 0 ? liveWordCount : 0
 
-  const aiEfficiency = useMemo(() => {
+  const aiEfficiencyPercent = useMemo(() => {
     if (sseEvents.length > 0) {
       const statusEvents = sseEvents.filter((e) => e.type === 'agent_status')
       const doneCount = statusEvents.filter((e) => (e as any).status === 'done').length
       const agentNames = new Set(statusEvents.map((e) => (e as any).agent)).size
       if (agentNames > 0) {
-        return `${Math.round((doneCount / agentNames) * 100)}%`
+        return Math.round((doneCount / agentNames) * 100)
       }
     }
     const sections = document?.sections
     if (Array.isArray(sections) && sections.length > 0) {
-      const done = sections.filter((s: any) => s.status === 'final' || s.status === 'done').length
-      return `${Math.round((done / sections.length) * 100)}%`
+      const done = sections.filter((s: any) => s.status === 'final' || s.status === 'done' || s.status === 'reviewed' || s.status === 'validated').length
+      return Math.round((done / sections.length) * 100)
     }
-    return '—'
+    return -1
   }, [document, sseEvents])
 
   const handleWordCountChange = useCallback((n: number) => {
@@ -129,45 +133,73 @@ function EditorPage({ docId }: { docId: string }) {
     URL.revokeObjectURL(url)
   }
 
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center text-on-surface-variant">
+        <div className="flex items-center gap-3">
+          <span className="w-5 h-5 border-2 border-ai-vibrant/30 border-t-ai-vibrant rounded-full animate-spin" />
+          <span className="font-label-md text-label-md">Chargement du document...</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="pt-16 pl-sidebar-width pr-inspector-width h-screen flex flex-col">
+    <div className="h-screen flex flex-col">
       <EditorHeader
-        title={isLoading ? 'Chargement...' : title}
+        title={title}
         status={status}
         docId={docId}
         onShare={() => setShareOpen(true)}
         onExport={handleExport}
         sharePending={sharePending}
+        collabStatus={collabStatus}
       />
 
       <ShareDialog docId={docId} open={shareOpen} onOpenChange={setShareOpen} onShareStateChange={setSharePending} />
 
-      {/* Editor canvas */}
-      <section className="flex-1 bg-white overflow-y-auto hide-scrollbar relative" id="editor-canvas">
-        <EditorCanvas
-          docId={docId}
-          document={document}
-          isLoading={isLoading}
-          onWordCountChange={handleWordCountChange}
-          onOutlineChange={handleOutlineChange}
-        />
-      </section>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Editor canvas */}
+        <section className="flex-1 bg-white overflow-y-auto hide-scrollbar relative" id="editor-canvas">
+          <EditorCanvas
+            docId={docId}
+            document={document}
+            isLoading={isLoading}
+            onWordCountChange={handleWordCountChange}
+            onOutlineChange={handleOutlineChange}
+            onEditorReady={setEditorInstance}
+            onProviderReady={setCollabProvider}
+          />
+        </section>
 
-      {/* Right Inspector */}
-      <InspectorPanel>
-        <AgentProgressPanel sseEvents={sseEvents} isGenerating={isGenerating} agents={agents} />
+        {/* Floating format toolbar */}
+        <EditorFormatToolbar editor={editorInstance} locked={isGenerating} />
 
-        <div className="flex-1 overflow-y-auto p-gutter bg-surface-studio">
-          <DiagramPanel projectId={document?.projectId} title={title} />
+        {/* Right Inspector */}
+        <aside className="w-[320px] border-l border-outline-variant bg-surface-studio flex flex-col shrink-0 overflow-hidden">
+          <AgentProgressPanel sseEvents={sseEvents} isGenerating={isGenerating} agents={agents} />
 
-          <OutlineTree sections={outlineSections} />
-        </div>
+          <div className="flex-1 overflow-y-auto p-gutter">
+            <DiagramPanel projectId={document?.projectId} title={title} />
+            <OutlineTree sections={outlineSections} />
+          </div>
 
-        <div className="p-4 border-t border-outline-variant bg-surface-container-lowest flex justify-between items-center text-label-sm text-on-surface-variant">
-          <span>{wordCount.toLocaleString()} MOTS</span>
-          <span>EFFICACITE IA : {aiEfficiency}</span>
-        </div>
-      </InspectorPanel>
+          <div className="p-4 border-t border-outline-variant bg-surface-container-lowest">
+            <div className="flex justify-between items-center text-label-sm text-on-surface-variant mb-1">
+              <span>{wordCount.toLocaleString()} MOTS</span>
+              <span>EFFICACITE IA : {aiEfficiencyPercent >= 0 ? `${aiEfficiencyPercent}%` : '—'}</span>
+            </div>
+            {aiEfficiencyPercent >= 0 && (
+              <div className="h-1 bg-surface-alt rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-ai-vibrant transition-all duration-500 ease-out rounded-full"
+                  style={{ width: `${aiEfficiencyPercent}%` }}
+                />
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
     </div>
   )
 }

@@ -6,7 +6,7 @@ interface InspectorPanelProps {
 
 export function InspectorPanel({ children }: InspectorPanelProps) {
   return (
-    <aside className="fixed right-0 top-16 h-[calc(100vh-64px)] w-inspector-width bg-surface border-l border-outline-variant flex flex-col z-40 overflow-hidden">
+    <aside className="w-inspector-width border-l border-outline-variant bg-surface-studio flex flex-col shrink-0 overflow-hidden">
       {children}
     </aside>
   )

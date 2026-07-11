@@ -5,6 +5,7 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as encoding from 'lib0/encoding'
 import * as decoding from 'lib0/decoding'
+import { verifyToken } from '../services/auth.service'
 
 const messageSync = 0
 const messageAwareness = 1
@@ -141,6 +142,21 @@ export function createCollaborationServer(server: http.Server) {
     if (url.pathname === '/notifications') {
       notificationClients.add(ws)
       ws.on('close', () => notificationClients.delete(ws))
+      return
+    }
+
+    // JWT auth — token passed as query param (browser WebSocket API)
+    const token = url.searchParams.get('token')
+    if (!token) {
+      console.warn('[WS] Connection rejected: missing token')
+      ws.close(4001, 'Authentication required')
+      return
+    }
+    try {
+      verifyToken(token)
+    } catch {
+      console.warn('[WS] Connection rejected: invalid token')
+      ws.close(4001, 'Invalid or expired token')
       return
     }
 

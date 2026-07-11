@@ -5,18 +5,9 @@ import { config } from '../../config'
 
 export type ProviderType = 'llama_cpp' | 'openai' | 'anthropic' | 'google' | 'ollama' | 'openrouter' | 'byok'
 
-// Default model for llama.cpp. Change this to match the GGUF file loaded in llama-server.
-//
-// RECOMMENDED MODELS WITH TOOL-CALLING SUPPORT:
-//   NousResearch/Hermes-2-Pro-Llama-3-8B-GGUF   — strong tool calling, GGUF
-//   bartowski/functionary-small-v3.2-GGUF        — dedicated tool calling
-//   hf.co/bartowski/functionary-3.2-small-GGUF   — dedicated tool calling
-//   Meta-Llama-3.1-8B-Instruct-GGUF              — general purpose, basic tools
-//
-// For Ollama, use 'model:tag' format (e.g. 'llama3.1:8b').
-// For llama.cpp, the model name is read from GGUF metadata by llama-server.
-// If the model does not support tool calling, agents fall back to plain text generation.
-export let defaultModel = 'llama3.1-8b'
+// Default model read from config (OLLAMA_MODEL env var or fallback).
+// Updated at startup by discoverOllamaModel().
+export let defaultModel = config.ollamaModel
 
 export function setDefaultModel(model: string) {
   defaultModel = model
@@ -25,22 +16,24 @@ export function setDefaultModel(model: string) {
 // Best-effort heuristic to guess whether a model name indicates tool-calling capability.
 // This is NOT a guarantee — it's used to decide whether to include tools in the first
 // attempt. If tool calling fails at runtime, runAgent retries without tools.
+export const knownToolCallers = [
+  'hermes', 'functionary',
+  'command-r', 'c4ai',
+  'llama-3', 'llama3', 'llama-4', 'llama4',
+  'mistral', 'mixtral', 'codestral',
+  'qwen2', 'qwen-2', 'qwen2.5', 'qwen-2.5',
+  'gemma-2', 'gemma2', 'gemma-3', 'gemma3',
+  'phi-3', 'phi-4',
+  'deepseek',
+  'gpt-3.5', 'gpt-4', 'gpt-4o', 'o1', 'o3', 'o4',
+  'claude', 'gemini',
+  'tool', 'agent', 'function',
+  'orion', 'arcee', 'nemo', 'nemotron',
+  'kimi', 'minimax', 'glm', 'granite',
+  'ornith', 'oh-dcft-v2',
+]
+
 export function modelSupportsTools(modelId: string): boolean {
-  const knownToolCallers = [
-    'hermes', 'functionary',
-    'command-r', 'c4ai',
-    'llama-3', 'llama3', 'llama-4', 'llama4',
-    'mistral', 'mixtral', 'codestral',
-    'qwen2', 'qwen-2', 'qwen2.5', 'qwen-2.5',
-    'gemma-2', 'gemma2', 'gemma-3', 'gemma3',
-    'phi-3', 'phi-4',
-    'deepseek',
-    'gpt-3.5', 'gpt-4', 'gpt-4o', 'o1', 'o3', 'o4',
-    'claude', 'gemini',
-    'tool', 'agent', 'function',
-    'orion', 'arcee', 'nemo',
-    'ornith', 'oh-dcft-v2',
-  ]
   const normalized = modelId.toLowerCase()
   return knownToolCallers.some(k => normalized.includes(k))
 }
@@ -84,11 +77,15 @@ function createProvider(provider: ProviderType, apiKey?: string) {
         baseURL: 'https://openrouter.ai/api/v1',
         apiKey: apiKey || '',
       })
-    default:
+    case 'byok':
+      if (!config.byokUrl) throw new Error('BYOK_BASE_URL not configured — set BYOK_BASE_URL env var or disable BYOK usage')
       return createOpenAICompatible({
         name: 'byok',
-        baseURL: config.ollamaUrl,
+        baseURL: config.byokUrl,
+        apiKey: apiKey || '',
       })
+    default:
+      throw new Error(`Unknown provider: ${provider}`)
   }
 }
 

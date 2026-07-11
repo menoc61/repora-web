@@ -75,3 +75,282 @@
 .animate-slide-in {
   animation: slide-in 0.3s ease-out forwards;
 }
+
+/* ── TipTap / ProseMirror Editor ── */
+
+.tiptap {
+  outline: none;
+}
+
+.tiptap > * + * {
+  margin-top: 0.75em;
+}
+
+.tiptap h1 {
+  font-family: 'Geist', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  letter-spacing: -0.02em;
+}
+
+.tiptap h2 {
+  font-family: 'Geist', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-top: 1.25em;
+  margin-bottom: 0.4em;
+  letter-spacing: -0.01em;
+}
+
+.tiptap h3 {
+  font-family: 'Geist', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 1em;
+  margin-bottom: 0.3em;
+}
+
+.tiptap h4 {
+  font-family: 'Geist', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.4;
+  margin-top: 0.8em;
+  margin-bottom: 0.3em;
+}
+
+.tiptap p {
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.tiptap ul,
+.tiptap ol {
+  padding-left: 1.5em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.tiptap ul li {
+  list-style-type: disc;
+}
+
+.tiptap ol li {
+  list-style-type: decimal;
+}
+
+.tiptap li + li {
+  margin-top: 0.25em;
+}
+
+.tiptap blockquote {
+  border-left: 3px solid #2563EB;
+  padding-left: 1em;
+  margin-left: 0;
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+  color: #45464d;
+  font-style: italic;
+}
+
+.tiptap pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 1em 1.25em;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+
+.tiptap pre code {
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  padding: 0;
+  border-radius: 0;
+}
+
+.tiptap code {
+  background: #f1f5f9;
+  color: #2563EB;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9em;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+}
+
+.tiptap hr {
+  border: none;
+  border-top: 1px solid #c6c6cd;
+  margin: 1.5em 0;
+}
+
+/* ── Tables ── */
+
+.tiptap table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid #c6c6cd;
+}
+
+.tiptap th,
+.tiptap td {
+  border: 1px solid #c6c6cd;
+  padding: 0.5em 0.75em;
+  text-align: left;
+  vertical-align: top;
+}
+
+.tiptap th {
+  background: #f8fafc;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: #45464d;
+}
+
+.tiptap td {
+  font-size: 14px;
+}
+
+.tiptap .selectedCell::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(37, 99, 235, 0.1);
+  pointer-events: none;
+}
+
+.tiptap .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background: #2563EB;
+  pointer-events: none;
+}
+
+/* ── Task Lists ── */
+
+.tiptap ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tiptap ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+  margin-top: 0.35em;
+}
+
+.tiptap ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 0.15em;
+}
+
+.tiptap ul[data-type="taskList"] li > label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563EB;
+  cursor: pointer;
+}
+
+.tiptap ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+.tiptap ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: #94a3b8;
+}
+
+/* ── Images ── */
+
+.tiptap img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 0.75em 0;
+}
+
+.tiptap img.ProseMirror-selectednode {
+  outline: 2px solid #2563EB;
+  outline-offset: 2px;
+}
+
+/* ── Highlight ── */
+
+.tiptap mark {
+  background-color: #fef08a;
+  border-radius: 2px;
+  padding: 0.1em 0;
+}
+
+/* ── Placeholder ── */
+
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #94a3b8;
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}
+
+/* ── Collaboration cursor ── */
+
+.ProseMirror .collaboration-cursor__caret {
+  border-left: 2px solid #2563EB;
+  margin-left: -1px;
+  margin-right: -1px;
+  pointer-events: none;
+  position: relative;
+  word-break: normal;
+}
+
+.ProseMirror .collaboration-cursor__label {
+  border-radius: 3px 3px 3px 0;
+  color: white;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  left: -1px;
+  line-height: normal;
+  padding: 0.1rem 0.3rem;
+  position: absolute;
+  top: -1.4em;
+  user-select: none;
+  white-space: nowrap;
+  background-color: #2563EB;
+}
+
+/* ── Text alignment ── */
+
+.tiptap [style*="text-align: center"] {
+  text-align: center;
+}
+
+.tiptap [style*="text-align: right"] {
+  text-align: right;
+}
+
+.tiptap [style*="text-align: justify"] {
+  text-align: justify;
+}

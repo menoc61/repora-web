@@ -12,7 +12,7 @@ import { tool } from 'ai'
 import { z } from 'zod'
 
 /** System user ID used for automated review comments. */
-const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000001'
+const SYSTEM_USER_ID = 'a0000000-0000-0000-0000-000000000001'
 
 /**
  * Flag an issue found in a specific section during review.

@@ -80,6 +80,8 @@ export const api = {
     request<T>(path, { ...opts, method: 'DELETE' }),
   getBlob: (path: string, opts?: Omit<RequestOptions, 'method' | 'body'>) =>
     request<Blob>(path, { ...opts, method: 'GET', blob: true }),
+  getToken: () => getToken(),
+  getBaseUrl: () => BASE,
 }
 
 /** SSE helper for document streaming — returns an EventSource-like async iterator. */

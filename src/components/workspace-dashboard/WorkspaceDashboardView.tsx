@@ -163,17 +163,20 @@ export default function WorkspaceDashboardView() {
               </Button>
             </div>
           </div>
+
+          {/* Document cards */}
           <div className={viewMode === 'grid' ? 'grid grid-cols-12 gap-6' : 'flex flex-col gap-4'}>
             {viewMode === 'grid' && (
               <NewDocumentCard onClick={handleNewDocument} generating={isCreatingNew} />
             )}
-
             {docsWithGenerating.map((d) => (
               <DocumentCard key={d.id} doc={d} viewMode={viewMode} onOpen={onOpenDocument} />
             ))}
+          </div>
 
+          {/* Activity + Agents row */}
+          <div className="grid grid-cols-12 gap-6 mt-8">
             <ActivityFeed activityItems={activityItems} loading={activityLoading} />
-
             <AgentStatusPanel agents={agents} />
           </div>
         </section>

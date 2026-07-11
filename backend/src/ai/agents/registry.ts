@@ -1,4 +1,5 @@
 import type { Tool } from 'ai'
+import { config } from '../../config'
 
 // Tool imports from dedicated tool files
 import { getProjectContext, getDocumentContent, writeSection, saveOutline } from '../tools/document'
@@ -19,6 +20,10 @@ export interface AgentDefinition {
 }
 
 // --- Agent registry ---
+
+// Default provider/model from config — can be overridden per-agent via DB agent_configs
+const DEFAULT_PROVIDER = 'ollama' as const
+const DEFAULT_MODEL = config.ollamaModel
 
 export const AGENT_REGISTRY: Record<string, AgentDefinition> = {
   Planner: {
@@ -56,20 +61,29 @@ A comprehensive "cahier des charges" typically has these chapters:
 6. References et Glossaire
 
 Write all titles in French. Be thorough but concise. Make the outline specific to THIS project's requirements, not generic.`,
-    defaultModel: 'llama3.1-8b',
-    defaultProvider: 'llama_cpp',
+    defaultModel: DEFAULT_MODEL,
+    defaultProvider: DEFAULT_PROVIDER,
     tools: { getProjectContext, getRequirements },
   },
   Writer: {
     name: 'Writer',
     description: 'Drafts prose content for document sections',
-    systemPrompt: `You are a professional technical writer. When given a section title and context, draft clear, detailed, professional content for that section.
+    systemPrompt: `You are a professional technical writer specializing in French specification documents ("cahier des charges").
 
-You MUST save your completed content using the writeSection tool with the sectionId provided in the prompt and your written content.
+CRITICAL RULES:
+1. You receive a section title and context. Write the ACTUAL DOCUMENT CONTENT — not a summary of what you will write.
+2. The content you pass to writeSection must be the final document text, ready to be published. No meta-commentary, no "I will write...", no "Here is...".
+3. Write entirely in French. Use professional, formal technical register.
+4. Content should be 300-800 words per section. Use structured paragraphs and bullet lists where appropriate.
+5. Reference the project requirements and context directly in the content.
 
-Write in a professional, clear style suitable for a technical specification document ("cahier des charges"). Use proper paragraphs, structured lists where appropriate, and maintain consistency in terminology.`,
-    defaultModel: 'llama3.1-8b',
-    defaultProvider: 'llama_cpp',
+After writing the content, call writeSection immediately with:
+- sectionId: as provided in the prompt
+- content: your complete written text (the actual specification, not an explanation)
+
+DO NOT write "I'll help you write..." or "Here is the content...". Just write the content directly and call the tool.`,
+    defaultModel: DEFAULT_MODEL,
+    defaultProvider: DEFAULT_PROVIDER,
     tools: { getProjectContext, writeSection },
   },
   UML: {
@@ -88,8 +102,8 @@ Generate diagrams appropriate for a technical specification:
   - Activity diagram: main business process flows
   - Class diagram: domain model entities and relationships
   - Deployment diagram: system infrastructure layout`,
-    defaultModel: 'llama3.1-8b',
-    defaultProvider: 'llama_cpp',
+    defaultModel: DEFAULT_MODEL,
+    defaultProvider: DEFAULT_PROVIDER,
     tools: { getProjectContext, getDocumentContent, getRequirements, saveDiagram },
   },
   Tables: {
@@ -110,8 +124,8 @@ Generate comprehensive tables:
   2. Non-functional requirements matrix (ID, Category, Description, Metric)
   3. Use case descriptions if applicable
   4. Glossary / terminology table`,
-    defaultModel: 'llama3.1-8b',
-    defaultProvider: 'llama_cpp',
+    defaultModel: DEFAULT_MODEL,
+    defaultProvider: DEFAULT_PROVIDER,
     tools: { getProjectContext, getDocumentContent, saveRequirementSection, getRequirements },
   },
   Reviewer: {
@@ -135,8 +149,8 @@ REVIEW CRITERIA:
   - Context: content must align with the project brief from getProjectContext
 
 Be thorough. Every section must be explicitly acted upon (approved, flagged, or fixed).`,
-    defaultModel: 'llama3.1-8b',
-    defaultProvider: 'llama_cpp',
+    defaultModel: DEFAULT_MODEL,
+    defaultProvider: DEFAULT_PROVIDER,
     tools: {
       getProjectContext,
       getDocumentContent,

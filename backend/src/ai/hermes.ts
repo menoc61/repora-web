@@ -1,9 +1,13 @@
 import { streamText, isStepCount } from 'ai'
 import type { Tool } from 'ai'
 import { AGENT_REGISTRY } from './agents/registry'
-import { getLanguageModel, modelSupportsTools, setDefaultModel, defaultModel } from './providers/interface'
+import { getLanguageModel, setDefaultModel, defaultModel, knownToolCallers } from './providers/interface'
 import type { ProviderType } from './providers/interface'
 import { config } from '../config'
+import { db } from '../db'
+import { agentConfigs } from '../db/schema'
+import { eq } from 'drizzle-orm'
+import { z } from 'zod'
 
 // Re-export the orchestrator pipeline (refactored into pipeline/ directory)
 export { orchestrateGeneration } from './pipeline/orchestrate'
@@ -56,19 +60,81 @@ export type HermesEvent = {
 
 // -- Model discovery ---------------------------------------------------------
 
-let discoveredModel = 'llama3.1-8b'
+let discoveredModel = config.ollamaModel
 let availableModels: string[] = []
 
-export async function discoverOllamaModel(): Promise<string> {
-  // 1. Respect OLLAMA_MODEL env var if set
-  if (config.ollamaModel) {
-    discoveredModel = config.ollamaModel
-    setDefaultModel(discoveredModel)
-    console.log(`[Hermes] Using OLLAMA_MODEL from env: ${discoveredModel}`)
-    return discoveredModel
+// Runtime tool-support cache: model name → supports tools
+// Populated by probeToolSupport() at startup, queried by runAgent()
+const toolSupportCache = new Map<string, boolean>()
+
+/**
+ * Probe whether a model actually supports tool calling by sending a minimal
+ * request with tools. Caches the result so each model is only tested once.
+ * This is the source of truth — the name-based heuristic in modelSupportsTools()
+ * is a fallback for models not in the cache.
+ */
+export async function probeToolSupport(
+  provider: ProviderType,
+  modelId: string,
+  apiKey?: string,
+): Promise<boolean> {
+  const cacheKey = `${provider}:${modelId}`
+  if (toolSupportCache.has(cacheKey)) return toolSupportCache.get(cacheKey)!
+
+  // For non-local providers, trust the name heuristic (they're well-tested APIs)
+  if (provider !== 'ollama' && provider !== 'llama_cpp') {
+    const result = modelId.toLowerCase().includes('gpt') || modelId.toLowerCase().includes('claude') || modelId.toLowerCase().includes('gemini')
+    toolSupportCache.set(cacheKey, result)
+    return result
   }
 
-  // 2. Use ollama list CLI for reliable detection
+  console.log(`[Hermes] Probing tool support for ${modelId}...`)
+  const probeTool = {
+    description: 'Say hello',
+    inputSchema: z.object({ name: z.string() }),
+  }
+
+  try {
+    const model = getLanguageModel(provider, modelId, apiKey)
+    const stream = await streamText({
+      model,
+      messages: [{ role: 'user', content: 'Say hello' }],
+      tools: { hello: probeTool },
+      stopWhen: isStepCount(1),
+    })
+
+    let gotToolCall = false
+    let gotText = false
+    for await (const event of stream.fullStream) {
+      if (event.type === 'tool-call') gotToolCall = true
+      if (event.type === 'text-delta') gotText = true
+      if (event.type === 'error') throw event.error
+    }
+    // If the model produced a tool call, it supports tools.
+    // If it produced text but no tool call, it doesn't (or chose not to).
+    // If it errored, it doesn't.
+    const supports = gotToolCall
+    toolSupportCache.set(cacheKey, supports)
+    console.log(`[Hermes] Tool support for ${modelId}: ${supports ? 'YES' : 'no'}`)
+    return supports
+  } catch (err) {
+    toolSupportCache.set(cacheKey, false)
+    console.log(`[Hermes] Tool support for ${modelId}: no (probe error: ${(err as Error).message?.slice(0, 80)})`)
+    return false
+  }
+}
+
+/**
+ * Probe all available models at startup. Runs in background, non-blocking.
+ */
+export async function probeAllModels(provider: ProviderType, apiKey?: string): Promise<void> {
+  for (const modelId of availableModels) {
+    await probeToolSupport(provider, modelId, apiKey)
+  }
+}
+
+async function enumerateOllamaModels(): Promise<string[]> {
+  // Use ollama list CLI for reliable detection
   try {
     const { execSync } = await import('child_process')
     const stdout = execSync('ollama list', { encoding: 'utf-8', timeout: 5000 })
@@ -76,30 +142,47 @@ export async function discoverOllamaModel(): Promise<string> {
     const models = lines
       .map(line => line.trim().split(/\s+/)[0])
       .filter(Boolean)
-    if (models.length > 0) {
-      availableModels = models
-      discoveredModel = availableModels[0]
-      setDefaultModel(discoveredModel)
-      console.log(`[Hermes] Detected ${availableModels.length} Ollama model(s) via CLI: ${availableModels.join(', ')}`)
-      console.log(`[Hermes] Default model: ${discoveredModel} (set OLLAMA_MODEL env var to override)`)
-    } else {
-      console.log('[Hermes] No models found via ollama list CLI')
-    }
-  } catch (e: unknown) {
-    // 3. Fallback: try Ollama HTTP API
-    try {
-      const baseUrl = config.ollamaUrl.replace(/\/v1\/?$/, '')
-      const res = await fetch(`${baseUrl}/api/tags`)
-      if (!res.ok) return discoveredModel
+    if (models.length > 0) return models
+  } catch { /* fall through to HTTP API */ }
+
+  // Fallback: try Ollama HTTP API
+  try {
+    const baseUrl = config.ollamaUrl.replace(/\/v1\/?$/, '')
+    const res = await fetch(`${baseUrl}/api/tags`)
+    if (res.ok) {
       const data = (await res.json()) as { models?: Array<{ name: string }> }
-      if (data.models && data.models.length > 0) {
-        availableModels = data.models.map(m => m.name)
-        discoveredModel = availableModels[0]
-        setDefaultModel(discoveredModel)
-        console.log(`[Hermes] Detected via API: ${availableModels.join(', ')}`)
-        console.log(`[Hermes] Default model: ${discoveredModel}`)
-      }
-    } catch { /* use default */ }
+      if (data.models && data.models.length > 0) return data.models.map(m => m.name)
+    }
+  } catch { /* none found */ }
+
+  return []
+}
+
+export async function discoverOllamaModel(): Promise<string> {
+  // Always enumerate available models so they can be probed for tool support.
+  const models = await enumerateOllamaModels()
+  if (models.length > 0) {
+    availableModels = models
+    console.log(`[Hermes] Detected ${availableModels.length} Ollama model(s): ${availableModels.join(', ')}`)
+  } else {
+    console.log('[Hermes] No Ollama models detected via CLI or API')
+  }
+
+  // 1. Respect OLLAMA_MODEL env var if set — becomes the default.
+  if (config.ollamaModel) {
+    discoveredModel = config.ollamaModel
+    setDefaultModel(discoveredModel)
+    // Ensure the env-selected model is in the probe list even if `ollama list` missed it.
+    if (!availableModels.includes(discoveredModel)) availableModels.unshift(discoveredModel)
+    console.log(`[Hermes] Using OLLAMA_MODEL from env: ${discoveredModel}`)
+    return discoveredModel
+  }
+
+  // 2. Otherwise pick the first detected model as default.
+  if (availableModels.length > 0) {
+    discoveredModel = availableModels[0]
+    setDefaultModel(discoveredModel)
+    console.log(`[Hermes] Default model: ${discoveredModel} (set OLLAMA_MODEL env var to override)`)
   }
   return discoveredModel
 }
@@ -110,6 +193,19 @@ export function getDefaultModel(): string {
 
 export function getAvailableModels(): string[] {
   return availableModels
+}
+
+/**
+ * Check if a model actually supports tools. First checks the runtime probe
+ * cache, then falls back to a name-based heuristic.
+ */
+export function supportsTools(modelId: string, provider?: ProviderType): boolean {
+  const cacheKey = `${provider || 'unknown'}:${modelId}`
+  if (toolSupportCache.has(cacheKey)) return toolSupportCache.get(cacheKey)!
+
+  // Fallback heuristic for models not yet probed — shared list from interface.ts
+  const normalized = modelId.toLowerCase()
+  return knownToolCallers.some(k => normalized.includes(k))
 }
 
 // -- Agent runner ------------------------------------------------------------
@@ -125,26 +221,56 @@ export async function* runAgent(
 
   yield { type: 'agent_status', agent: agentName, status: 'thinking' }
 
-  // For ollama we use the discovered model; for other providers use the agent default.
-  const modelId = agentDef.defaultProvider === 'ollama'
-    ? discoveredModel
-    : agentDef.defaultModel
+  // Try to read per-agent config from DB (admin panel overrides)
+  let provider = agentDef.defaultProvider as ProviderType
+  let modelId = agentDef.defaultModel
 
-  // G5: BYOK boundary check — when provider is llama_cpp or ollama, no API key is sent.
-  // The getLanguageModel fn routes to local provider when no apiKey is provided.
-  const model = getLanguageModel(agentDef.defaultProvider as ProviderType, modelId, apiKey)
+  try {
+    const [dbConfig] = await db
+      .select()
+      .from(agentConfigs)
+      .where(eq(agentConfigs.agentName, agentName))
+      .limit(1)
+    if (dbConfig) {
+      provider = (dbConfig.provider || agentDef.defaultProvider) as ProviderType
+      modelId = dbConfig.modelId || agentDef.defaultModel
+    }
+  } catch {
+    // DB read failed — use registry defaults
+  }
 
-  // Check if the model name suggests tool-calling support. If not, skip tools
-  // to avoid errors. If the heuristic is wrong and the model DOES support tools,
-  // the agent still runs but without tool invocation — a safe degradation.
-  const supportsTools = modelSupportsTools(modelId)
+  // For local providers (ollama/llama_cpp), always use the discovered model
+  if (provider === 'ollama' || provider === 'llama_cpp') {
+    modelId = discoveredModel
+  }
+
+  const model = getLanguageModel(provider, modelId, apiKey)
   const hasTools = Object.keys(agentDef.tools).length > 0
-  const tools = supportsTools && hasTools
+
+  // Use the runtime probe cache to decide whether to pass tools
+  const supportsToolCalling = supportsTools(modelId, provider)
+  const tools = supportsToolCalling && hasTools
     ? (agentDef.tools as Record<string, Tool>)
     : undefined
 
   // G6: maxSteps exhaustion handled by SDK stopWhen — stops after maxSteps LLM calls.
-  const maxSteps = supportsTools ? 10 : 3
+  const maxSteps = supportsToolCalling ? 10 : 3
+
+  async function* generateWithoutTools(): AsyncGenerator<HermesEvent> {
+    const fallbackStream = await streamText({
+      model,
+      system: agentDef.systemPrompt,
+      prompt,
+      stopWhen: isStepCount(3),
+    })
+    for await (const event of fallbackStream.fullStream) {
+      switch (event.type) {
+        case 'text-delta':
+          yield { type: 'token', token: event.text, agent: agentName }
+          break
+      }
+    }
+  }
 
   try {
     const stream = await streamText({
@@ -155,12 +281,15 @@ export async function* runAgent(
       stopWhen: isStepCount(maxSteps),
     })
 
+    let hasOutput = false
     for await (const event of stream.fullStream) {
       switch (event.type) {
         case 'text-delta':
+          hasOutput = true
           yield { type: 'token', token: event.text, agent: agentName }
           break
         case 'tool-call':
+          hasOutput = true
           yield { type: 'tool_call', agent: agentName, tool: event.toolName, args: event.input }
           break
         case 'tool-result':
@@ -168,23 +297,18 @@ export async function* runAgent(
           break
       }
     }
+
+    // If tools were passed but the model produced zero output,
+    // the model silently failed to handle tools. Retry without.
+    if (tools && !hasOutput) {
+      console.warn(`[Hermes] ${agentName}: zero output with tools — retrying without tools`)
+      yield* generateWithoutTools()
+    }
   } catch (err) {
-    // If the first attempt with tools failed (model doesn't actually support them),
-    // retry with plain text generation (no tools).
-    if (tools && (err as Error).message?.includes('tool')) {
-      const fallbackStream = await streamText({
-        model,
-        system: agentDef.systemPrompt,
-        prompt,
-        stopWhen: isStepCount(3),
-      })
-      for await (const event of fallbackStream.fullStream) {
-        switch (event.type) {
-          case 'text-delta':
-            yield { type: 'token', token: event.text, agent: agentName }
-            break
-        }
-      }
+    // Any error when tools are passed → retry without tools
+    if (tools) {
+      console.warn(`[Hermes] ${agentName}: error with tools (${(err as Error).message?.slice(0, 80)}) — retrying without tools`)
+      yield* generateWithoutTools()
     } else {
       throw err
     }
@@ -196,23 +320,102 @@ export async function* runAgent(
 
 // -- Generation tracking -----------------------------------------------------
 
-const activeGenerations = new Map<string, Promise<AsyncGenerator<HermesEvent>>>()
-
-export function setActiveGeneration(documentId: string, gen: Promise<AsyncGenerator<HermesEvent>>) {
-  activeGenerations.set(documentId, gen)
+interface GenerationState {
+  events: HermesEvent[]
+  listeners: Set<(event: HermesEvent) => void>
+  done: boolean
+  error?: Error
 }
 
-export function getActiveGeneration(documentId: string): Promise<AsyncGenerator<HermesEvent>> | undefined {
-  return activeGenerations.get(documentId)
+const generationStates = new Map<string, GenerationState>()
+
+export function getGenerationState(documentId: string): GenerationState | undefined {
+  return generationStates.get(documentId)
 }
 
-export function clearActiveGeneration(documentId: string) {
-  activeGenerations.delete(documentId)
+export function clearGenerationState(documentId: string) {
+  generationStates.delete(documentId)
 }
 
 import { orchestrateGeneration } from './pipeline/orchestrate'
 
+/**
+ * Start the pipeline in the background, independent of any stream connection.
+ * Events are buffered and broadcast to any connected stream clients.
+ * The pipeline runs to completion even if nobody is listening.
+ */
 export function initiateGeneration(projectId: string, prompt: string, documentId: string, templateId?: string): void {
-  const gen = orchestrateGeneration(projectId, prompt, documentId, templateId)
-  setActiveGeneration(documentId, gen)
+  const state: GenerationState = { events: [], listeners: new Set(), done: false }
+  generationStates.set(documentId, state)
+
+  // Run the pipeline eagerly in the background (fire-and-forget)
+  ;(async () => {
+    try {
+      const gen = await orchestrateGeneration(projectId, prompt, documentId, templateId)
+      for await (const event of gen) {
+        state.events.push(event)
+        // Broadcast to all connected stream listeners
+        for (const listener of state.listeners) {
+          try { listener(event) } catch { /* listener disconnected */ }
+        }
+      }
+    } catch (err) {
+      state.error = err as Error
+      const errorEvent: HermesEvent = {
+        type: 'generation_error',
+        agent: 'Hermes',
+        message: (err as Error).message,
+        error_type: 'pipeline_error',
+      }
+      state.events.push(errorEvent)
+      for (const listener of state.listeners) {
+        try { listener(errorEvent) } catch { /* listener disconnected */ }
+      }
+    } finally {
+      state.done = true
+      // Signal completion to all listeners
+      for (const listener of state.listeners) {
+        try { listener({ type: 'done', document_id: documentId } as HermesEvent) } catch { /* ignore */ }
+      }
+    }
+  })()
+}
+
+/**
+ * Subscribe to a running generation's events.
+ * Returns an async iterator that yields events.
+ * If the pipeline already finished, yields buffered events immediately.
+ */
+export async function* streamGeneration(documentId: string): AsyncGenerator<HermesEvent> {
+  const state = generationStates.get(documentId)
+  if (!state) return
+
+  // Yield already-buffered events first
+  for (const event of state.events) {
+    yield event
+  }
+
+  if (state.done) return
+
+  // Subscribe for future events
+  let resolve: (() => void) | null = null
+  const queue: HermesEvent[] = []
+  const onEvent = (event: HermesEvent) => {
+    queue.push(event)
+    resolve?.()
+  }
+
+  state.listeners.add(onEvent)
+  try {
+    while (!state.done || queue.length > 0) {
+      if (queue.length === 0) {
+        await new Promise<void>((r) => { resolve = r })
+      }
+      while (queue.length > 0) {
+        yield queue.shift()!
+      }
+    }
+  } finally {
+    state.listeners.delete(onEvent)
+  }
 }

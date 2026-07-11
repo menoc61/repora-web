@@ -33,6 +33,7 @@ export const documents = pgTable('documents', {
   projectId: uuid('project_id').references(() => projects.id).notNull(),
   status: text('status').default('draft').notNull(),
   outline: jsonb('outline'),
+  exportUrl: text('export_url'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })
@@ -115,4 +116,14 @@ export const auditLogs = pgTable('audit_logs', {
   target: text('target'),
   metadata: jsonb('metadata'),
   timestamp: timestamp('timestamp').defaultNow().notNull(),
+})
+
+export const assistantSessions = pgTable('assistant_sessions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  projectId: uuid('project_id').references(() => projects.id),
+  messages: jsonb('messages').default([]).notNull(),
+  context: jsonb('context').default({}).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 })

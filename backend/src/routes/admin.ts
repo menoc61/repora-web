@@ -3,6 +3,8 @@ import { requireAuth, requireRole } from '../middleware/auth'
 import { listAgents, patchAgent, getMetrics, getLogs, listApiKeys, createApiKey, deleteApiKey } from '../services/admin.service'
 import { listUsers, createUser, updateUserRole, deleteUser } from '../services/user.service'
 import { AppError } from '../middleware/error'
+import { getAvailableModels, probeToolSupport } from '../ai/hermes'
+import { setDefaultModel } from '../ai/providers/interface'
 
 export const adminRouter = Router()
 
@@ -92,5 +94,33 @@ adminRouter.get('/metrics', requireAuth, requireRole('admin', 'super_admin'), as
   try {
     const metrics = await getMetrics()
     res.json(metrics)
+  } catch (err) { next(err) }
+})
+
+// GET /admin/models — list available Ollama models with tool support
+adminRouter.get('/models', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
+  try {
+    const models = getAvailableModels()
+    const detailed = await Promise.all(
+      models.map(async (name) => {
+        const isCloud = name.includes(':cloud') || name.includes('-cloud')
+        const supportsTools = await probeToolSupport('ollama', name)
+        return { name, isCloud, supportsTools }
+      })
+    )
+    res.json(detailed)
+  } catch (err) { next(err) }
+})
+
+// PATCH /admin/models/active — switch the active model
+adminRouter.patch('/models/active', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
+  try {
+    const { model } = req.body
+    if (!model || typeof model !== 'string') {
+      return next(new AppError(400, 'missing_model', 'model name is required'))
+    }
+    setDefaultModel(model)
+    console.log(`[Admin] Active model changed to: ${model}`)
+    res.json({ ok: true, model })
   } catch (err) { next(err) }
 })

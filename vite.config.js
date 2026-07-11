@@ -23,6 +23,10 @@ export default defineConfig({
         target: 'http://localhost:8000',
         ws: true,
       },
+      '/collab': {
+        target: 'http://localhost:8000',
+        ws: true,
+      },
     },
   },
   test: {

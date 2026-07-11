@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useRef } from 'react'
 import { api, sseStream } from '../api/client'
+import { useAuthStore } from '../stores'
 import type { Document, Metrics, Template, Collaborator, DocumentFilters } from '../schemas'
 
 // ── Hermes SSE Event Types (aligned with backend HermesEvent union) ──
@@ -109,6 +110,7 @@ interface BackendAgent {
   provider: string
   enabled: boolean
   modelId?: string
+  systemPrompt?: string
 }
 
 interface BackendMetrics {
@@ -268,7 +270,7 @@ export function useGenerateDocument() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ projectId, prompt, templateId }: { projectId: string; prompt?: string; templateId?: string }) =>
-      api.post<BackendGenerateResponse>(`/projects/${projectId}/generate`, { prompt: prompt ?? '', ...(templateId ? { template_id: templateId } : {}) }),
+      api.post<BackendGenerateResponse>(`/projects/${projectId}/generate`, { prompt: prompt ?? '', ...(templateId ? { templateId } : {}) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['projects'] })
       qc.invalidateQueries({ queryKey: ['documents'] })
@@ -593,7 +595,7 @@ export function useDisconnectTool() {
 
 export function useExportDocument() {
   return useMutation({
-    mutationFn: async ({ id, format }: { id: string; format: 'pdf' | 'docx' }) =>
+    mutationFn: async ({ id, format }: { id: string; format: 'pdf' | 'docx' | 'md' }) =>
       api.getBlob(`/documents/${id}/export?format=${format}`),
   })
 }
@@ -698,7 +700,17 @@ export function useCreateFromTemplate() {
 export function useCollaborators() {
   return useQuery({
     queryKey: ['collaborators'],
-    queryFn: async () => api.get<Collaborator[]>('/collaboration/collaborators'),
+    queryFn: async () => {
+      const raw = await api.get<Array<{ documentId: string; collaborators: Collaborator[] }>>('/collaboration/collaborators')
+      // Flatten: extract all collaborator entries across all documents
+      const flat: Collaborator[] = []
+      for (const entry of raw) {
+        if (Array.isArray(entry.collaborators)) {
+          flat.push(...entry.collaborators)
+        }
+      }
+      return flat
+    },
     staleTime: 30_000,
   })
 }
@@ -880,4 +892,92 @@ export function useMe() {
     staleTime: 30_000,
     retry: 1,
   })
+}
+
+/** Stream an inline AI completion from the backend. Returns an async generator of token strings. */
+export async function streamAiComplete(
+  command: string,
+  selectedText?: string,
+): Promise<AsyncGenerator<string>> {
+  const token = useAuthStore.getState().token
+  const res = await fetch(`${apiBase()}/ai/complete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ command, selectedText }),
+  })
+  if (!res.ok || !res.body) {
+    throw new Error(`AI complete failed: ${res.status}`)
+  }
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  return (async function* () {
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const events = buffer.split('\n\n')
+        buffer = events.pop() ?? ''
+        for (const evt of events) {
+          const dataLine = evt.split('\n').find((l) => l.startsWith('data:'))
+          if (dataLine) {
+            const json = dataLine.slice(5).trim()
+            if (json === '[DONE]') return
+            if (json) {
+              try {
+                const parsed = JSON.parse(json)
+                if (parsed.token) yield parsed.token
+              } catch { /* keepalive */ }
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  })()
+}
+
+// ── Model Hooks ──
+
+export function useModels() {
+  return useQuery({
+    queryKey: ['models'],
+    queryFn: async () => {
+      return api.get<string[]>('/models')
+    },
+    staleTime: 60_000,
+  })
+}
+
+export function useDetailedModels() {
+  return useQuery({
+    queryKey: ['models', 'detailed'],
+    queryFn: async () => {
+      return api.get<Array<{ name: string; isCloud: boolean; supportsTools: boolean }>>('/models/detailed')
+    },
+    staleTime: 60_000,
+  })
+}
+
+export function useSetActiveModel() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (model: string) => {
+      await api.patch('/admin/models/active', { model })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['models'] })
+    },
+  })
+}
+
+function apiBase(): string {
+  return (import.meta as any).env?.VITE_API_BASE ?? '/api'
 }

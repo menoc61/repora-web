@@ -26,19 +26,23 @@ const projectWithDoc = {
   documentId: documents.id,
 }
 
-export async function getProjects(ownerId: string): Promise<ProjectRowWithDoc[]> {
+export async function getProjects(ownerId: string, role?: string): Promise<ProjectRowWithDoc[]> {
+  const isSuperAdmin = role === 'super_admin' || role === 'admin'
   return (await db.select(projectWithDoc)
     .from(projects)
     .leftJoin(documents, eq(documents.projectId, projects.id))
-    .where(eq(projects.ownerId, ownerId))) as ProjectRowWithDoc[]
+    .where(isSuperAdmin ? undefined : eq(projects.ownerId, ownerId))) as ProjectRowWithDoc[]
 }
 
-export async function getProjectById(projectId: string, ownerId: string): Promise<ProjectRowWithDoc> {
+export async function getProjectById(projectId: string, ownerId: string, role?: string): Promise<ProjectRowWithDoc> {
+  const isSuperAdmin = role === 'super_admin' || role === 'admin'
   const [project] = await db.select(projectWithDoc)
     .from(projects)
     .leftJoin(documents, eq(documents.projectId, projects.id))
     .where(
-      and(eq(projects.id, projectId), eq(projects.ownerId, ownerId))
+      isSuperAdmin
+        ? eq(projects.id, projectId)
+        : and(eq(projects.id, projectId), eq(projects.ownerId, ownerId))
     ).limit(1)
   if (!project) throw new AppError(404, 'not_found', 'Project not found')
   return project as ProjectRowWithDoc
@@ -69,10 +73,13 @@ export async function deleteProject(projectId: string, ownerId: string) {
   if (!project) throw new AppError(404, 'not_found', 'Project not found')
 }
 
-export async function generateDocument(projectId: string, ownerId: string) {
+export async function generateDocument(projectId: string, ownerId: string, role?: string) {
+  const isSuperAdmin = role === 'super_admin' || role === 'admin'
   const [project] = await db.select({ id: projects.id })
     .from(projects).where(
-      and(eq(projects.id, projectId), eq(projects.ownerId, ownerId))
+      isSuperAdmin
+        ? eq(projects.id, projectId)
+        : and(eq(projects.id, projectId), eq(projects.ownerId, ownerId))
     ).limit(1)
   if (!project) throw new AppError(404, 'not_found', 'Project not found')
 

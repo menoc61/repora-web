@@ -1,9 +1,9 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth'
 import { getDocument, listDocuments, createValidationToken } from '../services/document.service'
-import { exportDocument } from '../services/export.service'
+import { exportDocument, getStoredExport } from '../services/export.service'
 import { logAudit } from '../services/audit.service'
-import { getActiveGeneration, clearActiveGeneration } from '../ai/hermes'
+import { getGenerationState, streamGeneration, clearGenerationState } from '../ai/hermes'
 import { listComments, addComment } from '../services/comment.service'
 import { db } from '../db'
 import { auditLogs, documents, sections } from '../db/schema'
@@ -16,7 +16,7 @@ documentRouter.get('/', requireAuth, async (req, res, next) => {
   try {
     const status = req.query.status as string | undefined
     const search = req.query.search as string | undefined
-    const docs = await listDocuments(req.user!.userId, { status, search })
+    const docs = await listDocuments(req.user!.userId, req.user!.role, { status, search })
     res.json(docs)
   } catch (err) { next(err) }
 })
@@ -30,11 +30,8 @@ documentRouter.get('/:id', requireAuth, async (req, res, next) => {
 
 documentRouter.get('/:id/stream', requireAuth, async (req, res, next) => {
   try {
-    const generation = getActiveGeneration(req.params.id as string)
-    if (!generation) {
-      res.status(404).json({ error: { code: 'no_active_generation', message: 'No active generation for this document' } })
-      return
-    }
+    const docId = req.params.id as string
+    const state = getGenerationState(docId)
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -42,18 +39,29 @@ documentRouter.get('/:id/stream', requireAuth, async (req, res, next) => {
       'Connection': 'keep-alive',
     })
 
+    if (!state) {
+      // No active generation — send done immediately so the frontend doesn't error
+      res.write(`data: ${JSON.stringify({ type: 'done', document_id: docId })}\n\n`)
+      res.end()
+      return
+    }
+
     const sendEvent = (data: object) => {
       res.write(`data: ${JSON.stringify(data)}\n\n`)
     }
 
-    const gen = await generation
-    for await (const event of gen) {
+    // Handle client disconnect — stop sending events but don't kill the pipeline
+    let disconnected = false
+    req.on('close', () => { disconnected = true })
+
+    for await (const event of streamGeneration(docId)) {
+      if (disconnected) break
       sendEvent(event)
     }
 
-    res.end()
+    if (!disconnected) res.end()
   } catch (err) {
-    clearActiveGeneration(req.params.id as string)
+    clearGenerationState(req.params.id as string)
     next(err)
   }
 })
@@ -73,11 +81,26 @@ documentRouter.get('/:id/export', requireAuth, async (req, res, next) => {
       res.status(400).json({ error: { code: 'invalid_format', message: 'Format must be pdf, docx, or md' } })
       return
     }
-    const result = await exportDocument(req.params.id as string, format as 'pdf' | 'docx' | 'md')
+    const docId = req.params.id as string
+
+    // Try to serve from S3 cache first (fast path)
+    const stored = await getStoredExport(docId, format)
+    if (stored) {
+      res.setHeader('Content-Type', stored.mimeType)
+      res.setHeader('Content-Disposition', `attachment; filename="${stored.filename}"`)
+      res.setHeader('X-Cache', 'HIT')
+      res.send(stored.buffer)
+      await logAudit({ userId: req.user!.userId, action: 'document.exported', target: docId, metadata: { format, cached: true } })
+      return
+    }
+
+    // Generate fresh export (slow path, then stores in S3)
+    const result = await exportDocument(docId, format as 'pdf' | 'docx' | 'md')
     res.setHeader('Content-Type', result.mimeType)
     res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`)
+    res.setHeader('X-Cache', 'MISS')
     res.send(result.buffer)
-    await logAudit({ userId: req.user!.userId, action: 'document.exported', target: req.params.id as string, metadata: { format } })
+    await logAudit({ userId: req.user!.userId, action: 'document.exported', target: docId, metadata: { format, cached: false } })
   } catch (err) { next(err) }
 })
 

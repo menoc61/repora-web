@@ -1,7 +1,10 @@
-FROM node:22-alpine AS builder
+# Frontend — Optimized multi-stage build
+FROM node:22-alpine AS deps
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+COPY package.json package-lock.json ./
+RUN npm ci --prefer-offline --no-audit --no-fund
+
+FROM deps AS builder
 COPY . .
 RUN npm run build
 

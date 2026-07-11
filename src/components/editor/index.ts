@@ -1,4 +1,4 @@
-export { EditorCanvas, type OutlineSection } from './EditorCanvas'
+export { default as EditorCanvas, type OutlineSection } from './EditorCanvas'
 export { EditorHeader } from './EditorHeader'
 export { InspectorPanel } from './InspectorPanel'
 export { AgentProgressPanel } from './AgentProgressPanel'

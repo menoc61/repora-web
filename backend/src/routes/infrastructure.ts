@@ -4,6 +4,7 @@ import { logAudit } from '../services/audit.service'
 import { db } from '../db'
 import { sql } from 'drizzle-orm'
 import os from 'os'
+import { config } from '../config'
 
 export const infrastructureRouter = Router()
 
@@ -19,8 +20,7 @@ async function checkDb(): Promise<{ status: string; latencyMs?: number }> {
 
 async function checkOllama(): Promise<{ status: string }> {
   try {
-    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434'
-    const baseUrl = ollamaUrl.replace(/\/v1\/?$/, '')
+    const baseUrl = config.ollamaUrl.replace(/\/v1\/?$/, '')
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 3000)
     const response = await fetch(`${baseUrl}/api/tags`, { signal: controller.signal })

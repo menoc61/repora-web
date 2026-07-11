@@ -14,8 +14,11 @@ export async function getDocument(id: string) {
   return { ...doc, sections: sectionsList }
 }
 
-export async function listDocuments(userId: string, filters?: { status?: string; search?: string }) {
-  const conditions = [eq(schema.projects.ownerId, userId)]
+export async function listDocuments(userId: string, role?: string, filters?: { status?: string; search?: string }) {
+  const isSuperAdmin = role === 'super_admin' || role === 'admin'
+  const conditions: ReturnType<typeof eq>[] = isSuperAdmin
+    ? []
+    : [eq(schema.projects.ownerId, userId)]
 
   if (filters?.status) {
     conditions.push(eq(schema.documents.status, filters.status))
@@ -32,7 +35,7 @@ export async function listDocuments(userId: string, filters?: { status?: string;
     sectionCount: sql<number>`COALESCE((SELECT COUNT(*) FROM ${schema.sections} WHERE ${schema.sections.documentId} = ${schema.documents.id}), 0)`,
   }).from(schema.documents)
     .leftJoin(schema.projects, eq(schema.documents.projectId, schema.projects.id))
-    .where(and(...conditions))
+    .where(conditions.length ? and(...conditions) : undefined)
     .orderBy(desc(schema.documents.updatedAt))
 
   let docs = rows.map((r) => ({

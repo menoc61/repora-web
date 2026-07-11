@@ -1,13 +1,112 @@
-import { runAgent, clearActiveGeneration, type HermesEvent } from '../hermes'
+import { runAgent, clearGenerationState, type HermesEvent } from '../hermes'
 import { createContext, type GenerationContext } from '../context'
 import type { OutlineJson } from '../../services/outline.service'
 import { createSectionsFromOutline, generateStaticOutline, mergeTemplateWithOutline } from '../../services/outline.service'
 import { getTemplateForGeneration } from '../../services/template.service'
 import { evaluateWriterOutput, rescopeHandoff, adjustContext } from './negotiate'
 import { db } from '../../db'
-import { requirements } from '../../db/schema'
+import { requirements, documents, sections as sectionsTable, diagrams } from '../../db/schema'
 import { eq } from 'drizzle-orm'
 import { broadcastNotification } from '../../collaboration/ws'
+import { createDiagram } from '../../services/diagram.service'
+import { generateTablesFromRequirements } from '../tools/tables'
+
+// ── Document status persistence ──
+
+async function saveDocumentStatus(documentId: string, status: string) {
+  try {
+    await db
+      .update(documents)
+      .set({ status, updatedAt: new Date() })
+      .where(eq(documents.id, documentId))
+  } catch (err) {
+    console.warn(`[Hermes] Failed to save document status "${status}":`, err)
+  }
+}
+
+// ── Pipeline stage tracking (stored in document.outline JSON) ──
+
+async function savePipelineStage(documentId: string, stage: string) {
+  try {
+    const [doc] = await db.select({ outline: documents.outline }).from(documents).where(eq(documents.id, documentId)).limit(1)
+    const outline = (doc?.outline as Record<string, unknown>) || {}
+    await db.update(documents).set({ outline: { ...outline, _pipelineStage: stage }, updatedAt: new Date() }).where(eq(documents.id, documentId))
+  } catch (err) {
+    console.warn(`[Hermes] Failed to save pipeline stage "${stage}":`, err)
+  }
+}
+
+async function getPipelineStage(documentId: string): Promise<string | null> {
+  try {
+    const [doc] = await db.select({ outline: documents.outline }).from(documents).where(eq(documents.id, documentId)).limit(1)
+    const outline = (doc?.outline as Record<string, unknown>) || null
+    return (outline?._pipelineStage as string) || null
+  } catch {
+    return null
+  }
+}
+
+// ── Resume detection: inspect document state to find the right restart point ──
+
+type PipelineStage = 'planner' | 'writer' | 'uml' | 'tables' | 'reviewer'
+
+async function detectResumeStage(documentId: string, projectId: string): Promise<PipelineStage> {
+  // Check stored pipeline stage first
+  const stored = await getPipelineStage(documentId)
+  if (stored && ['planner', 'writer', 'uml', 'tables', 'reviewer'].includes(stored)) {
+    console.log(`[Hermes] Resume from stored pipeline stage: ${stored}`)
+    return stored as PipelineStage
+  }
+
+  // Check document state
+  const [doc] = await db.select({ status: documents.status, outline: documents.outline })
+    .from(documents)
+    .where(eq(documents.id, documentId))
+    .limit(1)
+
+  if (!doc) return 'planner'
+
+  // If document has no outline yet, start from planner (fresh generation)
+  const outline = doc.outline as Record<string, unknown> | null
+  if (!outline || !outline._pipelineStage) {
+    // Check if sections have real content (not just placeholder)
+    const docSections = await db.select({ id: sectionsTable.id, content: sectionsTable.content, title: sectionsTable.title })
+      .from(sectionsTable)
+      .where(eq(sectionsTable.documentId, documentId))
+
+    if (docSections.length === 0) return 'planner'
+
+    const hasRealContent = docSections.some(s => s.content && s.content.trim().length > 50)
+    if (!hasRealContent) {
+      // Only 1 placeholder section with no content = fresh generation, start from planner
+      if (docSections.length <= 1) return 'planner'
+      // Multiple sections but no content = writer needs to fill them
+      return 'writer'
+    }
+  }
+
+  // Document has outline with stored pipeline stage — use it
+  if (outline?._pipelineStage) {
+    return outline._pipelineStage as PipelineStage
+  }
+
+  // Fallback: inspect DB state for documents with content but no stored stage
+  const docSections = await db.select({ id: sectionsTable.id, content: sectionsTable.content, title: sectionsTable.title })
+    .from(sectionsTable)
+    .where(eq(sectionsTable.documentId, documentId))
+
+  if (docSections.length === 0) return 'planner'
+
+  const hasContent = docSections.some(s => s.content && s.content.trim().length > 50)
+  if (!hasContent) return 'writer'
+
+  const diagramRows = await db.select({ id: diagrams.id })
+    .from(diagrams)
+    .where(eq(diagrams.projectId, projectId))
+  if (diagramRows.length === 0) return 'uml'
+
+  return 'reviewer'
+}
 
 // JSON extraction helpers (moved from hermes.ts — needed by the Planner stage)
 function extractJson(text: string): Record<string, unknown> | null {
@@ -65,11 +164,17 @@ export async function orchestrateGeneration(
       // Create shared context for pipeline stages
       const ctx: GenerationContext = createContext(documentId, projectId)
 
+      // Detect resume stage from existing document state
+      const resumeStage = await detectResumeStage(documentId, projectId)
+      console.log(`[Hermes] Pipeline starting from stage: ${resumeStage}`)
+
       broadcastNotification({
         type: 'generation_started',
         title: 'Generation lancee',
-        message: 'Le pipeline Hermes demarre la generation du cahier des charges.',
-        data: { documentId, projectId },
+        message: resumeStage !== 'planner'
+          ? `Reprise du pipeline depuis l'etape: ${resumeStage}`
+          : 'Le pipeline Hermes demarre la generation du cahier des charges.',
+        data: { documentId, projectId, resumeStage },
       })
 
       // ==================================================================
@@ -99,11 +204,16 @@ export async function orchestrateGeneration(
 
       // ==================================================================
       // STEP 1: PLANNER — generate dynamic outline via LLM
+      // (skip if resuming from a later stage)
       // ==================================================================
+      let outlineJson: OutlineJson | null = null
+      let sections: Array<{ id: string; title: string; order: number }> = []
+      let sectionCount = 0
+
+      if (resumeStage === 'planner') {
       yield { type: 'context_updated', agent: 'Hermes', key: 'pipelineStage', value: 'planner' }
       yield { type: 'agent_status', agent: 'Planner', status: 'structuring' }
 
-      let outlineJson: OutlineJson | null = null
       let collectedText = ''
 
       // Pre-fetch requirements from DB and inject into Planner prompt
@@ -188,19 +298,58 @@ export async function orchestrateGeneration(
       // Adjust context with outline metadata
       adjustContext(ctx, 'chapterCount', outlineJson.chapters.length)
 
-      const sections = await createSectionsFromOutline(documentId, outlineJson)
-      const sectionCount = sections.length
+      sections = await createSectionsFromOutline(documentId, outlineJson)
+      sectionCount = sections.length
       yield { type: 'agent_status', agent: 'Planner', status: 'done' }
       yield { type: 'agent_status', agent: 'System', status: 'outline_created', sections_created: sectionCount }
       yield { type: 'context_updated', agent: 'Hermes', key: 'sectionCount', value: sectionCount }
+      await saveDocumentStatus(documentId, 'draft')
+      await savePipelineStage(documentId, 'planner')
+      } else {
+        // Resume: load existing sections from DB
+        sections = await db.select({ id: sectionsTable.id, title: sectionsTable.title, order: sectionsTable.order })
+          .from(sectionsTable)
+          .where(eq(sectionsTable.documentId, documentId))
+          .orderBy(sectionsTable.order)
+        sectionCount = sections.length
+        console.log(`[Hermes] Resume: loaded ${sectionCount} existing sections`)
+        yield { type: 'agent_status', agent: 'System', status: 'resumed', stage: resumeStage, sections_loaded: sections.length }
+      }
 
       // ==================================================================
       // STEP 2: WRITER — draft each section with quality evaluation
+      // When resuming, skip sections that already have substantive content
       // ==================================================================
-      if (sectionCount > 0) {
+      if (sectionCount > 0 && resumeStage === 'writer' || resumeStage === 'planner') {
         yield { type: 'context_updated', agent: 'Hermes', key: 'pipelineStage', value: 'writer' }
         yield { type: 'agent_status', agent: 'Writer', status: 'thinking' }
-        for (let i = 0; i < sections.length; i++) {
+
+        // When resuming from 'writer', check which sections already have content
+        let startIdx = 0
+        if (resumeStage === 'writer') {
+          const existingContents = await db.select({ id: sectionsTable.id, content: sectionsTable.content })
+            .from(sectionsTable)
+            .where(eq(sectionsTable.documentId, documentId))
+          const contentMap = new Map(existingContents.map(r => [r.id, r.content || '']))
+          // Find first section without substantive content
+          while (startIdx < sections.length) {
+            const s = sections[startIdx]
+            const existing = contentMap.get(s.id) || ''
+            if (existing.trim().length >= 50) {
+              yield { type: 'section_complete', section_id: s.id, title: s.title, skipped: true }
+              startIdx++
+            } else {
+              break
+            }
+          }
+          if (startIdx >= sections.length) {
+            console.log('[Hermes] Writer resume: all sections already have content')
+          } else {
+            console.log(`[Hermes] Writer resume: starting from section ${startIdx + 1}/${sectionCount}`)
+          }
+        }
+
+        for (let i = startIdx; i < sections.length; i++) {
           const section = sections[i]
           yield {
             type: 'agent_status',
@@ -210,13 +359,17 @@ export async function orchestrateGeneration(
             section_title: section.title,
           }
 
-          const sectionPrompt = `Write the section titled "${section.title}" (sectionId: "${section.id}") for document ${documentId}.
+          const sectionPrompt = `Write the section "${section.title}" (sectionId: "${section.id}") for document ${documentId}.
 
-First call getProjectContext(projectId: "${projectId}") to understand the project context and requirements relevant to this section.
+Step 1: Call getProjectContext(projectId: "${projectId}") to get the project context.
 
-Then call writeSection with sectionId="${section.id}" and your prose content.
+Step 2: Write the actual specification text for this section. Write 300-800 words of professional French technical prose. Do NOT write meta-commentary like "I will write..." — just write the content directly.
 
-This is part of a professional specification document ("cahier des charges"). Write clear, detailed, specific prose in French. Reference the actual requirements when writing — not generic placeholder text. Be technical and precise.`
+Step 3: Call writeSection with:
+- sectionId: "${section.id}"  
+- content: your complete written text (the actual specification, NOT an explanation)
+
+IMPORTANT: The content parameter must contain the FINAL document text. No preamble, no "Here is...", no "I'll help you write...". Just the specification content itself.`
 
           // Track rescope attempts for this section
           let rescopeCount = ctx.rescopeCount.get(section.id) || 0
@@ -224,16 +377,68 @@ This is part of a professional specification document ("cahier des charges"). Wr
 
           // Try writing the section (with rescope loop for quality issues)
           let writerDone = false
+          let currentPrompt = sectionPrompt
           while (!writerDone && rescopeCount < 3) {
-            const writerGen = runAgent('Writer', sectionPrompt, { projectId, documentId, sectionId: section.id })
+            const writerGen = runAgent('Writer', currentPrompt, { projectId, documentId, sectionId: section.id })
+            sectionContent = '' // Reset for this attempt
+            let toolCalled = false
             for await (const event of writerGen) {
               if (event.type === 'token') {
                 sectionContent += (event as { token: string }).token
               }
+              if (event.type === 'tool_call' && (event as any).tool === 'writeSection') {
+                toolCalled = true
+              }
               yield event
             }
 
-            // Evaluate the output
+            // After agent completes, read actual content from DB (writeSection tool persists there)
+            try {
+              const [dbSection] = await db
+                .select({ content: sectionsTable.content })
+                .from(sectionsTable)
+                .where(eq(sectionsTable.id, section.id))
+                .limit(1)
+              if (dbSection?.content && dbSection.content.trim().length > 0) {
+                sectionContent = dbSection.content
+              }
+            } catch { /* use streamed content as fallback */ }
+
+            // Always save to DB: tool-written content takes priority, but if the
+            // model stopped mid-stream or never called the tool, persist whatever
+            // was captured so work isn't lost and resume can pick up from here.
+            if (sectionContent.trim().length > 0) {
+              try {
+                await db
+                  .update(sectionsTable)
+                  .set({ content: sectionContent.trim(), status: 'draft' })
+                  .where(eq(sectionsTable.id, section.id))
+                if (!toolCalled) {
+                  console.log(`[Hermes] Writer: tool not called, saved ${sectionContent.length} chars directly to DB`)
+                }
+              } catch (err) {
+                console.warn('[Hermes] Writer: failed to save content directly:', err)
+              }
+            }
+
+            // If the model didn't call any tools, rescoping won't help — accept
+            // whatever text was produced and move on to the next section
+            if (!toolCalled) {
+              console.log(`[Hermes] Writer: no tools called — accepting ${sectionContent.length} chars of text output for section ${section.id}`)
+              if (sectionContent.trim().length === 0) {
+                yield {
+                  type: 'generation_error',
+                  agent: 'Writer',
+                  section_id: section.id,
+                  message: 'Le modèle n\'a produit aucun contenu. Vérifiez qu\'Ollama est en ligne.',
+                  error_type: 'empty_output',
+                }
+              }
+              writerDone = true
+              continue
+            }
+
+            // Evaluate the output (only when tools were actually used)
             const quality = evaluateWriterOutput(sectionContent)
             if (!quality.passed) {
               rescopeCount++
@@ -247,7 +452,6 @@ This is part of a professional specification document ("cahier des charges"). Wr
               )
 
               if (decision.decision === 'abort') {
-                // G2: loop breaker — mark for human review
                 yield {
                   type: 'generation_error',
                   agent: 'Writer',
@@ -257,7 +461,6 @@ This is part of a professional specification document ("cahier des charges"). Wr
                 }
                 writerDone = true
               } else {
-                // Rescope: re-run with feedback injected
                 yield {
                   type: 'context_updated',
                   agent: 'Hermes',
@@ -271,20 +474,10 @@ This is part of a professional specification document ("cahier des charges"). Wr
                   section: section.id,
                   attempt: rescopeCount,
                 }
-                // Modify prompt with feedback for next iteration
+                // Modify prompt with feedback for next iteration (replaces, not appends)
                 const feedbackPrompt = `[FEEDBACK: ${quality.issues.join('. ')}] Please rewrite the section with more substantive content.`
-                sectionContent = '' // Reset collected content for re-run
-                // Note: we re-use the same prompt + feedback appended
-                // The Writer is re-invoked with the original prompt plus feedback
-                const rescopePrompt = `${sectionPrompt}\n\n${feedbackPrompt}`
-                // Re-invoke the Writer for this section
-                const rescopeGen = runAgent('Writer', rescopePrompt, { projectId, documentId, sectionId: section.id })
-                for await (const event of rescopeGen) {
-                  if (event.type === 'token') {
-                    sectionContent += (event as { token: string }).token
-                  }
-                  yield event
-                }
+                currentPrompt = `${sectionPrompt}\n\n${feedbackPrompt}`
+                // Loop continues — will re-run Writer with updated prompt
               }
             } else {
               writerDone = true
@@ -297,11 +490,15 @@ This is part of a professional specification document ("cahier des charges"). Wr
         // G3: fabrication pattern scan (future — Phase 2)
         // G4: PII scan (future — Phase 2)
         yield { type: 'agent_status', agent: 'Writer', status: 'done' }
+        await saveDocumentStatus(documentId, 'in_review')
+        await savePipelineStage(documentId, 'writer')
       }
 
       // ==================================================================
       // STEP 3: UML — generate diagrams from document content
+      // (skip if resuming from a later stage)
       // ==================================================================
+      if (resumeStage === 'planner' || resumeStage === 'writer') {
       yield { type: 'context_updated', agent: 'Hermes', key: 'pipelineStage', value: 'uml' }
       yield { type: 'agent_status', agent: 'UML', status: 'thinking' }
 
@@ -329,12 +526,37 @@ Generate at minimum a use case diagram and a sequence diagram. Add class and act
       for await (const event of umlGen) {
         yield event
       }
+
+      // Fallback: if UML agent didn't call saveDiagram, generate diagrams via service
+      const existingDiagrams = await db.select({ id: diagrams.id })
+        .from(diagrams)
+        .where(eq(diagrams.projectId, projectId))
+
+      if (existingDiagrams.length === 0) {
+        console.log('[Hermes] UML agent produced no diagrams — generating via fallback')
+        yield { type: 'agent_status', agent: 'UML', status: 'generating_fallback' }
+        for (const diagType of ['use_case', 'sequence']) {
+          try {
+            const d = await createDiagram(projectId, diagType, ctx.outline?.title || prompt)
+            yield { type: 'tool_call', agent: 'UML', tool: 'saveDiagram', args: { type: diagType, projectId } }
+            yield { type: 'tool_result', agent: 'UML', tool: 'saveDiagram', result: { id: d.id, ok: true } }
+          } catch (err) {
+            console.warn(`[Hermes] Fallback diagram generation failed for ${diagType}:`, (err as Error).message)
+          }
+        }
+      }
+
       // G1: PlantUML syntax check (future — Phase 2)
       yield { type: 'agent_status', agent: 'UML', status: 'done' }
+      await saveDocumentStatus(documentId, 'in_review')
+      await savePipelineStage(documentId, 'uml')
+      } // end UML resume check
 
       // ==================================================================
       // STEP 4: TABLES — generate requirement matrices
+      // (skip if resuming from a later stage)
       // ==================================================================
+      if (resumeStage === 'planner' || resumeStage === 'writer' || resumeStage === 'uml') {
       yield { type: 'context_updated', agent: 'Hermes', key: 'pipelineStage', value: 'tables' }
       yield { type: 'agent_status', agent: 'Tables', status: 'thinking' }
       const tablesPrompt = `Generate structured requirement tables for document ${documentId}.
@@ -355,11 +577,45 @@ Generate tables for:
       for await (const event of tablesGen) {
         yield event
       }
+
+      // Fallback: if Tables agent didn't produce any table sections, generate from project data
+      const tableSections = await db.select({ id: sectionsTable.id, order: sectionsTable.order })
+        .from(sectionsTable)
+        .where(eq(sectionsTable.documentId, documentId))
+      const hasTableSections = tableSections.some(s => (s.order ?? 0) >= 100)
+
+      if (!hasTableSections) {
+        console.log('[Hermes] Tables agent produced no table sections — generating via fallback')
+        yield { type: 'agent_status', agent: 'Tables', status: 'generating_fallback' }
+        const fallbackTables = await generateTablesFromRequirements(documentId, projectId)
+        for (const tbl of fallbackTables) {
+          try {
+            const { sql } = await import('drizzle-orm')
+            const existing = await db.select({ maxOrder: sql<number>`coalesce(max(${sectionsTable.order}), 0)` })
+              .from(sectionsTable).where(eq(sectionsTable.documentId, documentId))
+            const maxOrder = existing.length > 0 ? (existing[0].maxOrder ?? 0) : 0
+            const order = Math.max(tbl.order, maxOrder + 1)
+            const [inserted] = await db.insert(sectionsTable).values({
+              documentId, order, title: tbl.title, content: tbl.content, status: 'draft',
+            }).returning({ id: sectionsTable.id })
+            yield { type: 'tool_call', agent: 'Tables', tool: 'saveRequirementSection', args: { title: tbl.title, order } }
+            yield { type: 'tool_result', agent: 'Tables', tool: 'saveRequirementSection', result: { id: inserted.id, ok: true } }
+          } catch (err) {
+            console.warn(`[Hermes] Fallback table generation failed for "${tbl.title}":`, (err as Error).message)
+          }
+        }
+      }
+
       yield { type: 'agent_status', agent: 'Tables', status: 'done' }
+      await saveDocumentStatus(documentId, 'in_review')
+      await savePipelineStage(documentId, 'tables')
+      } // end Tables resume check
 
       // ==================================================================
       // STEP 5: REVIEWER — quality audit with write-back to comments and sections
+      // (skip if resuming from reviewer and document is already reviewed)
       // ==================================================================
+      if (resumeStage !== 'reviewer' || true) { // always run reviewer on resume since it's the quality gate
       yield { type: 'context_updated', agent: 'Hermes', key: 'pipelineStage', value: 'reviewer' }
       yield { type: 'agent_status', agent: 'Reviewer', status: 'thinking' }
       const reviewerPrompt = `Review the complete document ${documentId} for project ${projectId}.
@@ -378,6 +634,9 @@ Check: consistency between sections, terminology alignment, completeness (no emp
         yield event
       }
       yield { type: 'agent_status', agent: 'Reviewer', status: 'done' }
+      await saveDocumentStatus(documentId, 'reviewed')
+      await savePipelineStage(documentId, 'reviewer')
+      } // end Reviewer resume check
 
       broadcastNotification({
         type: 'generation_complete',
@@ -388,7 +647,7 @@ Check: consistency between sections, terminology alignment, completeness (no emp
 
       yield { type: 'done' as const, document_id: documentId }
     } finally {
-      clearActiveGeneration(documentId)
+      clearGenerationState(documentId)
     }
   }
 

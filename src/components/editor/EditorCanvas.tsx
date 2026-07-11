@@ -1,12 +1,40 @@
-import { useRef, useEffect, useCallback, useState } from 'react'
-import { BlockNoteViewRaw as BlockNoteView, useCreateBlockNote } from '@blocknote/react'
+import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Link from '@tiptap/extension-link'
+import Placeholder from '@tiptap/extension-placeholder'
+import { Table } from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
+import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import Highlight from '@tiptap/extension-highlight'
+import Typography from '@tiptap/extension-typography'
+import HorizontalRule from '@tiptap/extension-horizontal-rule'
+import Image from '@tiptap/extension-image'
+import TextAlign from '@tiptap/extension-text-align'
+import Underline from '@tiptap/extension-underline'
+import { TextStyle } from '@tiptap/extension-text-style'
+import Color from '@tiptap/extension-color'
+import Collaboration from '@tiptap/extension-collaboration'
+// CollaborationCursor removed: v2 extension crashes with v3 Collaboration
+// (y-prosemirror PluginKey mismatch). Re-add when v3-compatible version is available.
+import { Markdown } from 'tiptap-markdown'
+import { common, createLowlight } from 'lowlight'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import { useSaveDocument } from '../../hooks/useQueries'
+import { streamAiComplete } from '../../hooks/useQueries'
+import { useGenerationStore } from '../../stores/generationStore'
+import { useGenerationWriter } from '../../hooks/useGenerationWriter'
+import { useAuthStore } from '../../stores'
+import { SlashCommand } from './extensions/SlashCommand'
+import EditorBubbleMenu from './EditorBubbleMenu'
+import AiToolbar from './AiToolbar'
 
-const COLLAB_WS_BASE = 'ws://localhost:8000/collab'
-
-// ── Types ──
+const lowlight = createLowlight(common)
 
 export interface OutlineSection {
   title: string
@@ -15,172 +43,215 @@ export interface OutlineSection {
   sub?: string[]
 }
 
-// ── Block ↔ Section conversion ──
-
-function sectionsToBlocks(sections: Array<{ id: string; title: string; content: string; status: string }>) {
-  const blocks: any[] = []
-  for (const section of sections) {
-    blocks.push({
-      type: 'heading' as const,
-      props: { level: 2 },
-      content: [{ type: 'text' as const, text: section.title, styles: {} }],
-    })
-    if (section.content) {
-      const paragraphs = section.content.split('\n').filter(Boolean)
-      for (const para of paragraphs) {
-        blocks.push({
-          type: 'paragraph' as const,
-          content: [{ type: 'text' as const, text: para, styles: {} }],
-        })
-      }
-    }
-  }
-  return blocks
-}
-
-function blocksToSections(blocks: any[], sectionIds: Map<string, string>): Array<{ id?: string; title: string; content: string; status: string }> {
-  const sections: Array<{ id?: string; title: string; content: string; status: string }> = []
-  let current: { id?: string; title: string; content: string; status: string } | null = null
-
-  for (const block of blocks) {
-    const text = block.content?.map((c: any) => c.text).join('') ?? ''
-    if (block.type === 'heading') {
-      if (current) sections.push(current)
-      current = { id: sectionIds.get(text) ?? undefined, title: text, content: '', status: 'draft' }
-    } else if (current) {
-      if (current.content) current.content += '\n'
-      current.content += text
-    }
-  }
-  if (current) sections.push(current)
-  return sections
-}
-
-function extractOutlineFromBlocks(blocks: any[]): OutlineSection[] {
-  return blocks
-    .filter((b: any) => b.type === 'heading')
-    .map((b: any) => ({
-      title: b.content?.map((c: any) => c.text).join('') ?? '',
-    }))
-}
-
-function wordCountFromBlocks(blocks: any[]): number {
-  let count = 0
-  for (const block of blocks) {
-    const text = block.content?.map((c: any) => c.text ?? '').join(' ') ?? ''
-    count += text.split(/\s+/).filter(Boolean).length
-  }
-  return count
-}
-
-// ── Editor Canvas (BlockNote + Yjs) ──
-
 interface EditorCanvasProps {
   docId: string
   document: any
   isLoading: boolean
   onWordCountChange: (n: number) => void
   onOutlineChange: (sections: OutlineSection[]) => void
+  onEditorReady?: (editor: any) => void
+  onProviderReady?: (provider: any) => void
 }
 
-export function EditorCanvas({ docId, document, isLoading, onWordCountChange, onOutlineChange }: EditorCanvasProps) {
+function collabWsUrl(docName: string): string {
+  const { protocol, host } = window.location
+  const token = useAuthStore.getState().token
+  const base = `${protocol === 'https:' ? 'wss' : 'ws'}://${host}/collab/${docName}`
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base
+}
+
+function sectionsToMarkdown(sections: Array<{ title: string; content: string }>): string {
+  return sections
+    .map((s) => `## ${s.title}\n\n${s.content}`)
+    .join('\n\n')
+}
+
+export default forwardRef<any, EditorCanvasProps>((props, ref) => {
+  const { docId, document, isLoading, onWordCountChange, onOutlineChange, onEditorReady, onProviderReady } = props
   const saveDocument = useSaveDocument()
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const initializedRef = useRef(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [ydoc] = useState(() => new Y.Doc())
+  const [provider] = useState(() => new WebsocketProvider(collabWsUrl(docId), docId, ydoc))
+  const [aiToolbarVisible, setAiToolbarVisible] = useState(false)
+  const generating = useGenerationStore((s) =>
+    s.sessions.some((x) => x.documentId === docId && x.status === 'generating'),
+  )
 
-  // Yjs + WebSocket provider — stable across renders via useState lazy init
-  const [yDoc] = useState(() => new Y.Doc())
-  const [provider] = useState(() => new WebsocketProvider(`${COLLAB_WS_BASE}/${docId}`, docId, yDoc))
-
-  useEffect(() => {
-    return () => {
-      provider.disconnect()
-      provider.destroy()
-    }
-  }, [provider])
-
-  const editor = useCreateBlockNote({
-    collaboration: {
-      provider,
-      fragment: yDoc.getXmlFragment('repora-document'),
-      user: { name: 'Repora AI', color: '#2563EB' },
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({
+        codeBlock: false,
+      }),
+      Link.configure({ openOnClick: false, HTMLAttributes: { class: 'text-ai-vibrant underline cursor-pointer' } }),
+      Placeholder.configure({ placeholder: "Tapez '/' pour les commandes, ou commencez a ecrire..." }),
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableCell,
+      TableHeader,
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      CodeBlockLowlight.configure({ lowlight }),
+      Highlight.configure({ multicolor: true }),
+      Typography,
+      HorizontalRule,
+      Image.configure({ inline: true, allowBase64: true }),
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      Underline,
+      TextStyle,
+      Color,
+      Markdown,
+      SlashCommand,
+      Collaboration.configure({ document: ydoc }),
+    ],
+    editorProps: {
+      attributes: {
+        class: 'prose prose-slate max-w-[800px] mx-auto py-20 px-12 focus:outline-none min-h-[60vh]',
+      },
     },
   })
 
-  // Populate editor from loaded document sections (once)
-  useEffect(() => {
-    if (!editor || isLoading || !document?.sections?.length || initializedRef.current) return
-    const fragment = yDoc.getXmlFragment('repora-document')
-    if (fragment.length > 0) {
-      initializedRef.current = true
-      return
-    }
-    const blocks = sectionsToBlocks(document.sections)
-    if (blocks.length > 0) {
-      editor.replaceBlocks(editor.document, blocks)
-    }
-    initializedRef.current = true
-  }, [editor, document, isLoading, yDoc])
+  useImperativeHandle(ref, () => editor, [editor])
 
-  // Debounced auto-save on content change
-  const handleChange = useCallback(() => {
-    if (!docId || !document) return
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    saveTimerRef.current = setTimeout(() => {
-      const blocks = editor.document
-      const sectionIds = new Map<string, string>()
-      if (document.sections) {
-        for (const s of document.sections) {
-          sectionIds.set(s.title, s.id)
-        }
+  useEffect(() => {
+    onEditorReady?.(editor)
+  }, [editor, onEditorReady])
+
+  useEffect(() => {
+    onProviderReady?.(provider)
+  }, [provider, onProviderReady])
+
+  // Seed once from document.sections if collab doc is empty
+  useEffect(() => {
+    if (!editor || isLoading || !document?.sections?.length) return
+    const seed = () => {
+      if (editor.isEmpty) {
+        editor.commands.setContent(sectionsToMarkdown(document.sections))
+        onOutlineChange(document.sections.map((s: any) => ({ title: s.title })))
       }
-      const sections = blocksToSections(blocks, sectionIds)
-      saveDocument.mutate({
-        id: docId,
-        sections,
-        content: JSON.stringify(blocks),
-      })
+    }
+    provider.on('sync', seed)
+    if (provider.synced) seed()
+    return () => { provider.off('sync', seed) }
+  }, [editor, document, isLoading, provider, onOutlineChange])
+
+  // Autosave markdown
+  const handleUpdate = useCallback(() => {
+    if (!editor || !docId) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      const md = (editor.storage as any).markdown?.getMarkdown?.() ?? ''
+      const words = editor.getText().trim().split(/\s+/).filter(Boolean).length
+      onWordCountChange(words)
+      saveDocument.mutate({ id: docId, content: md })
     }, 2000)
-  }, [docId, editor, saveDocument, document])
+  }, [editor, docId, saveDocument, onWordCountChange])
 
   useEffect(() => {
     if (!editor) return
-    const tip = (editor as any)._tiptapEditor
-    if (!tip) return
-    tip.on('update', handleChange)
-    return () => {
-      tip.off('update', handleChange)
-    }
-  }, [editor, handleChange])
+    editor.on('update', handleUpdate)
+    return () => { editor.off('update', handleUpdate) }
+  }, [editor, handleUpdate])
 
-  // Update word count and outline from editor state
+  // Lock editor while generating
   useEffect(() => {
     if (!editor) return
-    const blocks = editor.document
-    onWordCountChange(wordCountFromBlocks(blocks))
-    onOutlineChange(extractOutlineFromBlocks(blocks))
-  }, [editor, onWordCountChange, onOutlineChange])
+    editor.setEditable(!generating)
+  }, [editor, generating])
 
-  // Cleanup save timer
+  // Live generation streaming (SSE -> TipTap)
+  useGenerationWriter(docId, editor)
+
+  const aiStreamingRef = useRef(false)
+
+  const handleAiCommand = useCallback(
+    async (command: string) => {
+      if (!editor || aiStreamingRef.current) return
+      const selection = editor.state.selection
+      const selectedText = selection.empty
+        ? ''
+        : editor.state.doc.textBetween(selection.from, selection.to, '')
+
+      aiStreamingRef.current = true
+      setAiToolbarVisible(false)
+
+      // If there's selected text, delete it first so the AI replaces it
+      if (!selection.empty) {
+        editor.chain().focus().deleteSelection().run()
+      }
+
+      // Insert a markdown separator before AI output
+      editor.chain().focus().insertContent('\n\n').run()
+
+      try {
+        const stream = await streamAiComplete(command, selectedText || undefined)
+        for await (const token of stream) {
+          editor.chain().focus().insertContent(token).run()
+        }
+      } catch (err) {
+        console.error('AI complete error:', err)
+        editor.chain().focus().insertContent('\n*[Erreur: impossible de joindre l\'assistant IA]*\n').run()
+      } finally {
+        aiStreamingRef.current = false
+      }
+    },
+    [editor],
+  )
+
+  // AI custom events — depends on handleAiCommand (defined above)
   useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    const handleAiGenerate = () => setAiToolbarVisible(true)
+    const handleAiImprove = () => setAiToolbarVisible(true)
+    const handleAiAction = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.action && editor) {
+        const text = detail.text || ''
+        const promptMap: Record<string, string> = {
+          improve: `Ameliorez et reformulez ce texte en gardant le sens :\n\n${text}`,
+          translate: `Traduisez ce texte en anglais :\n\n${text}`,
+          summarize: `Resumez ce texte en 2-3 phrases :\n\n${text}`,
+          rewrite: `Reformulez ce texte de maniere plus claire et professionnelle :\n\n${text}`,
+        }
+        const prompt = promptMap[detail.action] || detail.action
+        handleAiCommand(prompt)
+      }
     }
-  }, [])
+
+    window.addEventListener('repora:ai-generate', handleAiGenerate)
+    window.addEventListener('repora:ai-improve', handleAiImprove)
+    window.addEventListener('repora:ai-action', handleAiAction)
+    return () => {
+      window.removeEventListener('repora:ai-generate', handleAiGenerate)
+      window.removeEventListener('repora:ai-improve', handleAiImprove)
+      window.removeEventListener('repora:ai-action', handleAiAction)
+    }
+  }, [editor, handleAiCommand])
 
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center text-on-surface-variant font-label-md">
-        Chargement du document...
+        Chargement du document…
       </div>
     )
   }
 
   return (
-    <div className="flex-1 overflow-y-auto hide-scrollbar">
-      <div className="max-w-[800px] mx-auto py-20 px-12 min-h-full">
-        <BlockNoteView editor={editor} theme="light" className="min-h-[60vh]" />
-      </div>
+    <div className="flex-1 overflow-y-auto hide-scrollbar relative">
+      {editor && <EditorBubbleMenu editor={editor} />}
+      <EditorContent editor={editor} />
+      <AiToolbar
+        visible={aiToolbarVisible}
+        onCommand={handleAiCommand}
+        isGenerating={generating}
+        onCancel={() => setAiToolbarVisible(false)}
+      />
+      {generating && (
+        <div className="absolute inset-0 bg-surface-studio/60 flex items-center justify-center z-20">
+          <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-xl border border-outline-variant shadow-lg">
+            <span className="w-2.5 h-2.5 rounded-full bg-ai-vibrant animate-pulse" />
+            <span className="font-label-md text-label-md text-primary">Génération en cours…</span>
+          </div>
+        </div>
+      )}
     </div>
   )
-}
+})

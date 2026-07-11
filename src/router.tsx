@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import {
   createRootRoute,
   createRoute,
@@ -16,8 +17,6 @@ import NotificationCenter from './components/NotificationCenter'
 import WorkspaceDashboard from './pages/WorkspaceDashboard'
 import DocumentLibrary from './pages/DocumentLibrary'
 import TemplateGallery from './pages/TemplateGallery'
-import Editor from './pages/Editor'
-import ExportPreview from './pages/ExportPreview'
 import Settings from './pages/Settings'
 import Infrastructure from './pages/Infrastructure'
 import Sharing from './pages/Sharing'
@@ -25,8 +24,15 @@ import VersionHistory from './pages/VersionHistory'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ValidatePortal from './pages/ValidatePortal'
-import OnboardingWizard from './pages/OnboardingWizard'
-import AssistantPage from './pages/Assistant'
+
+const Editor = lazy(() => import('./pages/Editor'))
+const ExportPreview = lazy(() => import('./pages/ExportPreview'))
+const OnboardingWizard = lazy(() => import('./pages/OnboardingWizard'))
+const AssistantPage = lazy(() => import('./pages/Assistant'))
+
+function LazyPage({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<div className="h-screen flex items-center justify-center text-on-surface-variant"><span className="w-5 h-5 border-2 border-ai-vibrant/30 border-t-ai-vibrant rounded-full animate-spin" /></div>}>{children}</Suspense>
+}
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -97,7 +103,7 @@ const validatePortalRoute = createRoute({
 const editorRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/editor',
-  component: Editor,
+  component: () => <LazyPage><Editor /></LazyPage>,
   beforeLoad: () => requireAuth(),
   validateSearch: (search: Record<string, unknown>) => ({
     id: typeof search.id === 'string' ? search.id : undefined,
@@ -107,7 +113,7 @@ const editorRoute = createRoute({
 const exportRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/export',
-  component: ExportPreview,
+  component: () => <LazyPage><ExportPreview /></LazyPage>,
   beforeLoad: () => requireAuth(),
   validateSearch: (search: Record<string, unknown>) => ({
     id: typeof search.id === 'string' ? search.id : undefined,
@@ -148,14 +154,14 @@ const historyRoute = createRoute({
 const onboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/onboarding/$id',
-  component: OnboardingWizard,
+  component: () => <LazyPage><OnboardingWizard /></LazyPage>,
   beforeLoad: () => requireAuth(),
 })
 
 const assistantRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/assistant/$id',
-  component: AssistantPage,
+  component: () => <LazyPage><AssistantPage /></LazyPage>,
   beforeLoad: () => requireAuth(),
 })
 

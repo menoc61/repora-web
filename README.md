@@ -26,7 +26,7 @@ docker compose up
 ```mermaid
 graph LR
     A[git clone] --> B[docker compose up]
-    B --> C[PostgreSQL :5433]
+    B --> C[PostgreSQL :5434]
     B --> D[Backend Express :8001]
     B --> E[Frontend nginx :3000]
     D --> F[Ollama local :11434]
@@ -42,14 +42,14 @@ graph LR
 Copiez `.env.example` en `.env` et ajustez si necessaire. Les valeurs par defaut suffisent pour un demarrage rapide.
 
 ```env
-# Facultatif — defaut : detection auto via API Ollama
-OLLAMA_MODEL=ornith:latest
+# Facultatif — defaut : nemotron-3-super:cloud (sinon detection auto via `ollama list`)
+OLLAMA_MODEL=nemotron-3-super:cloud
 
 # Facultatif — defaut : host.docker.internal
 OLLAMA_HOST=host.docker.internal
 ```
 
-Le backend detecte automatiquement le modele installe dans Ollama. La variable `OLLAMA_MODEL` permet de forcer un modele specifique.
+Le backend detecte automatiquement les modeles installes dans Ollama (`ollama list`) et sonde chacun pour savoir s'il supporte le tool-calling. Le modele par defaut est `nemotron-3-super:cloud` ; la variable `OLLAMA_MODEL` permet de forcer un autre modele. Au demarrage, seul le modele par defaut est sonde (les autres le sont a la premiere utilisation) afin d'eviter que des modeles cloud retires ne bloquent le boot.
 
 ### Redemarrage automatique
 
@@ -77,13 +77,13 @@ npm install
 npm run db:migrate && npm run db:seed
 
 # Windows PowerShell:
-$env:OLLAMA_MODEL="ornith:latest"
+$env:OLLAMA_MODEL="nemotron-3-super:cloud"
 $env:DATABASE_URL="postgres://repora:repora@localhost:5434/repora"
 $env:CORS_ORIGIN="http://localhost:5173"
 npm run dev                          # Express → http://localhost:8000
 
 # Linux/Mac:
-OLLAMA_MODEL=ornith:latest          \
+OLLAMA_MODEL=nemotron-3-super:cloud \
 DATABASE_URL=postgres://repora:repora@localhost:5434/repora \
 CORS_ORIGIN=http://localhost:5173   \
 npm run dev
@@ -458,7 +458,7 @@ graph TD
 |---------|------------|------|-------------|
 | Frontend | nginx:alpine (SPA) | 3000:80 | unless-stopped |
 | Backend | Node 22 Alpine (tsx) | 8001:8000 | unless-stopped |
-| Database | postgres:17 | 5433:5432 | unless-stopped |
+| Database | postgres:17 | 5434:5432 | unless-stopped |
 | LLM Local | Ollama (host) | 11434 | — |
 
 ---
@@ -592,7 +592,7 @@ repora-web/
 |---------|---------|---------|
 | Frontend | `3000` | `80` (nginx) |
 | Backend | `8001` | `8000` (Express) |
-| PostgreSQL | `5433` | `5432` |
+| PostgreSQL | `5434` | `5432` |
 | Ollama (hote) | `11434` | — |
 
 ---

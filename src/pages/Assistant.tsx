@@ -3,6 +3,7 @@ import { useParams, useNavigate } from '@tanstack/react-router'
 import { api } from '../api/client'
 import { notify } from '../components/Toast'
 import { Button } from '../components/ui/button'
+import Icon from '../components/Icon'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -46,14 +47,62 @@ export default function AssistantPage() {
     setInput('')
     setMessages(prev => [...prev, { role: 'user', content: msg }])
     setLoading(true)
+
     try {
-      const res = await api.post<{ reply: string; extraction?: boolean }>('/assistant/chat', { sessionId, message: msg })
-      setMessages(prev => [...prev, { role: 'assistant', content: res.reply }])
-      if (res.extraction) {
-        const sum = await api.get<{ context: string[]; features: string[]; constraints: string[]; actors: string[] }>(`/assistant/session/${sessionId}`)
-        setSummary(sum)
+      // Use streaming SSE endpoint
+      const token = await api.getToken()
+      const response = await fetch(`${api.getBaseUrl()}/assistant/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sessionId, message: msg }),
+      })
+
+      if (!response.ok) throw new Error('Chat failed')
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let assistantContent = ''
+
+      // Add placeholder message that we'll update as tokens arrive
+      setMessages(prev => [...prev, { role: 'assistant', content: '' }])
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const text = decoder.decode(value, { stream: true })
+          const lines = text.split('\n')
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6).trim()
+              if (data === '[DONE]') break
+              try {
+                const parsed = JSON.parse(data)
+                if (parsed.token) {
+                  assistantContent += parsed.token
+                  // Update the last message (assistant placeholder) with accumulated content
+                  setMessages(prev => {
+                    const updated = [...prev]
+                    updated[updated.length - 1] = { role: 'assistant', content: assistantContent }
+                    return updated
+                  })
+                }
+              } catch { /* skip malformed lines */ }
+            }
+          }
+        }
       }
-    } catch { notify({ type: 'error', title: 'Erreur', message: 'Erreur de communication avec l\'assistant.' }) }
+
+      // After streaming, refresh summary
+      const sum = await api.get<{ context: string[]; features: string[]; constraints: string[]; actors: string[] }>(`/assistant/session/${sessionId}`)
+      setSummary(sum)
+    } catch {
+      notify({ type: 'error', title: 'Erreur', message: 'Erreur de communication avec l\'assistant.' })
+      // Remove the empty placeholder if streaming failed
+      setMessages(prev => prev.filter((m, i) => i < prev.length - 1 || m.content !== ''))
+    }
     setLoading(false)
   }
 
@@ -71,6 +120,7 @@ export default function AssistantPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center max-w-md">
+          <Icon name="smart_toy" className="text-6xl text-[var(--color-primary)] mb-4" />
           <h1 className="text-2xl font-semibold mb-4">Assistant Conversationnel</h1>
           <p className="text-muted-foreground mb-6">
             Laissez-moi vous guider pour definir les besoins de votre projet a travers un dialogue structure.
@@ -89,15 +139,18 @@ export default function AssistantPage() {
         <div className="flex-1 overflow-y-auto space-y-4 mb-4">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] rounded-lg px-4 py-2 ${m.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+              <div className={`max-w-[80%] rounded-lg px-4 py-2 ${m.role === 'user' ? 'bg-[var(--color-primary)] text-white' : 'bg-[var(--color-surface)] border border-[var(--color-border)]'}`}>
+                <p className="text-sm whitespace-pre-wrap">{m.content || (loading && i === messages.length - 1 ? '...' : '')}</p>
               </div>
             </div>
           ))}
-          {loading && (
+          {loading && messages[messages.length - 1]?.content !== '' && (
             <div className="flex justify-start">
-              <div className="bg-muted rounded-lg px-4 py-2">
-                <p className="text-sm animate-pulse">Reflexion en cours...</p>
+              <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg px-4 py-2">
+                <div className="flex items-center gap-2">
+                  <Icon name="smart_toy" className="text-sm text-[var(--color-primary)] animate-pulse" />
+                  <span className="text-sm text-muted-foreground">Reflexion en cours...</span>
+                </div>
               </div>
             </div>
           )}
@@ -110,20 +163,22 @@ export default function AssistantPage() {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && sendMessage()}
             placeholder="Decrivez votre projet..."
-            className="flex-1 px-4 py-2 rounded-lg border bg-background"
+            className="flex-1 px-4 py-2 rounded-lg border bg-[var(--color-surface)] text-sm"
             disabled={loading}
           />
           <Button onClick={sendMessage} disabled={loading || !input.trim()}>
-            Envoyer
+            <Icon name="send" className="text-sm mr-1" /> Envoyer
           </Button>
           <Button variant="outline" onClick={handleGenerate} disabled={loading}>
-            Generer
+            <Icon name="auto_fix_high" className="text-sm mr-1" /> Generer
           </Button>
         </div>
       </div>
       {summary && (
-        <div className="w-80 border-l p-4 overflow-y-auto bg-muted/30">
-          <h3 className="font-semibold mb-3">Informations collectees</h3>
+        <div className="w-80 border-l p-4 overflow-y-auto bg-[var(--color-surface-alt)]">
+          <h3 className="font-semibold mb-3 flex items-center gap-2">
+            <Icon name="info" className="text-sm" /> Informations collectees
+          </h3>
           {summary.context.length > 0 && (
             <div className="mb-4">
               <h4 className="text-xs font-medium text-muted-foreground uppercase mb-1">Contexte</h4>

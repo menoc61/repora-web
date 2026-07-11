@@ -1,6 +1,10 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx'
 import { getDocument } from './document.service'
+import { uploadExport, downloadExport } from './s3.service'
+import { db } from '../db'
+import { documents } from '../db/schema'
+import { eq } from 'drizzle-orm'
 
 function buildMarkdown(doc: Awaited<ReturnType<typeof getDocument>>): string {
   const title = (doc.outline as { title?: string } | null)?.title || 'Document'
@@ -140,28 +144,92 @@ async function buildDocx(doc: Awaited<ReturnType<typeof getDocument>>): Promise<
   return Buffer.from(await Packer.toBuffer(wordDoc))
 }
 
-export async function exportDocument(documentId: string, format: 'pdf' | 'docx' | 'md'): Promise<{
+interface ExportResult {
   buffer: Buffer
   mimeType: string
   filename: string
-}> {
+  s3Key?: string
+}
+
+/**
+ * Export a document to the specified format.
+ * Stores the result in S3/MinIO and returns the buffer + metadata.
+ * Also updates the documents table with the export URL for quick re-download.
+ */
+export async function exportDocument(documentId: string, format: 'pdf' | 'docx' | 'md'): Promise<ExportResult> {
   const doc = await getDocument(documentId)
   const shortId = documentId.slice(0, 8)
+
+  let result: ExportResult
 
   switch (format) {
     case 'pdf': {
       const pdfBytes = await buildPdf(doc)
-      return { buffer: Buffer.from(pdfBytes), mimeType: 'application/pdf', filename: `document-${shortId}.pdf` }
+      result = { buffer: Buffer.from(pdfBytes), mimeType: 'application/pdf', filename: `document-${shortId}.pdf` }
+      break
     }
     case 'docx': {
       const docxBuf = await buildDocx(doc)
-      return { buffer: docxBuf, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', filename: `document-${shortId}.docx` }
+      result = { buffer: docxBuf, mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', filename: `document-${shortId}.docx` }
+      break
     }
     case 'md': {
       const mdContent = buildMarkdown(doc)
-      return { buffer: Buffer.from(mdContent, 'utf-8'), mimeType: 'text/markdown', filename: `document-${shortId}.md` }
+      result = { buffer: Buffer.from(mdContent, 'utf-8'), mimeType: 'text/markdown', filename: `document-${shortId}.md` }
+      break
     }
     default:
       throw new Error(`Format non supporte: ${format}`)
+  }
+
+  // Store in S3/MinIO (fire-and-forget, don't block the response)
+  try {
+    const s3Key = await uploadExport(documentId, format, result.buffer, result.mimeType)
+    result.s3Key = s3Key
+
+    // Update document record with export URL for quick re-download
+    const exportUrl = `${result.s3Key}`
+    await db.update(documents)
+      .set({ exportUrl, updatedAt: new Date() })
+      .where(eq(documents.id, documentId))
+  } catch (err) {
+    console.warn(`[Export] Failed to store in S3:`, (err as Error).message)
+    // Continue — the buffer is still valid for direct download
+  }
+
+  return result
+}
+
+/**
+ * Retrieve a previously exported document from S3/MinIO.
+ * Returns null if not found (caller should re-generate).
+ */
+export async function getStoredExport(documentId: string, format: string): Promise<ExportResult | null> {
+  try {
+    // Find the export key from document record
+    const [doc] = await db.select({ exportUrl: documents.exportUrl })
+      .from(documents)
+      .where(eq(documents.id, documentId))
+      .limit(1)
+
+    if (!doc?.exportUrl) return null
+
+    const { buffer, contentType } = await downloadExport(doc.exportUrl)
+    const shortId = documentId.slice(0, 8)
+
+    const mimeMap: Record<string, string> = {
+      pdf: 'application/pdf',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      md: 'text/markdown',
+    }
+
+    return {
+      buffer,
+      mimeType: contentType || mimeMap[format] || 'application/octet-stream',
+      filename: `document-${shortId}.${format === 'md' ? 'md' : format}`,
+      s3Key: doc.exportUrl,
+    }
+  } catch {
+    return null
   }
 }

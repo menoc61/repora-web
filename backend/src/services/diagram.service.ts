@@ -1,8 +1,11 @@
 import { db } from '../db'
-import { diagrams } from '../db/schema'
+import { diagrams, documents, sections, projects } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { AppError } from '../middleware/error'
 import { deflateSync } from 'zlib'
+import { config } from '../config'
+import { getLanguageModel } from '../ai/providers/interface'
+import type { ProviderType } from '../ai/providers/interface'
 
 function encodePlantUML(source: string): string {
   let cleaned = source
@@ -27,12 +30,102 @@ function encode64(data: Buffer): string {
   return result
 }
 
+const PLANTUML_TYPE_LABELS: Record<string, string> = {
+  use_case: 'Use case diagram showing actors and their use cases',
+  sequence: 'Sequence diagram showing key system interactions',
+  activity: 'Activity diagram showing main business process flows',
+  class: 'Class diagram showing domain model entities and relationships',
+  deployment: 'Deployment diagram showing system infrastructure layout',
+}
+
+/**
+ * Generate valid PlantUML source from project context and document content.
+ * Falls back to a minimal valid diagram if the LLM fails.
+ */
+async function generatePlantUML(
+  projectId: string,
+  diagramType: string,
+  source: string,
+): Promise<string> {
+  // Fetch project + document context
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1)
+  const [doc] = await db.select().from(documents).where(eq(documents.projectId, projectId)).limit(1)
+
+  let sectionContent = ''
+  if (doc) {
+    const secs = await db.select({ title: sections.title, content: sections.content })
+      .from(sections).where(eq(sections.documentId, doc.id)).orderBy(sections.order)
+    sectionContent = secs.map(s => `## ${s.title}\n${s.content || '(vide)'}`).join('\n\n')
+  }
+
+  const brief = project?.brief || source
+  const desc = PLANTUML_TYPE_LABELS[diagramType] || 'UML diagram'
+
+  const prompt = `Generate a valid PlantUML diagram for a project specification document.
+
+Project brief: "${brief}"
+Diagram type: ${desc}
+${sectionContent ? `\nDocument sections:\n${sectionContent.slice(0, 3000)}` : ''}
+
+RULES:
+- Output ONLY the PlantUML code. No explanation, no markdown fences.
+- MUST start with @startuml and end with @enduml.
+- Use French labels where appropriate.
+- Keep the diagram simple and clear (max 15 elements).
+- Use standard PlantUML syntax for the diagram type.`
+
+  try {
+    const provider = (config.ollamaUrl ? 'ollama' : 'llama_cpp') as ProviderType
+    const model = getLanguageModel(provider, config.ollamaModel)
+    const { streamText } = await import('ai')
+    const stream = await streamText({ model, prompt, stopWhen: (await import('ai')).isStepCount(1) })
+
+    let output = ''
+    for await (const event of stream.fullStream) {
+      if (event.type === 'text-delta') output += event.text
+    }
+
+    // Extract PlantUML from the output (strip markdown fences if present)
+    const cleaned = output
+      .replace(/^```(?:plantuml|puml)?\s*\n?/gm, '')
+      .replace(/```\s*$/gm, '')
+      .trim()
+
+    if (cleaned.includes('@startuml') && cleaned.includes('@enduml')) {
+      return cleaned
+    }
+
+    // If the model didn't produce valid PlantUML, wrap the output
+    if (cleaned.length > 0) {
+      return `@startuml\n${cleaned}\n@enduml`
+    }
+  } catch (err) {
+    console.warn('[Diagram] LLM PlantUML generation failed:', (err as Error).message)
+  }
+
+  // Fallback: minimal valid PlantUML
+  return `@startuml
+title ${source || diagramType}
+actor "Utilisateur" as user
+rectangle "Systeme" as sys {
+  usecase "Action" as uc
+}
+user --> uc
+@enduml`
+}
+
 export async function createDiagram(projectId: string, type: string, source?: string) {
-  const plantumlSource = source || ''
-  const encodedSource = plantumlSource ? encodePlantUML(plantumlSource) : ''
-  const renderedUrl = plantumlSource
-    ? `https://www.plantuml.com/plantuml/svg/${encodedSource}`
-    : ''
+  // If source looks like valid PlantUML, use it directly.
+  // Otherwise generate PlantUML from project context.
+  let plantumlSource: string
+  if (source && source.includes('@startuml')) {
+    plantumlSource = source
+  } else {
+    plantumlSource = await generatePlantUML(projectId, type, source || '')
+  }
+
+  const encodedSource = encodePlantUML(plantumlSource)
+  const renderedUrl = `${config.plantumlUrl}/svg/~1${encodedSource}`
 
   const [diagram] = await db.insert(diagrams).values({
     projectId,
@@ -56,7 +149,7 @@ export async function getDiagram(id: string) {
   const plantumlSource = diagram.plantumlSource || ''
   const encodedSource = plantumlSource ? encodePlantUML(plantumlSource) : ''
   const renderedUrl = plantumlSource
-    ? `https://www.plantuml.com/plantuml/svg/${encodedSource}`
+    ? `${config.plantumlUrl}/svg/~1${encodedSource}`
     : ''
 
   return {

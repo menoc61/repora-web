@@ -10,26 +10,23 @@ interface Format {
   active?: boolean
 }
 
-type ExportFormat = 'pdf' | 'docx'
+type ExportFormat = 'pdf' | 'docx' | 'md'
 
 const FORMATS: Format[] = [
   { icon: 'picture_as_pdf', label: 'PDF', active: true },
   { icon: 'description', label: 'DOCX' },
-  { icon: 'terminal', label: 'LaTeX' },
   { icon: 'markdown', label: 'MD' },
 ]
 
 const FORMAT_LABEL_TO_EXPORT: Record<string, ExportFormat> = {
   PDF: 'pdf',
   DOCX: 'docx',
-  LaTeX: 'pdf',
-  MD: 'docx',
+  MD: 'md',
 }
 
 const FORMAT_EXTENSION: Record<string, string> = {
   PDF: 'pdf',
   DOCX: 'docx',
-  LaTeX: 'tex',
   MD: 'md',
 }
 
@@ -45,7 +42,7 @@ export default function ExportPreview() {
   const [copied, setCopied] = useState(false)
   const [generatedLink, setGeneratedLink] = useState<string | null>(null)
 
-  async function handleExport(format: 'pdf' | 'docx') {
+  async function handleExport(format: 'pdf' | 'docx' | 'md') {
     if (!docId) return
     const blob = await exportDoc.mutateAsync({ id: docId, format })
     const url = URL.createObjectURL(blob)
@@ -112,7 +109,7 @@ export default function ExportPreview() {
 
   return (
     <>
-      <header className="fixed top-0 right-0 left-0 z-40 bg-surface border-b border-outline-variant flex items-center justify-between px-margin-desktop h-16 w-full">
+      <header className="sticky top-0 z-40 bg-surface border-b border-outline-variant flex items-center justify-between px-6 h-14">
         <div className="flex items-center gap-4">
           <Link to="/editor" search={{ id: docId }} className="p-2 hover:bg-surface-variant/50 transition-colors rounded"><Icon name="arrow_back" className="text-on-surface-variant" /></Link>
           <h1 className="font-headline-md text-headline-md font-bold text-primary">Repora AI</h1>
@@ -125,8 +122,8 @@ export default function ExportPreview() {
         </div>
       </header>
 
-      <main className="pt-16 flex h-screen overflow-hidden">
-        <aside className="w-sidebar-width bg-surface-studio border-r border-outline-variant flex flex-col h-full overflow-y-auto custom-scrollbar">
+      <main className="flex flex-1 overflow-hidden">
+        <aside className="w-[280px] bg-surface-studio border-r border-outline-variant flex flex-col overflow-y-auto custom-scrollbar shrink-0">
           <div className="p-6 space-y-8">
             <section>
               <label className="font-label-md text-label-md text-on-surface-variant mb-4 block uppercase tracking-wider">Selection du format</label>
@@ -218,7 +215,7 @@ export default function ExportPreview() {
           <div className="h-24" />
         </div>
 
-        <aside className="w-inspector-width bg-surface border-l border-outline-variant flex flex-col h-full">
+        <aside className="w-[320px] bg-surface border-l border-outline-variant flex flex-col overflow-y-auto shrink-0">
           <div className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Assistant d&apos;export IA</h3>

@@ -13,7 +13,7 @@ export const DocumentSchema = z.object({
   id: z.string().uuid(),
   projectId: z.string().optional(),
   title: z.string().min(1).max(200),
-  status: z.enum(['draft', 'review', 'final', 'active', 'autonomous', 'archived']),
+  status: z.enum(['draft', 'review', 'in_review', 'final', 'validated', 'active', 'rejected', 'reviewed', 'autonomous', 'archived']),
   department: z.string(),
   author: z.object({ name: z.string(), avatar: z.string().optional() }),
   collaborators: z.array(CollaboratorSchema).default([]),
@@ -42,6 +42,7 @@ export const UserSchema = z.object({
 
 export const SettingsSchema = z.object({
   aiProvider: z.enum(['ollama', 'anthropic', 'openai', 'custom']).default('ollama'),
+  selectedModel: z.string().optional(),
   endpoint: z.string().url().optional(),
   ollamaUrl: z.string().optional(),
   temperature: z.number().min(0).max(2).optional(),

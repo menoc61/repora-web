@@ -2,27 +2,17 @@ import { db } from '../db'
 import { agentConfigs, auditLogs, documents, apiKeys } from '../db/schema'
 import { eq, sql, count } from 'drizzle-orm'
 import { AppError } from '../middleware/error'
-import crypto from 'crypto'
+import { encrypt as encryptKey, decrypt as decryptKey } from '../utils/crypto'
 import { config } from '../config'
 
-const ALGORITHM = 'aes-256-cbc'
-
 const DEFAULT_AGENTS = [
-  { agentName: 'Hermes', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
-  { agentName: 'Planner', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
-  { agentName: 'Writer', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
-  { agentName: 'UML', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
-  { agentName: 'Tables', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
-  { agentName: 'Reviewer', provider: 'ollama', modelId: 'llama3.1:8b', enabled: true },
+  { agentName: 'Hermes', provider: 'ollama', modelId: config.ollamaModel, enabled: true },
+  { agentName: 'Planner', provider: 'ollama', modelId: config.ollamaModel, enabled: true },
+  { agentName: 'Writer', provider: 'ollama', modelId: config.ollamaModel, enabled: true },
+  { agentName: 'UML', provider: 'ollama', modelId: config.ollamaModel, enabled: true },
+  { agentName: 'Tables', provider: 'ollama', modelId: config.ollamaModel, enabled: true },
+  { agentName: 'Reviewer', provider: 'ollama', modelId: config.ollamaModel, enabled: true },
 ]
-
-function encryptKey(plaintext: string): string {
-  const key = Buffer.from(config.encryptionKey, 'utf-8').subarray(0, 32)
-  const iv = crypto.randomBytes(16)
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv)
-  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf-8'), cipher.final()])
-  return `${iv.toString('hex')}:${encrypted.toString('hex')}`
-}
 
 export async function listAgents() {
   const agents = await db.select().from(agentConfigs)

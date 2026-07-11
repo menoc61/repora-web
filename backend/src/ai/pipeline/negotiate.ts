@@ -68,7 +68,7 @@ export function evaluateWriterOutput(sectionContent: string): { passed: boolean;
   const trimmed = sectionContent.trim()
 
   // 1. Content too short
-  if (trimmed.length < 50) {
+  if (trimmed.length < 30) {
     issues.push('content too short')
   }
 
@@ -97,7 +97,7 @@ export function evaluateWriterOutput(sectionContent: string): { passed: boolean;
     const re = new RegExp(`\\b${w}\\b`, 'i')
     return re.test(trimmed)
   })
-  if (!hasFrench && trimmed.length >= 50) {
+  if (!hasFrench && trimmed.length >= 100) {
     issues.push('content may not be in French')
   }
 

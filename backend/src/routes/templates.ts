@@ -41,7 +41,7 @@ templateRouter.post('/', requireAuth, async (req: Request, res: Response, next) 
 
 templateRouter.post('/use', requireAuth, async (req: Request, res: Response, next) => {
   try {
-    const { templateId, projectId } = req.body
+    const { templateId, projectId, name: projectName } = req.body
     if (!templateId) throw new AppError(400, 'missing_fields', 'templateId is required')
 
     const template = await getTemplate(templateId)
@@ -53,7 +53,7 @@ templateRouter.post('/use', requireAuth, async (req: Request, res: Response, nex
     if (!resolvedProjectId) {
       const [project] = await db.insert(schema.projects).values({
         ownerId: req.user!.userId,
-        name: template.name,
+        name: projectName || template.name,
         brief: template.description ?? '',
         status: 'draft',
       }).returning()

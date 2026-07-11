@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-import { useMe, useApiKeys, useCreateApiKey, useDeleteApiKey, useAgents, usePatchAgent, useHealth } from '@/hooks/useQueries'
+import { useMe, useApiKeys, useCreateApiKey, useDeleteApiKey, useAgents, usePatchAgent, useHealth, useModels, useDetailedModels, useSetActiveModel } from '@/hooks/useQueries'
 import { useSettingsStore } from '../stores'
 import { useGenerationStore } from '../stores/generationStore'
 import { RequireRole } from '../components/RequireRole'
@@ -38,6 +38,8 @@ export default function Settings() {
   const [profilePassword, setProfilePassword] = useState('')
   const [profilePasswordConfirm, setProfilePasswordConfirm] = useState('')
   const [saving, setSaving] = useState(false)
+  const { data: detailedModels = [] } = useDetailedModels()
+  const setActiveModel = useSetActiveModel()
 
   React.useEffect(() => {
     if (me) setProfileName(me.name)
@@ -99,8 +101,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="flex-1 min-h-screen">
-      <header className="h-16 flex justify-between items-center px-gutter bg-surface-studio border-b border-outline-variant z-40 sticky top-0">
+    <div className="min-h-screen bg-surface-studio">
+      <header className="h-14 flex justify-between items-center px-gutter bg-surface-studio border-b border-outline-variant sticky top-0 z-40">
         <span className="font-headline-md text-headline-md font-black text-primary">Parametres</span>
         <div className="flex items-center gap-4">
           {me && (
@@ -359,6 +361,45 @@ export default function Settings() {
             </div>
             <div className="bg-white border border-outline-variant rounded-lg p-6 space-y-4">
               <div className="flex flex-col gap-1.5">
+                <label className="font-label-sm text-label-sm text-outline uppercase">Modele actif</label>
+                <Select
+                  value={settings.selectedModel ?? ''}
+                  onValueChange={(v) => {
+                    updateSettings({ selectedModel: v ?? undefined })
+                    if (v) setActiveModel.mutate(v)
+                  }}
+                >
+                  <SelectTrigger className="bg-surface-studio border border-outline-variant rounded-lg px-3 py-2 font-label-sm focus:ring-1 focus:ring-ai-vibrant outline-none">
+                    <SelectValue placeholder="Selectionner un modele..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {detailedModels.length === 0 ? (
+                      <SelectItem value="loading" disabled>Aucun modele detecte</SelectItem>
+                    ) : (
+                      detailedModels.map((m) => (
+                        <SelectItem key={m.name} value={m.name}>
+                          <div className="flex items-center gap-2">
+                            <span>{m.name}</span>
+                            {m.isCloud && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-ai-vibrant/10 text-ai-vibrant font-label-sm">cloud</span>
+                            )}
+                            {m.supportsTools && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-status-final/10 text-status-final font-label-sm">tools</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+                {settings.selectedModel && (
+                  <p className="font-label-sm text-label-sm text-on-surface-variant">
+                    {settings.selectedModel}
+                    {settings.selectedModel.includes(':cloud') ? ' — mode cloud, necessite connexion internet' : ' — mode local, hors ligne'}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
                 <label className="font-label-sm text-label-sm text-outline uppercase">Fournisseur par defaut</label>
                 <Select value={settings.aiProvider} onValueChange={(v) => updateSettings({ aiProvider: v as typeof settings.aiProvider })}>
                   <SelectTrigger className="bg-surface-studio border border-outline-variant rounded-lg px-3 py-2 font-label-sm focus:ring-1 focus:ring-ai-vibrant outline-none">
@@ -449,7 +490,7 @@ export default function Settings() {
                             <Button
                               variant="link"
                               className="text-ai-vibrant font-label-md text-label-md p-0 h-auto"
-                              onClick={() => window.location.href = `/editor?search={id: ${session.documentId}}`}
+                              onClick={() => window.location.href = `/editor?id=${session.documentId}`}
                             >
                               Reprendre
                             </Button>
