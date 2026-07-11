@@ -6,6 +6,10 @@ import { deflateSync } from 'zlib'
 import { config } from '../config'
 import { getLanguageModel } from '../ai/providers/interface'
 import type { ProviderType } from '../ai/providers/interface'
+import * as fs from 'fs'
+import * as path from 'path'
+
+const DIAGRAMS_DIR = path.join(process.cwd(), 'uploads', 'diagrams')
 
 function encodePlantUML(source: string): string {
   let cleaned = source
@@ -114,7 +118,7 @@ user --> uc
 @enduml`
 }
 
-export async function createDiagram(projectId: string, type: string, source?: string) {
+export async function createDiagram(projectId: string, type: string, source?: string, sectionId?: string) {
   // If source looks like valid PlantUML, use it directly.
   // Otherwise generate PlantUML from project context.
   let plantumlSource: string
@@ -125,10 +129,31 @@ export async function createDiagram(projectId: string, type: string, source?: st
   }
 
   const encodedSource = encodePlantUML(plantumlSource)
-  const renderedUrl = `${config.plantumlUrl}/svg/~1${encodedSource}`
+
+  // Download PNG from PlantUML server and save locally
+  let localPngUrl = ''
+  try {
+    const pngUrl = `${config.plantumlUrl}/png/~1${encodedSource}`
+    const resp = await fetch(pngUrl)
+    if (resp.ok) {
+      const buffer = Buffer.from(await resp.arrayBuffer())
+      fs.mkdirSync(DIAGRAMS_DIR, { recursive: true })
+      const filename = `${projectId}_${type}_${Date.now()}.png`
+      fs.writeFileSync(path.join(DIAGRAMS_DIR, filename), buffer)
+      localPngUrl = `/uploads/diagrams/${filename}`
+      console.log(`[Diagram] Saved PNG: ${localPngUrl} (${buffer.length} bytes)`)
+    } else {
+      console.warn(`[Diagram] PNG download failed (${resp.status}), using SVG URL`)
+    }
+  } catch (err) {
+    console.warn('[Diagram] PNG download error:', (err as Error).message)
+  }
+
+  const renderedUrl = localPngUrl || `${config.plantumlUrl}/svg/~1${encodedSource}`
 
   const [diagram] = await db.insert(diagrams).values({
     projectId,
+    sectionId: sectionId || null,
     type,
     plantumlSource,
     renderedUrl,
@@ -137,6 +162,7 @@ export async function createDiagram(projectId: string, type: string, source?: st
   return {
     id: diagram.id,
     type: diagram.type,
+    section_id: diagram.sectionId,
     plantuml_source: plantumlSource,
     rendered_url: renderedUrl,
   }

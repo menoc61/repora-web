@@ -47,7 +47,7 @@ export default function Sidebar() {
         Nouveau document
       </Button>
 
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 space-y-2">
         {NAV.map((item) => (
           <Link
             key={item.to}

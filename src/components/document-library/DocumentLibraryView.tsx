@@ -40,10 +40,6 @@ export default function DocumentLibraryView() {
   const { data: activitiesData } = useActivity()
   const activities = (activitiesData as any[]) ?? []
 
-  const [department, setDepartment] = useState('all')
-  const [owner, setOwner] = useState('all')
-  const ownerFiltered = documents.filter((d) => owner === 'all' || owner === 'me' || d.author.name.includes(owner))
-
   const totalPages = Math.max(1, Math.ceil(documents.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
   const pagedDocs = documents.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
@@ -71,9 +67,7 @@ export default function DocumentLibraryView() {
   }
 
   const handleClearFilters = () => {
-    setDepartment('all')
     setStatus('all')
-    setOwner('all')
     setSearch('')
     setPage(1)
     setSelectedIds(new Set())
@@ -92,9 +86,9 @@ export default function DocumentLibraryView() {
     else setSelectedIds(new Set())
   }
 
-  const handleDepartmentChange = (v: string) => setDepartment(v)
+  const handleDepartmentChange = (v: string) => { /* reserved for future use */ }
   const handleStatusChange = (v: string) => setStatus(v)
-  const handleOwnerChange = (v: string) => setOwner(v)
+  const handleOwnerChange = (v: string) => { /* reserved for future use */ }
   const handleSearchChange = (v: string) => {
     setSearch(v)
     setPage(1)
@@ -124,7 +118,7 @@ export default function DocumentLibraryView() {
             <Button
               onClick={handleNewDocument}
               disabled={isCreatingNew}
-              className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2 px-4 py-2 bg-ai-vibrant text-white rounded-lg font-label-md text-label-md hover:bg-ai-vibrant/90 transition-all"
             >
               {isCreatingNew ? (
                 <>
@@ -142,11 +136,11 @@ export default function DocumentLibraryView() {
         </div>
 
         <FilterBar
-          department={department}
+          department="all"
           status={status}
-          owner={owner}
+          owner="all"
           search={search}
-          ownerFilteredCount={ownerFiltered.length}
+          ownerFilteredCount={documents.length}
           onDepartmentChange={handleDepartmentChange}
           onStatusChange={handleStatusChange}
           onOwnerChange={handleOwnerChange}

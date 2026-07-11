@@ -269,8 +269,8 @@ export function useCreateProject() {
 export function useGenerateDocument() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ projectId, prompt, templateId }: { projectId: string; prompt?: string; templateId?: string }) =>
-      api.post<BackendGenerateResponse>(`/projects/${projectId}/generate`, { prompt: prompt ?? '', ...(templateId ? { templateId } : {}) }),
+    mutationFn: async ({ projectId, prompt, templateId, config }: { projectId: string; prompt?: string; templateId?: string; config?: Record<string, unknown> }) =>
+      api.post<BackendGenerateResponse>(`/projects/${projectId}/generate`, { prompt: prompt ?? '', ...(templateId ? { templateId } : {}), ...(config ? { config } : {}) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['projects'] })
       qc.invalidateQueries({ queryKey: ['documents'] })

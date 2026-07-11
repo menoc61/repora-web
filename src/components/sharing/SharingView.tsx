@@ -11,7 +11,7 @@ import {
   useRemoveCollaborator,
   useUpdateShareSettings,
 } from '../../hooks/useQueries'
-import { ROLES, ROLE_MAP, COLLABORATORS, toRow } from './types'
+import { ROLES, ROLE_MAP, toRow } from './types'
 import InviteForm from './InviteForm'
 import CollaboratorList from './CollaboratorList'
 import ExternalAccessPanel from './ExternalAccessPanel'
@@ -23,7 +23,7 @@ interface SharingViewProps {
 }
 
 export default function SharingView({ docId }: SharingViewProps) {
-  const { data: collaborators = [] } = useCollaborators()
+  const { data: collaborators = [], isLoading: collabsLoading } = useCollaborators()
   const inviteMutation = useInvite()
   const resendMutation = useResendInvite()
   const generateLinkMutation = useGenerateLink()
@@ -42,9 +42,7 @@ export default function SharingView({ docId }: SharingViewProps) {
     nda: true,
   })
 
-  const rows = collaborators.length > 0
-    ? collaborators.map(toRow)
-    : COLLABORATORS
+  const rows = collaborators.map(toRow)
 
   const handleSendInvite = () => {
     if (!email.trim()) return
@@ -60,8 +58,11 @@ export default function SharingView({ docId }: SharingViewProps) {
   const handleGenerateLink = () => {
     generateLinkMutation.mutate(docId ?? 'current', {
       onSuccess: (data: any) => {
-        const url = data?.url ?? data?.token ?? window.location.origin + '/validate/generated'
-        setGeneratedLink(url)
+        const token = data?.token
+        if (token) {
+          const url = `${window.location.origin}/validate/${token}`
+          setGeneratedLink(url)
+        }
       },
     })
   }
@@ -124,16 +125,29 @@ export default function SharingView({ docId }: SharingViewProps) {
               onSend={handleSendInvite}
               sending={inviteMutation.isPending}
             />
-            <CollaboratorList
-              rows={rows}
-              resendPending={resendMutation.isPending}
-              resendVariables={resendMutation.variables}
-              onResend={handleResend}
-              onEditRole={handleEditRole}
-              onRemove={handleRemove}
-              updatePending={updateCollabMutation.isPending}
-              removePending={removeCollabMutation.isPending}
-            />
+            {collabsLoading ? (
+              <div className="bg-white border border-outline-variant rounded-xl p-8 text-center">
+                <div className="w-8 h-8 border-2 border-outline-variant border-t-ai-vibrant rounded-full animate-spin mx-auto mb-3" />
+                <p className="font-body-sm text-on-surface-variant">Chargement des collaborateurs...</p>
+              </div>
+            ) : rows.length === 0 ? (
+              <div className="bg-white border border-outline-variant rounded-xl p-8 text-center">
+                <Icon name="group" className="text-4xl text-outline-variant mx-auto mb-3" />
+                <p className="font-body-md text-on-surface-variant mb-1">Aucun collaborateur</p>
+                <p className="font-body-sm text-on-surface-variant/70">Invitez des collaborateurs pour commencer a travailler ensemble.</p>
+              </div>
+            ) : (
+              <CollaboratorList
+                rows={rows}
+                resendPending={resendMutation.isPending}
+                resendVariables={resendMutation.variables}
+                onResend={handleResend}
+                onEditRole={handleEditRole}
+                onRemove={handleRemove}
+                updatePending={updateCollabMutation.isPending}
+                removePending={removeCollabMutation.isPending}
+              />
+            )}
           </div>
 
           <div className="space-y-gutter">

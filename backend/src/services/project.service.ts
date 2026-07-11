@@ -73,7 +73,7 @@ export async function deleteProject(projectId: string, ownerId: string) {
   if (!project) throw new AppError(404, 'not_found', 'Project not found')
 }
 
-export async function generateDocument(projectId: string, ownerId: string, role?: string) {
+export async function generateDocument(projectId: string, ownerId: string, role?: string, config?: Record<string, unknown>) {
   const isSuperAdmin = role === 'super_admin' || role === 'admin'
   const [project] = await db.select({ id: projects.id })
     .from(projects).where(
@@ -83,7 +83,7 @@ export async function generateDocument(projectId: string, ownerId: string, role?
     ).limit(1)
   if (!project) throw new AppError(404, 'not_found', 'Project not found')
 
-  const [doc] = await db.insert(documents).values({ projectId }).returning()
+  const [doc] = await db.insert(documents).values({ projectId, config: config || {} }).returning()
 
   const [section] = await db.insert(sections).values({
     documentId: doc.id,

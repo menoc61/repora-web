@@ -10,6 +10,7 @@ import { useGenerationStore } from '../stores/generationStore'
 import { RequireRole } from '../components/RequireRole'
 import { api } from '../api/client'
 import { notify } from '../components/Toast'
+import { useNavigate } from '@tanstack/react-router'
 
 interface ToggleProps {
   checked?: boolean
@@ -27,6 +28,7 @@ export default function Settings() {
   const { data: health } = useHealth()
   const { settings, updateSettings } = useSettingsStore()
   const { sessions, removeSession } = useGenerationStore()
+  const navigate = useNavigate()
   const [showKeyModal, setShowKeyModal] = useState(false)
   const [newProvider, setNewProvider] = useState('')
   const [newKey, setNewKey] = useState('')
@@ -121,86 +123,106 @@ export default function Settings() {
           <section className="space-y-6">
             <div className="border-b border-outline-variant pb-4">
               <h2 className="font-headline-md text-headline-md text-primary">Configurations des agents</h2>
-              <p className="font-body-md text-body-md text-on-surface-variant">Gerer les agents de l&apos;orchestrateur Hermes.</p>
+              <p className="font-body-md text-body-md text-on-surface-variant">Gerer les fournisseurs et modeles de chaque agent de l&apos;orchestrateur Hermes.</p>
             </div>
             {agents.length === 0 ? (
               <p className="font-body-sm text-body-sm text-on-surface-variant italic">Aucun agent configure.</p>
             ) : (
-              <div className="bg-white border border-outline-variant rounded-lg overflow-hidden">
-                <Table className="w-full text-left border-collapse">
-                  <TableHeader className="bg-surface-studio border-b border-outline-variant">
-                    <TableRow>
-                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline">AGENT</TableHead>
-                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline">FOURNISSEUR</TableHead>
-                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline">MODELE</TableHead>
-                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline">ACTIF</TableHead>
-                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline text-right">ACTION</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="divide-y divide-outline-variant">
-                    {(agents || []).map((agent) => {
-                      const isEditing = editingAgent === agent.name
-                      return (
-                        <TableRow key={agent.name} className="hover:bg-surface-container-low transition-colors">
-                          <TableCell className="px-6 py-4">
-                            <span className="font-body-md text-body-md font-medium">{agent.name}</span>
-                          </TableCell>
-                          <TableCell className="px-6 py-4">
-                            {isEditing ? (
-                              <Input
-                                className="w-full bg-surface-studio border border-outline-variant rounded px-2 py-1 font-label-sm"
-                                value={editProvider}
-                                onChange={(e) => setEditProvider((e.target as HTMLInputElement).value)}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(agents || []).map((agent) => {
+                  const isEditing = editingAgent === agent.name
+                  const agentDescription: Record<string, string> = {
+                    Planner: 'Transforme le brief en structure de document',
+                    Writer: 'Redige le contenu de chaque section',
+                    UML: 'Genere les diagrammes UML',
+                    Tables: 'Produit les matrices d\'exigences',
+                    Reviewer: 'Controle la qualite et la coherence',
+                  }
+                  return (
+                    <div key={agent.name} className={`bg-white border rounded-xl p-5 transition-all ${isEditing ? 'border-ai-vibrant shadow-md shadow-ai-vibrant/5' : 'border-outline-variant hover:border-outline'}`}>
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-label-md font-mono font-bold text-primary-container">{agent.name}</h3>
+                            <div className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${agent.enabled ? 'bg-status-final/10 text-status-final' : 'bg-status-draft/10 text-secondary'}`}>
+                              {agent.enabled ? 'ACTIF' : 'INACTIF'}
+                            </div>
+                          </div>
+                          <p className="font-body-sm text-secondary">{agentDescription[agent.name] || ''}</p>
+                        </div>
+                        {!isEditing && (
+                          <button
+                            onClick={() => startEdit(agent)}
+                            className="p-1.5 rounded-lg hover:bg-surface text-secondary hover:text-ai-vibrant transition-colors"
+                          >
+                            <Icon name="edit" className="text-sm" />
+                          </button>
+                        )}
+                      </div>
+
+                      {isEditing ? (
+                        <div className="space-y-3 pt-3 border-t border-outline-variant">
+                          <div>
+                            <label className="font-label-sm text-secondary block mb-1">Fournisseur</label>
+                            <Select value={editProvider} onValueChange={(v) => setEditProvider(v as string)}>
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="ollama">Ollama (Local)</SelectItem>
+                                <SelectItem value="openai">OpenAI</SelectItem>
+                                <SelectItem value="anthropic">Anthropic</SelectItem>
+                                <SelectItem value="google">Google</SelectItem>
+                                <SelectItem value="openrouter">OpenRouter</SelectItem>
+                                <SelectItem value="llama_cpp">llama.cpp</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <label className="font-label-sm text-secondary block mb-1">Modele</label>
+                            <Input
+                              className="w-full"
+                              value={editModel}
+                              onChange={(e) => setEditModel((e.target as HTMLInputElement).value)}
+                              placeholder={editProvider === 'ollama' ? 'nemotron-3-super:cloud' : 'model-id'}
+                            />
+                            {editProvider === 'ollama' && (
+                              <p className="font-label-sm text-secondary mt-1">Laissez vide pour utiliser le modele decouvert automatiquement.</p>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between pt-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={editEnabled}
+                                onChange={(e) => setEditEnabled(e.target.checked)}
+                                className="w-4 h-4 rounded border-outline text-ai-vibrant focus:ring-ai-vibrant"
                               />
-                            ) : (
-                              <span className="font-label-sm text-label-sm text-on-surface-variant">{agent.provider}</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="px-6 py-4">
-                            {isEditing ? (
-                              <Input
-                                className="w-full bg-surface-studio border border-outline-variant rounded px-2 py-1 font-label-sm"
-                                value={editModel}
-                                onChange={(e) => setEditModel((e.target as HTMLInputElement).value)}
-                                placeholder="model id"
-                              />
-                            ) : (
-                              <span className="font-label-sm text-label-sm text-on-surface-variant">
-                                {agent.modelId ?? '—'}
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="px-6 py-4">
-                            {isEditing ? (
-                              <Toggle checked={editEnabled} onChange={(e) => setEditEnabled(e.target.checked)} />
-                            ) : (
-                              <div className="flex items-center gap-1.5">
-                                <div className={`w-2 h-2 rounded-full ${agent.enabled ? 'bg-status-final' : 'bg-status-draft'}`} />
-                                <span className="font-label-sm text-label-sm">{agent.enabled ? 'Actif' : 'Inactif'}</span>
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="px-6 py-4 text-right">
-                            {isEditing ? (
-                              <div className="flex items-center justify-end gap-2">
-                                <Button variant="link" className="text-on-surface-variant font-label-md text-label-md p-0 h-auto" onClick={cancelEdit}>
-                                  Annuler
-                                </Button>
-                                <Button className="bg-ai-vibrant text-white font-label-md text-label-md px-3 py-1 rounded" onClick={saveAgent} disabled={patchAgent.isPending}>
-                                  {patchAgent.isPending ? '...' : 'Enregistrer'}
-                                </Button>
-                              </div>
-                            ) : (
-                              <Button variant="link" className="text-ai-vibrant font-label-md text-label-md p-0 h-auto" onClick={() => startEdit(agent)}>
-                                Modifier
+                              <span className="font-body-sm text-primary-container">Agent actif</span>
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <Button variant="ghost" size="sm" onClick={cancelEdit}>Annuler</Button>
+                              <Button size="sm" onClick={saveAgent} disabled={patchAgent.isPending} className="bg-ai-vibrant text-white">
+                                {patchAgent.isPending ? '...' : 'Enregistrer'}
                               </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 pt-3 border-t border-outline-variant">
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface">
+                            <Icon name="cloud" className="text-xs text-secondary" />
+                            <span className="font-label-sm text-secondary">{agent.provider}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface">
+                            <Icon name="smart_toy" className="text-xs text-secondary" />
+                            <span className="font-label-sm font-mono text-secondary">{agent.modelId || 'defaut'}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </section>
@@ -449,65 +471,50 @@ export default function Settings() {
           <section className="space-y-6">
             <div className="border-b border-outline-variant pb-4">
               <h2 className="font-headline-md text-headline-md text-primary">Sessions de generation</h2>
-              <p className="font-body-md text-body-md text-on-surface-variant">Gerer les sessions de generation de documents en cours et terminees.</p>
+              <p className="font-body-md text-body-md text-on-surface-variant">Cliquez sur une session pour l'ouvrir dans l'editeur.</p>
             </div>
             {sessions.length === 0 ? (
               <div className="bg-white border border-outline-variant rounded-lg p-6 text-center">
-                <p className="font-body-sm text-body-sm text-on-surface-variant italic">Aucune generation en cours.</p>
+                <p className="font-body-sm text-body-sm text-on-surface-variant italic">Aucune session de generation.</p>
               </div>
             ) : (
-              <div className="bg-white border border-outline-variant rounded-lg overflow-hidden">
-                <Table className="w-full text-left border-collapse">
-                  <TableHeader className="bg-surface-studio border-b border-outline-variant">
-                    <TableRow>
-                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline">DOCUMENT</TableHead>
-                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline">STATUT</TableHead>
-                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline">DEMARRE LE</TableHead>
-                      <TableHead className="px-6 py-4 font-label-md text-label-md text-outline text-right">ACTION</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="divide-y divide-outline-variant">
-                    {sessions.map((session) => (
-                      <TableRow key={session.sessionId} className="hover:bg-surface-container-low transition-colors">
-                        <TableCell className="px-6 py-4">
-                          <span className="font-body-md text-body-md font-medium">{session.title}</span>
-                        </TableCell>
-                        <TableCell className="px-6 py-4">
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-2 h-2 rounded-full ${session.status === 'generating' ? 'bg-status-draft' : session.status === 'completed' ? 'bg-status-final' : 'bg-error'}`} />
-                            <span className="font-label-sm text-label-sm">
-                              {session.status === 'generating' ? 'En cours' : session.status === 'completed' ? 'Termine' : 'Echoue'}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="px-6 py-4">
-                          <span className="font-label-sm text-label-sm text-on-surface-variant">
-                            {new Date(session.startedAt).toLocaleString()}
-                          </span>
-                        </TableCell>
-                        <TableCell className="px-6 py-4 text-right">
-                          {session.status === 'generating' ? (
-                            <Button
-                              variant="link"
-                              className="text-ai-vibrant font-label-md text-label-md p-0 h-auto"
-                              onClick={() => window.location.href = `/editor?id=${session.documentId}`}
-                            >
-                              Reprendre
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="link"
-                              className="text-error font-label-md text-label-md p-0 h-auto"
-                              onClick={() => removeSession(session.sessionId)}
-                            >
-                              Supprimer
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <div className="space-y-2">
+                {sessions.map((session) => (
+                  <div
+                    key={session.sessionId}
+                    className="group bg-white border border-outline-variant rounded-lg px-5 py-4 flex items-center gap-4 cursor-pointer hover:border-ai-vibrant hover:shadow-sm transition-all"
+                    onClick={() => navigate({ to: '/editor', search: { id: session.documentId } })}
+                  >
+                    <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                      session.status === 'generating' ? 'bg-status-draft animate-pulse' :
+                      session.status === 'completed' ? 'bg-status-final' : 'bg-error'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-body-md text-body-md font-medium truncate group-hover:text-ai-vibrant transition-colors">
+                        {session.title}
+                      </p>
+                      <p className="font-label-sm text-label-sm text-on-surface-variant mt-0.5">
+                        {new Date(session.startedAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                      <span className={`font-label-sm text-label-sm px-2 py-0.5 rounded ${
+                        session.status === 'generating' ? 'bg-status-draft/10 text-status-draft' :
+                        session.status === 'completed' ? 'bg-status-final/10 text-status-final' : 'bg-error/10 text-error'
+                      }`}>
+                        {session.status === 'generating' ? 'En cours' : session.status === 'completed' ? 'Termine' : 'Echoue'}
+                      </span>
+                      <Button
+                        variant="link"
+                        className="text-on-surface-variant hover:text-error font-label-sm text-label-sm p-0 h-auto"
+                        onClick={() => removeSession(session.sessionId)}
+                        title="Supprimer"
+                      >
+                        <Icon name="close" className="text-base" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </section>

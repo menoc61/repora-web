@@ -21,7 +21,9 @@ export interface AgentDefinition {
 
 // --- Agent registry ---
 
-// Default provider/model from config — can be overridden per-agent via DB agent_configs
+// All agents default to config.ollamaModel via Ollama (tool-calling capable).
+// Per-agent overrides are stored in the agent_configs DB table and read at runtime
+// by runAgent(). Admins can change provider/model per agent in Settings.
 const DEFAULT_PROVIDER = 'ollama' as const
 const DEFAULT_MODEL = config.ollamaModel
 

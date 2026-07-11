@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Icon from '../Icon'
 import { Button } from '../ui/button'
-import { ROLES } from './types'
+import { ROLES, ROLE_MAP, DISPLAY_ROLE_MAP } from './types'
 import type { CollaboratorRow } from './types'
 
 interface CollaboratorListProps {
@@ -27,9 +27,15 @@ export default function CollaboratorList({
 }: CollaboratorListProps) {
   const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null)
   const [editRoleOpen, setEditRoleOpen] = useState<number | null>(null)
+  const [confirmRemove, setConfirmRemove] = useState<number | null>(null)
 
   const toggleDropdown = (index: number) => {
     setOpenDropdownIndex(openDropdownIndex === index ? null : index)
+  }
+
+  const getCurrentRoleDisplayName = (row: CollaboratorRow): string => {
+    const internalRole = ROLE_MAP[row.role] ?? row.role.toLowerCase()
+    return DISPLAY_ROLE_MAP[internalRole] ?? row.role
   }
 
   return (
@@ -49,7 +55,7 @@ export default function CollaboratorList({
                 <div>
                   <p className="font-body-md font-semibold text-primary">{c.name}</p>
                   <p className={`font-label-sm text-label-sm ${c.pending ? 'text-status-review' : 'text-on-surface-variant'}`}>
-                    {c.pending ? 'Invitation en attente • Envoyee il y a 2h' : c.email}
+                    {c.pending ? 'Invitation en attente' : c.email}
                   </p>
                 </div>
               </div>
@@ -74,7 +80,7 @@ export default function CollaboratorList({
                         </button>
                         <button
                           className="w-full text-left px-4 py-2 text-body-sm hover:bg-surface-studio flex items-center gap-2 text-error"
-                          onClick={() => { onRemove(c.email ?? ''); setOpenDropdownIndex(null) }}
+                          onClick={() => { setConfirmRemove(index); setOpenDropdownIndex(null) }}
                           disabled={removePending}
                         >
                           <Icon name="person_remove" className="text-sm" />
@@ -90,6 +96,27 @@ export default function CollaboratorList({
         </div>
       </section>
 
+      {confirmRemove !== null && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setConfirmRemove(null)}>
+          <div className="bg-white p-6 rounded-xl w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-headline-md text-headline-md mb-2">Retirer le collaborateur</h3>
+            <p className="text-body-sm text-on-surface-variant mb-6">
+              Voulez-vous retirer <strong>{rows[confirmRemove]?.name}</strong> de cette session ? Cette action est irreversible.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setConfirmRemove(null)}>Annuler</Button>
+              <Button
+                className="flex-1 bg-error text-white hover:bg-error/90"
+                onClick={() => { onRemove(rows[confirmRemove]?.email ?? ''); setConfirmRemove(null) }}
+                disabled={removePending}
+              >
+                {removePending ? 'Retrait...' : 'Retirer'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editRoleOpen !== null && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setEditRoleOpen(null)}>
           <div className="bg-white p-6 rounded-xl w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -98,16 +125,19 @@ export default function CollaboratorList({
               {rows[editRoleOpen]?.name} ({rows[editRoleOpen]?.email})
             </p>
             <div className="space-y-2 mb-6">
-              {ROLES.map((r) => (
-                <button
-                  key={r}
-                  onClick={() => { onEditRole(rows[editRoleOpen]?.email ?? '', r); setEditRoleOpen(null) }}
-                  disabled={updatePending}
-                  className={`w-full text-left px-4 py-3 rounded-lg border transition-all font-body-sm ${r === rows[editRoleOpen]?.role ? 'bg-secondary/10 border-secondary text-secondary' : 'border-outline-variant hover:bg-surface-studio text-on-surface'}`}
-                >
-                  {r}
-                </button>
-              ))}
+              {ROLES.map((r) => {
+                const currentDisplayName = getCurrentRoleDisplayName(rows[editRoleOpen])
+                return (
+                  <button
+                    key={r}
+                    onClick={() => { onEditRole(rows[editRoleOpen]?.email ?? '', r); setEditRoleOpen(null) }}
+                    disabled={updatePending}
+                    className={`w-full text-left px-4 py-3 rounded-lg border transition-all font-body-sm ${r === currentDisplayName ? 'bg-secondary/10 border-secondary text-secondary' : 'border-outline-variant hover:bg-surface-studio text-on-surface'}`}
+                  >
+                    {r}
+                  </button>
+                )
+              })}
             </div>
             <Button variant="outline" className="w-full" onClick={() => setEditRoleOpen(null)}>Annuler</Button>
           </div>

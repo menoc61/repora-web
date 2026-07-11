@@ -1,0 +1,14 @@
+Collaboration WebSocket server ready
+[Hermes] Detected 8 Ollama model(s): nemotron-3-super:cloud, kimi-k2.5:cloud, gemma4:31b-cloud, qwen2.5-coder:latest, qwen3-4b-local:latest, nanbeige-4b-local:latest, qwen3-coder:480b-cloud, minimax-m2:cloud
+[Hermes] Using OLLAMA_MODEL from env: nemotron-3-super:cloud
+[Hermes] Default model: nemotron-3-super:cloud (provider: ollama)
+Ollama model detected: nemotron-3-super:cloud
+[Hermes] Probing tool support for nemotron-3-super:cloud...
+(node:24644) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+[Process] Uncaught exception (ignored): listen EADDRINUSE: address already in use :::8000
+[S3] Failed to create bucket "repora-exports": 
+[S3] Export bucket ready
+[Hermes] Tool support for nemotron-3-super:cloud: YES
+
+C:\Users\gille\Desktop\workspace\repora-web\backend>

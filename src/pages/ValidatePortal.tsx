@@ -4,6 +4,7 @@ import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { useValidateDocument, useSubmitValidation } from '../hooks/useQueries'
 import { api } from '../api/client'
+import ReactMarkdown from 'react-markdown'
 
 interface BackendSection {
   id: string
@@ -324,8 +325,12 @@ function SectionCard({
         </div>
       </div>
 
-      <div className="font-body-md text-on-surface leading-relaxed whitespace-pre-wrap mb-6 bg-surface-studio rounded-lg p-5 border border-outline-variant/60">
-        {section.content || <span className="text-on-surface-variant italic">Contenu en cours de generation...</span>}
+      <div className="font-body-md text-on-surface leading-relaxed mb-6 bg-surface-studio rounded-lg p-5 border border-outline-variant/60 prose prose-sm max-w-none">
+        {section.content ? (
+          <ReactMarkdown>{section.content}</ReactMarkdown>
+        ) : (
+          <span className="text-on-surface-variant italic">Contenu en cours de generation...</span>
+        )}
       </div>
 
       <div className="flex items-center gap-3">

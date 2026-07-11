@@ -5,11 +5,12 @@ import { Button } from '../ui/button'
 import { api } from '../../api/client'
 import { useRequirements, useAddRequirement, useGenerateDocument } from '../../hooks/useQueries'
 import { useGenerationStore } from '../../stores/generationStore'
-import { Project, Requirement, SectionRequirement, STEPS, NFR_PRESETS, ACTOR_PRESETS } from './types'
+import { Project, Requirement, SectionRequirement, DocumentConfig, DEFAULT_DOCUMENT_CONFIG, STEPS, NFR_PRESETS, ACTOR_PRESETS } from './types'
 import ContextStep from './ContextStep'
 import FunctionalStep from './FunctionalStep'
 import NonFunctionalStep from './NonFunctionalStep'
 import ActorsStep from './ActorsStep'
+import ConfigurationStep from './ConfigurationStep'
 import ReviewStep from './ReviewStep'
 import ActorModal from './ActorModal'
 
@@ -33,6 +34,7 @@ export default function OnboardingWizardView({ projectId }: OnboardingWizardView
   const [generating, setGenerating] = useState(false)
   const [showActorModal, setShowActorModal] = useState(false)
   const [newActorName, setNewActorName] = useState('')
+  const [docConfig, setDocConfig] = useState<DocumentConfig>(DEFAULT_DOCUMENT_CONFIG)
   const { data: requirements = [], isLoading: reqsLoading } = useRequirements(projectId)
   const addRequirement = useAddRequirement()
   const generateDocument = useGenerateDocument()
@@ -116,8 +118,10 @@ export default function OnboardingWizardView({ projectId }: OnboardingWizardView
     if (step === 2) await saveRequirements('non_functional', nonFuncReqs)
     if (step === 3) {
       // Actors saved as sourceActor on requirements
-      // Ensure actors are preserved when re-saving func reqs
       await saveRequirements('functional', funcReqs)
+    }
+    if (step === 4) {
+      // Configuration step — config is saved on each change via setConfig
     }
     if (step < STEPS.length - 1) setStep(step + 1)
   }
@@ -129,7 +133,7 @@ export default function OnboardingWizardView({ projectId }: OnboardingWizardView
     if (!projectId) return
     setGenerating(true)
     try {
-      const result = await generateDocument.mutateAsync({ projectId })
+      const result = await generateDocument.mutateAsync({ projectId, config: docConfig as unknown as Record<string, unknown> })
       const genStore = useGenerationStore.getState()
       genStore.startSession({ projectId, documentId: result.document_id, title: project?.name ?? 'Document' })
       navigate({ to: '/editor', search: { id: result.document_id } })
@@ -298,13 +302,19 @@ export default function OnboardingWizardView({ projectId }: OnboardingWizardView
           />
         )}
 
-        {/* STEP 4: REVIEW + LAUNCH */}
+        {/* STEP 4: CONFIGURATION */}
         {step === 4 && (
+          <ConfigurationStep config={docConfig} setConfig={setDocConfig} />
+        )}
+
+        {/* STEP 5: REVIEW + LAUNCH */}
+        {step === 5 && (
           <ReviewStep
             context={context}
             funcReqs={funcReqs}
             nonFuncReqs={nonFuncReqs}
             actors={actors}
+            config={docConfig}
             onEditStep={setStep}
           />
         )}

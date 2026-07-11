@@ -24,7 +24,7 @@ export default function ExternalAccessPanel({
   onSecurityToggle,
 }: ExternalAccessPanelProps) {
   return (
-    <section className="bg-primary-container text-on-primary-container rounded-xl p-6 shadow-lg relative overflow-hidden">
+    <section className="bg-primary-container text-on-primary-container rounded-xl p-6 relative overflow-hidden">
       <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
       <div className="relative z-10">
         <h3 className="font-headline-md text-headline-md text-white mb-4 flex items-center gap-2">
@@ -42,9 +42,9 @@ export default function ExternalAccessPanel({
         </Button>
         {generatedLink && (
           <div className="mb-6 space-y-2">
-            <div className="p-3 bg-surface-studio rounded-lg border border-outline-variant break-all">
+            <div className="p-3 bg-surface-studio rounded-lg border border-outline-variant">
               <p className="font-label-sm text-label-sm text-on-surface-variant mb-1">Lien genere :</p>
-              <code className="text-body-sm text-secondary">{generatedLink}</code>
+              <code className="text-body-sm text-secondary break-all block">{generatedLink}</code>
             </div>
             <Button
               variant="outline"

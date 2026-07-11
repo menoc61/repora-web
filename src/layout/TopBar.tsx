@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Input } from '../components/ui/input'
@@ -15,7 +16,26 @@ interface TopBarProps {
 export default function TopBar({ title, tabs = [], right = null, searchPlaceholder = 'Rechercher des documents...' }: TopBarProps) {
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
+  const logout = useAuthStore((s) => s.logout)
   const userInitials = user?.name ? user.name.split(' ').filter(Boolean).map((n: string) => n[0] || '').join('').toUpperCase().slice(0, 2) || '??' : '??'
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleLogout = () => {
+    setMenuOpen(false)
+    logout()
+    navigate({ to: '/login' })
+  }
 
   const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && (e.target as HTMLInputElement).value.trim()) {
@@ -67,11 +87,42 @@ export default function TopBar({ title, tabs = [], right = null, searchPlacehold
           <button className="text-on-surface-variant hover:text-primary transition-colors" onClick={() => navigate({ to: '/history' })}>
             <Icon name="history" />
           </button>
-          <button className="w-8 h-8 rounded-full overflow-hidden border-2 border-outline-variant">
-            <div className="w-full h-full bg-primary-container flex items-center justify-center text-inverse-primary font-label-md text-[10px]">
-              {userInitials}
-            </div>
-          </button>
+
+          {/* User menu */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="w-8 h-8 rounded-full overflow-hidden border-2 border-outline-variant hover:border-ai-vibrant transition-colors cursor-pointer"
+            >
+              <div className="w-full h-full bg-primary-container flex items-center justify-center text-inverse-primary font-label-md text-[10px]">
+                {userInitials}
+              </div>
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg border border-outline-variant py-1 z-50" style={{ boxShadow: '0 4px 20px -2px rgba(15,23,42,0.08)' }}>
+                <div className="px-4 py-3 border-b border-outline-variant">
+                  <p className="font-label-md text-primary-container font-medium">{user?.name || 'Utilisateur'}</p>
+                  <p className="font-body-sm text-secondary">{user?.email || ''}</p>
+                </div>
+                <Link
+                  to="/settings"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-body-sm text-primary-container hover:bg-surface transition-colors"
+                >
+                  <Icon name="settings" className="text-base" />
+                  Parametres
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-3 w-full px-4 py-2.5 text-body-sm text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  <Icon name="logout" className="text-base" />
+                  Deconnexion
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>

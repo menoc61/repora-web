@@ -6,7 +6,7 @@ import VersionCard from './VersionCard'
 import DiffViewer from './DiffViewer'
 import AcceptChangesBar from './AcceptChangesBar'
 import { Version, VERSIONS } from './types'
-import { useVersions, useRestoreVersion, useCollaborators, useSaveDocument, useAcceptChanges } from '../../hooks/useQueries'
+import { useVersions, useRestoreVersion, useCollaborators, useSaveDocument, useAcceptChanges, useDocument } from '../../hooks/useQueries'
 
 interface VersionHistoryViewProps {
   docId: string | undefined
@@ -19,6 +19,7 @@ export default function VersionHistoryView({ docId }: VersionHistoryViewProps) {
   const [restoreSuccess, setRestoreSuccess] = useState(false)
   const { data: versionsData, isLoading: versionsLoading } = useVersions(docId)
   const { data: collaboratorsData = [], isLoading: collabsLoading } = useCollaborators()
+  const { data: document } = useDocument(docId)
   const restoreVersion = useRestoreVersion()
   const saveDocument = useSaveDocument()
   const acceptChanges = useAcceptChanges()
@@ -78,18 +79,18 @@ export default function VersionHistoryView({ docId }: VersionHistoryViewProps) {
   }
 
   return (
-    <div className="pt-16 h-screen flex overflow-hidden">
-      <aside className="w-80 h-full bg-white border-r border-outline-variant flex flex-col">
+    <div className="h-screen flex overflow-hidden">
+      <aside className="w-[280px] h-full bg-surface-studio border-r border-outline-variant flex flex-col shrink-0">
         <div className="p-6 border-b border-outline-variant">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="font-headline-md text-body-lg font-bold">Historique des versions</h2>
+            <h2 className="font-headline-md text-body-lg font-bold">Historique</h2>
             {docId && (
               <Link to="/editor" search={{ id: docId }} className="flex items-center gap-1 text-secondary font-label-sm text-label-sm hover:underline" title="Retour au document">
-                <Icon name="arrow_back" className="text-[16px]" /> Retour au document
+                <Icon name="arrow_back" className="text-[16px]" />
               </Link>
             )}
           </div>
-          <p className="text-on-surface-variant font-body-sm text-body-sm mt-1">Suivi des captures pour legal_framework_v4.docx</p>
+          <p className="text-on-surface-variant font-body-sm text-body-sm mt-1 truncate">{document?.title || 'Document'}</p>
         </div>
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
           {versionsLoading ? (
@@ -108,12 +109,9 @@ export default function VersionHistoryView({ docId }: VersionHistoryViewProps) {
             ))
           )}
         </div>
-        <div className="p-4 border-t border-outline-variant">
-          <Button className="w-full py-2 bg-surface-container-high hover:bg-surface-variant border border-outline-variant rounded-lg font-label-md text-label-md transition-colors" onClick={() => {}}>Charger plus d&apos;historique</Button>
-        </div>
       </aside>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar bg-white relative">
+      <div className="flex-1 overflow-y-auto custom-scrollbar bg-surface-studio relative">
         {selectedVersion ? (
           <DiffViewer
             version={selectedVersion}

@@ -33,7 +33,6 @@ export default function WorkspaceDashboardView() {
   const activityItems = Array.isArray(activity) ? activity.map(mapActivityItem) : []
   const isCreatingNew = createProject.isPending
 
-  // Check if a document is likely being generated (draft + updated in last 5 min)
   function isDocumentGenerating(doc: typeof documents[number]): boolean {
     if (doc.status !== 'draft') return false
     if (!doc.updatedAt) return false
@@ -51,7 +50,7 @@ export default function WorkspaceDashboardView() {
       const project = await createProject.mutateAsync({ name: prompt.slice(0, 80), brief: prompt })
       navigate({ to: '/onboarding/$id', params: { id: project.id } })
     } catch {
-      /* affiche via les etats pending/error */
+      /* displayed via pending/error states */
     }
   }
 
@@ -60,7 +59,7 @@ export default function WorkspaceDashboardView() {
       const project = await createProject.mutateAsync({ name: 'Nouveau document', brief: '' })
       navigate({ to: '/onboarding/$id', params: { id: project.id } })
     } catch {
-      /* affiche via les etats pending/error */
+      /* displayed via pending/error states */
     }
   }
 
@@ -93,24 +92,19 @@ export default function WorkspaceDashboardView() {
         <ProjectGrid projects={projects} loading={projectsLoading} onOpen={onOpenProject} />
 
         {activeSessions.length > 0 && (
-          <section className="mb-8">
-            <h3 className="font-headline-md text-headline-md font-bold text-primary-container mb-4">
-              Generations en cours
-            </h3>
+          <section className="mb-10">
+            <div className="flex items-center gap-2 mb-5">
+              <div className="w-2 h-2 rounded-full bg-ai-vibrant animate-pulse" />
+              <h3 className="font-headline-sm font-bold text-primary-container">Generations en cours</h3>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {activeSessions.map((s) => (
                 <div
                   key={s.sessionId}
-                  className="bg-white border border-outline-variant rounded-lg p-4 flex flex-col gap-3"
+                  className="bg-white border border-outline-variant rounded-xl p-5 flex flex-col gap-3 hover:border-ai-vibrant transition-all"
                 >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                        s.status === 'generating'
-                          ? 'bg-ai-vibrant animate-pulse'
-                          : 'bg-status-review'
-                      }`}
-                    />
+                  <div className="flex items-center gap-3">
+                    <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-ai-vibrant animate-pulse" />
                     <span className="font-label-md font-mono text-primary-container truncate">
                       {s.title}
                     </span>
@@ -134,14 +128,15 @@ export default function WorkspaceDashboardView() {
 
         <section>
           <div className="flex items-center justify-between mb-6">
-            <h3 className="font-headline-md text-headline-md font-bold text-primary">
-              Documents recents
-            </h3>
-            <div className="flex gap-2 items-center">
+            <div>
+              <h3 className="font-headline-sm font-bold text-primary-container mb-1">Documents recents</h3>
+              <p className="font-body-sm text-secondary">{docsWithGenerating.length} document{docsWithGenerating.length !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="flex items-center gap-2">
               <Button
                 onClick={handleNewDocument}
                 disabled={isCreatingNew}
-                className="bg-ai-vibrant hover:bg-secondary text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all mr-3"
+                className="bg-ai-vibrant hover:bg-secondary text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all"
               >
                 {isCreatingNew ? (
                   <>
@@ -155,17 +150,24 @@ export default function WorkspaceDashboardView() {
                   </>
                 )}
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => setViewMode('grid')} className={viewMode === 'grid' ? 'text-ai-vibrant' : ''}>
-                <Icon name="grid_view" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={() => setViewMode('list')} className={viewMode === 'list' ? 'text-ai-vibrant' : ''}>
-                <Icon name="list" />
-              </Button>
+              <div className="flex bg-surface rounded-lg border border-outline-variant p-0.5">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-white text-ai-vibrant shadow-sm' : 'text-secondary hover:text-primary-container'}`}
+                >
+                  <Icon name="grid_view" />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded-md transition-colors ${viewMode === 'list' ? 'bg-white text-ai-vibrant shadow-sm' : 'text-secondary hover:text-primary-container'}`}
+                >
+                  <Icon name="list" />
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Document cards */}
-          <div className={viewMode === 'grid' ? 'grid grid-cols-12 gap-6' : 'flex flex-col gap-4'}>
+          <div className={viewMode === 'grid' ? 'grid grid-cols-12 gap-5' : 'flex flex-col gap-3'}>
             {viewMode === 'grid' && (
               <NewDocumentCard onClick={handleNewDocument} generating={isCreatingNew} />
             )}
@@ -174,8 +176,7 @@ export default function WorkspaceDashboardView() {
             ))}
           </div>
 
-          {/* Activity + Agents row */}
-          <div className="grid grid-cols-12 gap-6 mt-8">
+          <div className="grid grid-cols-12 gap-6 mt-10">
             <ActivityFeed activityItems={activityItems} loading={activityLoading} />
             <AgentStatusPanel agents={agents} />
           </div>

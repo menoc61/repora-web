@@ -57,10 +57,10 @@ projectRouter.delete('/:id', requireAuth, async (req, res, next) => {
 
 projectRouter.post('/:id/generate', requireAuth, async (req, res, next) => {
   try {
-    const { templateId } = req.body ?? {}
-    const result = await generateDocument(req.params.id as string, req.user!.userId, req.user!.role)
+    const { templateId, config } = req.body ?? {}
+    const result = await generateDocument(req.params.id as string, req.user!.userId, req.user!.role, config)
     const project = await getProjectById(req.params.id as string, req.user!.userId, req.user!.role)
-    initiateGeneration(req.params.id as string, project.brief || '', result.document_id, templateId)
+    initiateGeneration(req.params.id as string, project.brief || '', result.document_id, templateId, config)
     await logAudit({ userId: req.user!.userId, action: 'document.generated', target: result.document_id, metadata: { projectId: req.params.id as string, templateId: templateId || null } })
     res.status(201).json(result)
   } catch (err) { next(err) }

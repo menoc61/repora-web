@@ -221,9 +221,12 @@ export async function* runAgent(
 
   yield { type: 'agent_status', agent: agentName, status: 'thinking' }
 
-  // Try to read per-agent config from DB (admin panel overrides)
+  // Resolution order: DB config > registry defaults > discovered model
   let provider = agentDef.defaultProvider as ProviderType
   let modelId = agentDef.defaultModel
+  let temperature: number | undefined
+  let topP: number | undefined
+  let maxTokens: number | undefined
 
   try {
     const [dbConfig] = await db
@@ -234,14 +237,21 @@ export async function* runAgent(
     if (dbConfig) {
       provider = (dbConfig.provider || agentDef.defaultProvider) as ProviderType
       modelId = dbConfig.modelId || agentDef.defaultModel
+      temperature = dbConfig.temperature ?? undefined
+      topP = dbConfig.topP ?? undefined
+      maxTokens = dbConfig.maxTokens ?? undefined
     }
   } catch {
     // DB read failed — use registry defaults
   }
 
-  // For local providers (ollama/llama_cpp), always use the discovered model
-  if (provider === 'ollama' || provider === 'llama_cpp') {
-    modelId = discoveredModel
+  // For Ollama: if no specific model set in DB, use the discovered model
+  if (provider === 'ollama') {
+    if (!modelId || modelId === agentDef.defaultModel) {
+      modelId = discoveredModel
+    }
+    // Ollama doesn't need an API key
+    apiKey = undefined
   }
 
   const model = getLanguageModel(provider, modelId, apiKey)
@@ -254,13 +264,15 @@ export async function* runAgent(
     : undefined
 
   // G6: maxSteps exhaustion handled by SDK stopWhen — stops after maxSteps LLM calls.
-  const maxSteps = supportsToolCalling ? 10 : 3
+  const agentMaxSteps = supportsToolCalling ? 10 : 3
 
   async function* generateWithoutTools(): AsyncGenerator<HermesEvent> {
     const fallbackStream = await streamText({
       model,
       system: agentDef.systemPrompt,
       prompt,
+      temperature,
+      topP,
       stopWhen: isStepCount(3),
     })
     for await (const event of fallbackStream.fullStream) {
@@ -278,7 +290,9 @@ export async function* runAgent(
       system: agentDef.systemPrompt,
       prompt,
       tools,
-      stopWhen: isStepCount(maxSteps),
+      temperature,
+      topP,
+      stopWhen: isStepCount(agentMaxSteps),
     })
 
     let hasOutput = false
@@ -344,14 +358,14 @@ import { orchestrateGeneration } from './pipeline/orchestrate'
  * Events are buffered and broadcast to any connected stream clients.
  * The pipeline runs to completion even if nobody is listening.
  */
-export function initiateGeneration(projectId: string, prompt: string, documentId: string, templateId?: string): void {
+export function initiateGeneration(projectId: string, prompt: string, documentId: string, templateId?: string, config?: Record<string, unknown>): void {
   const state: GenerationState = { events: [], listeners: new Set(), done: false }
   generationStates.set(documentId, state)
 
   // Run the pipeline eagerly in the background (fire-and-forget)
   ;(async () => {
     try {
-      const gen = await orchestrateGeneration(projectId, prompt, documentId, templateId)
+      const gen = await orchestrateGeneration(projectId, prompt, documentId, templateId, config)
       for await (const event of gen) {
         state.events.push(event)
         // Broadcast to all connected stream listeners

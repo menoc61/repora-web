@@ -50,7 +50,7 @@ export default function Editor() {
 }
 
 function EditorPage({ docId }: { docId: string }) {
-  const { data: document, isLoading } = useDocument(docId)
+  const { data: document, isLoading, error } = useDocument(docId)
   const { data: agents = [] } = useAgents()
   const { events: sseEvents, isStreaming: isGenerating } = useDocumentStream(docId)
   const exportDoc = useExportDocument()
@@ -144,6 +144,19 @@ function EditorPage({ docId }: { docId: string }) {
     )
   }
 
+  if (error) {
+    return (
+      <div className="h-screen flex items-center justify-center text-on-surface-variant">
+        <div className="text-center space-y-4">
+          <Icon name="error_outline" className="text-[48px] mx-auto text-status-review" />
+          <p className="font-headline-md text-headline-md text-primary">Erreur de chargement</p>
+          <p className="font-body-md text-on-surface-variant">Impossible de charger ce document.</p>
+          <Link to="/library" className="text-ai-vibrant underline font-label-md">Retour a la bibliotheque</Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="h-screen flex flex-col">
       <EditorHeader
@@ -160,7 +173,7 @@ function EditorPage({ docId }: { docId: string }) {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Editor canvas */}
-        <section className="flex-1 bg-white overflow-y-auto hide-scrollbar relative" id="editor-canvas">
+        <section className="flex-1 bg-surface-studio overflow-y-auto hide-scrollbar relative" id="editor-canvas">
           <EditorCanvas
             docId={docId}
             document={document}

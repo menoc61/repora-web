@@ -1,15 +1,20 @@
 import Icon from '../Icon'
-import { SectionRequirement } from './types'
+import { SectionRequirement, DocumentConfig, DIAGRAM_TYPE_OPTIONS, PAGE_COUNT_OPTIONS, DOCUMENT_TYPE_OPTIONS } from './types'
 
 interface ReviewStepProps {
   context: { description: string; objectives: string; scope: string }
   funcReqs: SectionRequirement[]
   nonFuncReqs: SectionRequirement[]
   actors: string[]
+  config: DocumentConfig
   onEditStep: (s: number) => void
 }
 
-export default function ReviewStep({ context, funcReqs, nonFuncReqs, actors, onEditStep }: ReviewStepProps) {
+export default function ReviewStep({ context, funcReqs, nonFuncReqs, actors, config, onEditStep }: ReviewStepProps) {
+  const pageCountLabel = PAGE_COUNT_OPTIONS.find(o => o.value === config.pageCount)?.label || config.pageCount
+  const diagramLabels = config.diagramTypes.map(t => DIAGRAM_TYPE_OPTIONS.find(o => o.value === t)?.label || t)
+  const docTypeLabel = DOCUMENT_TYPE_OPTIONS.find(o => o.value === config.documentType)?.label || config.documentType
+
   return (
     <div className="bg-white border border-outline-variant rounded-xl p-8">
       <h2 className="font-headline-lg text-primary-container mb-1">Recapitulatif avant generation</h2>
@@ -74,6 +79,21 @@ export default function ReviewStep({ context, funcReqs, nonFuncReqs, actors, onE
               ))}
             </div>
           )}
+        </div>
+
+        <div className="p-4 bg-surface rounded-lg border border-outline-variant">
+          <h3 className="font-label-md font-mono text-secondary mb-2 flex items-center gap-2">
+            <Icon name="tune" /> Configuration du document
+            <button onClick={() => onEditStep(4)} className="text-xs text-ai-vibrant hover:underline ml-auto">Modifier</button>
+          </h3>
+          <div className="font-body-sm text-primary-container space-y-2">
+            <p><strong>Type :</strong> {docTypeLabel}</p>
+            <p><strong>Taille :</strong> {pageCountLabel}</p>
+            <p><strong>Diagrammes :</strong> {diagramLabels.length > 0 ? diagramLabels.join(', ') : 'Aucun'}</p>
+            {config.header.companyName && <p><strong>Entreprise :</strong> {config.header.companyName}</p>}
+            {config.footer.copyright && <p><strong>Mention legale :</strong> {config.footer.copyright}</p>}
+            <p><strong>Numeros de page :</strong> {config.footer.showPageNumbers ? 'Oui' : 'Non'}</p>
+          </div>
         </div>
       </div>
     </div>

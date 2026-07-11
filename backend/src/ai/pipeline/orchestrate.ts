@@ -158,11 +158,26 @@ export async function orchestrateGeneration(
   prompt: string,
   documentId: string,
   templateId?: string,
+  docConfig?: Record<string, unknown>,
 ): Promise<AsyncGenerator<HermesEvent>> {
   async function* orchestrate(): AsyncGenerator<HermesEvent> {
     try {
       // Create shared context for pipeline stages
       const ctx: GenerationContext = createContext(documentId, projectId)
+
+      // Load document config if not provided
+      let config = docConfig
+      if (!config) {
+        const [doc] = await db.select({ config: documents.config })
+          .from(documents)
+          .where(eq(documents.id, documentId))
+          .limit(1)
+        config = (doc?.config as Record<string, unknown>) || {}
+      }
+      const pageCount = (config.pageCount as string) || 'medium'
+      const diagramTypes = (config.diagramTypes as string[]) || ['use_case']
+      const header = (config.header as Record<string, string>) || {}
+      const footer = (config.footer as Record<string, unknown>) || {}
 
       // Detect resume stage from existing document state
       const resumeStage = await detectResumeStage(documentId, projectId)
@@ -242,6 +257,10 @@ export async function orchestrateGeneration(
         plannerPrompt += '\n\nIMPORTANT: The outline MUST include chapters and sections that directly address the requirements listed above. Do NOT produce a generic outline — each functional requirement should map to a specific section.'
       }
 
+      // Inject page count guidance from document config
+      const sectionTarget = pageCount === 'short' ? '5-6' : pageCount === 'long' ? '14-16' : '9-11'
+      plannerPrompt += `\n\nDocument size: ${pageCount} — aim for approximately ${sectionTarget} sections across all chapters.`
+
       if (templateOutline) {
         const chapterTitles = templateOutline.chapters.map(c => `- ${c.title}`).join('\n')
         plannerPrompt += `\n\nUtilise la structure suivante comme base pour le plan du document :\n${chapterTitles}`
@@ -320,7 +339,7 @@ export async function orchestrateGeneration(
       // STEP 2: WRITER — draft each section with quality evaluation
       // When resuming, skip sections that already have substantive content
       // ==================================================================
-      if (sectionCount > 0 && resumeStage === 'writer' || resumeStage === 'planner') {
+      if (sectionCount > 0 && (resumeStage === 'writer' || resumeStage === 'planner')) {
         yield { type: 'context_updated', agent: 'Hermes', key: 'pipelineStage', value: 'writer' }
         yield { type: 'agent_status', agent: 'Writer', status: 'thinking' }
 
@@ -518,10 +537,10 @@ First call getProjectContext and getDocumentContent to understand the project sc
 
 Then for each appropriate diagram type, call saveDiagram with:
   - projectId: "${projectId}"
-  - type: one of "use_case", "sequence", "activity", "class", "deployment"
+  - type: one of "${diagramTypes.join('", "')}"
   - plantumlSource: valid PlantUML code with @startuml/@enduml
 
-Generate at minimum a use case diagram and a sequence diagram. Add class and activity diagrams if relevant.`
+Generate diagrams of these types: ${diagramTypes.join(', ')}.`
       const umlGen = runAgent('UML', umlPrompt, { projectId, documentId })
       for await (const event of umlGen) {
         yield event
@@ -535,10 +554,36 @@ Generate at minimum a use case diagram and a sequence diagram. Add class and act
       if (existingDiagrams.length === 0) {
         console.log('[Hermes] UML agent produced no diagrams — generating via fallback')
         yield { type: 'agent_status', agent: 'UML', status: 'generating_fallback' }
-        for (const diagType of ['use_case', 'sequence']) {
+
+        // Map diagram types to likely section IDs for linking
+        const allSections = await db.select({ id: sectionsTable.id, title: sectionsTable.title })
+          .from(sectionsTable)
+          .where(eq(sectionsTable.documentId, documentId))
+          .orderBy(sectionsTable.order)
+
+        const SECTION_KEYWORDS: Record<string, string[]> = {
+          use_case: ['cas d\'utilisation', 'fonctionnal', 'exigences fonctionnel', 'besoins', 'acteur'],
+          sequence: ['séquence', 'architec', 'technique', 'interactions', 'communication'],
+          activity: ['activité', 'processus', 'workflow', 'flux'],
+          class: ['classe', 'modèle', 'données', 'entité', 'domaine'],
+          deployment: ['déploiement', 'infrastructure', 'hébergement', 'environnement'],
+        }
+
+        function findSectionForDiagram(diagType: string): string | undefined {
+          const keywords = SECTION_KEYWORDS[diagType] || []
+          for (const kw of keywords) {
+            const match = allSections.find(s => s.title.toLowerCase().includes(kw))
+            if (match) return match.id
+          }
+          // Fallback: use the last section (often "Architecture" or "Conclusion")
+          return allSections[allSections.length - 1]?.id
+        }
+
+        for (const diagType of diagramTypes) {
           try {
-            const d = await createDiagram(projectId, diagType, ctx.outline?.title || prompt)
-            yield { type: 'tool_call', agent: 'UML', tool: 'saveDiagram', args: { type: diagType, projectId } }
+            const targetSectionId = findSectionForDiagram(diagType)
+            const d = await createDiagram(projectId, diagType, ctx.outline?.title || prompt, targetSectionId)
+            yield { type: 'tool_call', agent: 'UML', tool: 'saveDiagram', args: { type: diagType, projectId, sectionId: targetSectionId } }
             yield { type: 'tool_result', agent: 'UML', tool: 'saveDiagram', result: { id: d.id, ok: true } }
           } catch (err) {
             console.warn(`[Hermes] Fallback diagram generation failed for ${diagType}:`, (err as Error).message)
@@ -548,6 +593,33 @@ Generate at minimum a use case diagram and a sequence diagram. Add class and act
 
       // G1: PlantUML syntax check (future — Phase 2)
       yield { type: 'agent_status', agent: 'UML', status: 'done' }
+
+      // Insert diagram images into section content
+      const diagramList = await db.select({ id: diagrams.id, type: diagrams.type, sectionId: diagrams.sectionId, renderedUrl: diagrams.renderedUrl })
+        .from(diagrams)
+        .where(eq(diagrams.projectId, projectId))
+
+      for (const diag of diagramList) {
+        if (diag.sectionId && diag.renderedUrl) {
+          const [sec] = await db.select({ id: sectionsTable.id, content: sectionsTable.content })
+            .from(sectionsTable)
+            .where(eq(sectionsTable.id, diag.sectionId))
+            .limit(1)
+          if (sec) {
+            const existing = sec.content || ''
+            // Only insert if not already present
+            if (!existing.includes(diag.renderedUrl)) {
+              const typeLabel = diag.type.replace(/_/g, ' ')
+              const imageBlock = `\n\n![Diagramme ${typeLabel}](${diag.renderedUrl})\n\n`
+              await db.update(sectionsTable)
+                .set({ content: existing + imageBlock, updatedAt: new Date() })
+                .where(eq(sectionsTable.id, diag.sectionId))
+              console.log(`[Hermes] Inserted diagram ${diag.type} into section ${diag.sectionId}`)
+            }
+          }
+        }
+      }
+
       await saveDocumentStatus(documentId, 'in_review')
       await savePipelineStage(documentId, 'uml')
       } // end UML resume check

@@ -33,6 +33,7 @@ export const documents = pgTable('documents', {
   projectId: uuid('project_id').references(() => projects.id).notNull(),
   status: text('status').default('draft').notNull(),
   outline: jsonb('outline'),
+  config: jsonb('config').default({}).notNull(),
   exportUrl: text('export_url'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -54,6 +55,7 @@ export const sections = pgTable('sections', {
 export const diagrams = pgTable('diagrams', {
   id: uuid('id').defaultRandom().primaryKey(),
   projectId: uuid('project_id').references(() => projects.id).notNull(),
+  sectionId: uuid('section_id').references(() => sections.id),
   type: text('type').notNull(),
   plantumlSource: text('plantuml_source'),
   renderedUrl: text('rendered_url'),

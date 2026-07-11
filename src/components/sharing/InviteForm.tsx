@@ -35,10 +35,10 @@ export default function InviteForm({
       </h3>
       <div className="flex flex-col gap-4">
         <div className="flex gap-2">
-          <div className="flex-1 relative">
+          <div className="flex-1">
             <Input
               className="w-full px-4 py-3 bg-surface-studio border border-outline-variant rounded-lg text-body-md focus:ring-2 focus:ring-secondary outline-none"
-              placeholder="Saisir les adresses e-mail..."
+              placeholder="Saisir l'adresse e-mail..."
               type="email"
               value={email}
               onChange={(e) => onEmailChange((e.target as HTMLInputElement).value)}
@@ -58,13 +58,9 @@ export default function InviteForm({
             </Select>
           </div>
         </div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <input className="rounded border-outline text-secondary focus:ring-secondary" id="notify" type="checkbox" />
-            <label className="text-body-sm text-on-surface-variant" htmlFor="notify">Notifier les destinataires par e-mail</label>
-          </div>
+        <div className="flex justify-end">
           <Button
-            className="bg-primary text-white px-8 py-3 rounded-lg font-label-md text-label-md hover:opacity-90 transition-opacity"
+            className="bg-ai-vibrant text-white px-6 py-2.5 rounded-lg font-label-md text-label-md hover:bg-ai-vibrant/90 transition-all"
             onClick={onSend}
             disabled={sending || !email.trim()}
           >

@@ -1,6 +1,7 @@
 import http from 'http'
 import express from 'express'
 import cors from 'cors'
+import path from 'path'
 import { config } from './config'
 import { errorHandler } from './middleware/error'
 import { authRouter } from './routes/auth'
@@ -38,6 +39,9 @@ const app = express()
 
 app.use(cors({ origin: config.corsOrigin, credentials: true }))
 app.use(express.json())
+
+// Serve uploaded diagrams as static files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
 
 app.use('/auth', authRouter)
 app.use('/projects', projectRouter)
