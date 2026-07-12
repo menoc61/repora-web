@@ -11,6 +11,7 @@ export function useNotificationSocket() {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const authenticated = useAuthStore((s) => s.isAuthenticated)
+  const retryCountRef = useRef(0)
 
   useEffect(() => {
     if (!authenticated) {
@@ -18,14 +19,18 @@ export function useNotificationSocket() {
       return
     }
 
+    let cancelled = false
+
     function connect() {
-      if (wsRef.current) return
+      if (cancelled || wsRef.current) return
       const base = getWsBase()
       try {
         const ws = new WebSocket(`${base}/notifications`)
         wsRef.current = ws
 
-        ws.onopen = () => console.log('[Notif] Connected')
+        ws.onopen = () => {
+          retryCountRef.current = 0
+        }
 
         ws.onmessage = (evt) => {
           try {
@@ -40,17 +45,27 @@ export function useNotificationSocket() {
 
         ws.onclose = () => {
           wsRef.current = null
-          reconnectRef.current = setTimeout(connect, 3000)
+          if (cancelled) return
+          retryCountRef.current++
+          const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 15000)
+          reconnectRef.current = setTimeout(connect, delay)
         }
 
-        ws.onerror = () => { ws.close(); wsRef.current = null }
+        ws.onerror = () => {
+          ws.close()
+          wsRef.current = null
+        }
       } catch {
-        reconnectRef.current = setTimeout(connect, 5000)
+        if (cancelled) return
+        retryCountRef.current++
+        const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 15000)
+        reconnectRef.current = setTimeout(connect, delay)
       }
     }
 
     connect()
     return () => {
+      cancelled = true
       if (reconnectRef.current) clearTimeout(reconnectRef.current)
       if (wsRef.current) { wsRef.current.onclose = null; wsRef.current.close(); wsRef.current = null }
     }

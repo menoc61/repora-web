@@ -27,6 +27,38 @@ export const slashMenuItems: SlashMenuItem[] = [
       window.dispatchEvent(event)
     },
   },
+  {
+    label: 'Resumer la selection',
+    icon: 'summarize',
+    description: 'Resumer le texte selectionne en 2-3 phrases',
+    command: (editor) => {
+      // Use actual selection, fallback to first 500 chars if no selection
+      const selection = editor.state.selection
+      const text = selection.empty
+        ? editor.state.doc.textContent.slice(0, 500)
+        : editor.state.doc.textBetween(selection.from, selection.to, '')
+      const event = new CustomEvent('repora:ai-action', { detail: { action: 'summarize', text, editor } })
+      window.dispatchEvent(event)
+    },
+  },
+  {
+    label: 'Generer un tableau',
+    icon: 'table_chart',
+    description: 'Creer un tableau structure a partir du contexte',
+    command: (editor) => {
+      const event = new CustomEvent('repora:ai-action', { detail: { action: 'table', text: '', editor } })
+      window.dispatchEvent(event)
+    },
+  },
+  {
+    label: 'Generer diagramme UML',
+    icon: 'account_tree',
+    description: 'Creer un diagramme UML pertinent',
+    command: (editor) => {
+      const event = new CustomEvent('repora:ai-action', { detail: { action: 'diagram', text: '', editor } })
+      window.dispatchEvent(event)
+    },
+  },
   // Headings
   {
     label: 'Titre 1',

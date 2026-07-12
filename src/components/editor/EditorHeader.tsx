@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react'
 import { Link } from '@tanstack/react-router'
 import Icon from '../Icon'
 import { Button } from '../ui/button'
@@ -7,8 +8,11 @@ interface EditorHeaderProps {
   title: string
   status: Document['status']
   docId: string | undefined
+  projectId?: string
   onShare: () => void
   onExport: (format: 'pdf' | 'docx') => void
+  onPreview: () => void
+  onResume?: () => void
   sharePending: boolean
   collabStatus?: 'connecting' | 'connected' | 'disconnected'
 }
@@ -34,8 +38,18 @@ const STATUS_COLORS: Record<string, string> = {
   rejected: 'bg-error',
 }
 
-export function EditorHeader({ title, status, docId, onShare, onExport, sharePending, collabStatus }: EditorHeaderProps) {
+export function EditorHeader({ title, status, docId, projectId, onShare, onExport, onPreview, onResume, sharePending, collabStatus }: EditorHeaderProps) {
   const statusLabel = STATUS_LABELS[status as string] || (status as string).toUpperCase()
+  const [exportOpen, setExportOpen] = useState(false)
+  const exportRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   return (
     <header className="sticky top-0 h-14 bg-surface-studio border-b border-outline-variant flex justify-between items-center px-6 z-40">
@@ -74,13 +88,52 @@ export function EditorHeader({ title, status, docId, onShare, onExport, sharePen
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {(status === 'draft' || status === 'in_review') && onResume && (
+          <button
+            onClick={onResume}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-ai-vibrant/10 text-ai-vibrant border border-ai-vibrant/30 rounded-lg font-label-md text-label-md hover:bg-ai-vibrant/20 transition-colors"
+            title="Reprendre la generation"
+          >
+            <Icon name="play_arrow" className="text-[16px]" />
+            <span className="hidden md:inline">Reprendre</span>
+          </button>
+        )}
         <button
-          onClick={() => onExport('pdf')}
+          onClick={onPreview}
           className="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant rounded-lg font-label-md text-label-md hover:bg-surface-container transition-colors"
+          title="Apercu du document"
         >
-          <Icon name="export_notes" className="text-[16px]" />
-          <span className="hidden md:inline">Exporter</span>
+          <Icon name="visibility" className="text-[16px]" />
+          <span className="hidden md:inline">Apercu</span>
         </button>
+        <div ref={exportRef} className="relative">
+          <button
+            onClick={() => setExportOpen(!exportOpen)}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-outline-variant rounded-lg font-label-md text-label-md hover:bg-surface-container transition-colors"
+          >
+            <Icon name="export_notes" className="text-[16px]" />
+            <span className="hidden md:inline">Exporter</span>
+            <Icon name={exportOpen ? 'expand_less' : 'expand_more'} className="text-[14px]" />
+          </button>
+          {exportOpen && (
+            <div className="absolute right-0 top-full mt-1 w-44 bg-surface-studio border border-outline-variant rounded-lg shadow-lg z-50 overflow-hidden">
+              <button
+                onClick={() => { onExport('pdf'); setExportOpen(false) }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-body-sm text-on-surface hover:bg-surface-container-low transition-colors"
+              >
+                <Icon name="picture_as_pdf" className="text-[16px] text-red-500" />
+                PDF
+              </button>
+              <button
+                onClick={() => { onExport('docx'); setExportOpen(false) }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-body-sm text-on-surface hover:bg-surface-container-low transition-colors"
+              >
+                <Icon name="description" className="text-[16px] text-blue-500" />
+                Word (DOCX)
+              </button>
+            </div>
+          )}
+        </div>
         <Button
           onClick={onShare}
           disabled={!docId || sharePending}

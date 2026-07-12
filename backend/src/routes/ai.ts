@@ -29,7 +29,7 @@ aiRouter.post('/complete', requireAuth, async (req: Request, res: Response, next
 Tu aides l'utilisateur a rediger, ameliorer, reformuler, resumer ou traduire du contenu technique.
 Tu reponds toujours en francais, sauf si la demande est explicitement de traduire.
 Tu formates ta reponse en Markdown.
-Sois precis, concis et professionnel.`
+Sois precis, concis et professionnel.${context ? `\n\nContexte du document en cours:\n${context}` : ''}`
 
     const userMessage = selectedText
       ? `Commande: ${command}\n\nTexte selectionne:\n${selectedText}`

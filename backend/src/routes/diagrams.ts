@@ -6,13 +6,22 @@ import { config } from '../config'
 export const diagramRouter = Router()
 diagramRouter.use(requireAuth)
 
+// All mounted at /projects
 diagramRouter.post('/:id/diagrams', async (req, res, next) => {
   try {
-    const result = await diagramService.createDiagram(req.params.id, req.body.type, req.body.source)
+    const result = await diagramService.createDiagram(req.params.id, req.body.type, req.body.source, req.body.sectionId)
     res.status(201).json(result)
   } catch (err) { next(err) }
 })
 
+diagramRouter.get('/:projectId/diagrams', async (req, res, next) => {
+  try {
+    const result = await diagramService.listDiagramsByProject(req.params.projectId)
+    res.json(result)
+  } catch (err) { next(err) }
+})
+
+// GET /projects/diagrams/:id — single diagram access
 diagramRouter.get('/diagrams/:id', async (req, res, next) => {
   try {
     const result = await diagramService.getDiagram(req.params.id)

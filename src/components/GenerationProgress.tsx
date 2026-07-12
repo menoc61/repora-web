@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { AgentStatus } from './AgentStatus'
 import Icon from './Icon'
 import type { HermesEvent } from '../hooks/useQueries'
@@ -170,10 +170,41 @@ function PipelineProgress({ currentStage, completedSteps }: { currentStage: stri
 
 // ── Component ──
 
+const STALL_THRESHOLD_MS = 60_000 // 60 seconds without tokens = stalled
+
 export function GenerationProgress({ events, isStreaming }: GenerationProgressProps) {
   const agentStates = useMemo(() => deriveAgentStates(events), [events])
   const pipelineStage = useMemo(() => derivePipelineStage(events), [events])
   const completedSteps = useMemo(() => deriveCompletedSteps(events), [events])
+
+  // Track last token timestamp per agent for stall detection
+  const lastTokenTime = useRef<Map<string, number>>(new Map())
+  const [stalledAgents, setStalledAgents] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    const now = Date.now()
+    // Only check the LATEST token event per agent, not the entire history
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i]
+      if (e.type === 'token' && e.agent && !lastTokenTime.current.has(e.agent)) {
+        lastTokenTime.current.set(e.agent, now)
+      }
+    }
+    // Also update from the most recent event directly
+    const last = events[events.length - 1]
+    if (last?.type === 'token' && (last as any).agent) {
+      lastTokenTime.current.set((last as any).agent, now)
+    }
+    // Check for stalled agents
+    const stalled = new Set<string>()
+    for (const [agent, lastTime] of lastTokenTime.current.entries()) {
+      const state = agentStates.get(agent)
+      if (state && (state.status === 'writing' || state.status === 'thinking') && now - lastTime > STALL_THRESHOLD_MS) {
+        stalled.add(agent)
+      }
+    }
+    setStalledAgents(stalled)
+  }, [events, agentStates])
 
   // Nothing to show
   if (!isStreaming && events.length === 0) {
@@ -187,21 +218,40 @@ export function GenerationProgress({ events, isStreaming }: GenerationProgressPr
 
   // Completion summary when stream ended
   if (!isStreaming && events.length > 0) {
+    const hasErrors = agentList.some((a) => a.status === 'error')
+    const errorCount = agentList.filter((a) => a.status === 'error').length
     return (
       <div className="p-gutter border-b border-outline-variant">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-label-md text-label-md font-bold uppercase tracking-widest">
             Orchestrateur IA
           </h3>
-          <span className="bg-status-final/10 text-status-final font-label-sm text-label-sm px-2 py-0.5 rounded">
-            TERMINE
-          </span>
+          {hasErrors ? (
+            <span className="bg-status-review/10 text-status-review font-label-sm text-label-sm px-2 py-0.5 rounded">
+              TERMINE AVEC ERREURS
+            </span>
+          ) : (
+            <span className="bg-status-final/10 text-status-final font-label-sm text-label-sm px-2 py-0.5 rounded">
+              TERMINE
+            </span>
+          )}
         </div>
         <div className="text-center py-4 space-y-2">
-          <Icon name="check_circle" className="text-[32px] mx-auto text-status-final" />
-          <p className="font-label-sm text-label-sm text-on-surface-variant">
-            Generation terminee
-          </p>
+          {hasErrors ? (
+            <>
+              <Icon name="warning" className="text-[32px] mx-auto text-status-review" />
+              <p className="font-label-sm text-label-sm text-on-surface-variant">
+                {errorCount} agent{errorCount > 1 ? 's' : ''} en erreur
+              </p>
+            </>
+          ) : (
+            <>
+              <Icon name="check_circle" className="text-[32px] mx-auto text-status-final" />
+              <p className="font-label-sm text-label-sm text-on-surface-variant">
+                Generation terminee
+              </p>
+            </>
+          )}
           {sectionCount > 0 && (
             <p className="font-label-sm text-[10px] text-on-surface-variant">
               {sectionCount} section{sectionCount > 1 ? 's' : ''} cree{sectionCount > 1 ? 'es' : 'e'}
@@ -253,22 +303,28 @@ export function GenerationProgress({ events, isStreaming }: GenerationProgressPr
                 {agent.errorMessage}
               </p>
             )}
-            {!agent.sectionTitle && !agent.errorMessage && agent.status === 'thinking' && (
+            {stalledAgents.has(agent.name) && !agent.errorMessage && (
+              <p className="text-[12px] text-status-review font-label-sm flex items-center gap-1">
+                <Icon name="schedule" className="text-[10px]" />
+                Agent inactif — tentative de recuperation...
+              </p>
+            )}
+            {!agent.sectionTitle && !agent.errorMessage && !stalledAgents.has(agent.name) && agent.status === 'thinking' && (
               <p className="text-[12px] text-on-surface-variant font-label-sm">
                 Analyse en cours...
               </p>
             )}
-            {!agent.sectionTitle && !agent.errorMessage && agent.status === 'writing' && (
+            {!agent.sectionTitle && !agent.errorMessage && !stalledAgents.has(agent.name) && agent.status === 'writing' && (
               <p className="text-[12px] text-on-surface-variant font-label-sm">
                 Redaction en cours...
               </p>
             )}
-            {!agent.sectionTitle && !agent.errorMessage && agent.status === 'structuring' && (
+            {!agent.sectionTitle && !agent.errorMessage && !stalledAgents.has(agent.name) && agent.status === 'structuring' && (
               <p className="text-[12px] text-on-surface-variant font-label-sm">
                 Structuration du plan...
               </p>
             )}
-            {!agent.sectionTitle && !agent.errorMessage && agent.status === 'rescoping' && (
+            {!agent.sectionTitle && !agent.errorMessage && !stalledAgents.has(agent.name) && agent.status === 'rescoping' && (
               <p className="text-[12px] text-status-review font-label-sm">
                 Correction de qualite...
               </p>

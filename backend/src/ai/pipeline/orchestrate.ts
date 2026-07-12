@@ -152,6 +152,31 @@ function isOutlineJson(obj: unknown): obj is OutlineJson {
 // clears the active generation. All Writer sections committed before the failure
 // remain in the DB — the document is in a partially-completed state that can be
 // inspected via GET /documents/:id and re-generated if needed.
+//
+// Agent recovery: if an agent stalls (no output for AGENT_TIMEOUT_MS), the writer
+// loop automatically retries the section with the same prompt (up to 2 recovery attempts).
+
+const AGENT_TIMEOUT_MS = 120_000 // 2 minutes per agent call
+const AGENT_RECOVERY_ATTEMPTS = 2
+
+/**
+ * Strip raw JSON tool call syntax and markdown code fences that the model may
+ * have output as text instead of using the tool calling mechanism.
+ * Returns the cleaned content.
+ */
+function stripRawToolCalls(text: string): string {
+  if (!text) return text
+  let cleaned = text
+  // Remove markdown code fences wrapping tool calls or content
+  cleaned = cleaned.replace(/```(?:json|markdown|tool_call)?\s*\n?/g, '').replace(/```\s*\n?/g, '')
+  // Match patterns like { "tool": "writeSection", "arguments": { ... } }
+  // or { "action": "getProjectContext", ... } or { "name": "getProjectContext", ... }
+  const toolCallPattern = /\{\s*(?:"tool"|"action"|"name")\s*:\s*"[^"]*"(?:\s*,\s*"arguments"\s*:\s*\{[^}]*\})?\s*\}/g
+  cleaned = cleaned.replace(toolCallPattern, '').trim()
+  // Also strip leading/trailing whitespace and newlines from the result
+  cleaned = cleaned.replace(/^\n+|\n+$/g, '').trim()
+  return cleaned
+}
 
 export async function orchestrateGeneration(
   projectId: string,
@@ -397,11 +422,24 @@ IMPORTANT: The content parameter must contain the FINAL document text. No preamb
           // Try writing the section (with rescope loop for quality issues)
           let writerDone = false
           let currentPrompt = sectionPrompt
+          let recoveryCount = 0
           while (!writerDone && rescopeCount < 3) {
             const writerGen = runAgent('Writer', currentPrompt, { projectId, documentId, sectionId: section.id })
             sectionContent = '' // Reset for this attempt
             let toolCalled = false
+            let lastEventTime = Date.now()
+            let timedOut = false
+
             for await (const event of writerGen) {
+              // Check for stall
+              const now = Date.now()
+              if (now - lastEventTime > AGENT_TIMEOUT_MS) {
+                timedOut = true
+                console.log(`[Hermes] Writer: agent stalled for ${(now - lastEventTime) / 1000}s on section ${section.id}`)
+                break
+              }
+              lastEventTime = now
+
               if (event.type === 'token') {
                 sectionContent += (event as { token: string }).token
               }
@@ -409,6 +447,21 @@ IMPORTANT: The content parameter must contain the FINAL document text. No preamb
                 toolCalled = true
               }
               yield event
+            }
+
+            // If the agent timed out and we have recovery attempts left, retry
+            if (timedOut && recoveryCount < AGENT_RECOVERY_ATTEMPTS) {
+              recoveryCount++
+              console.log(`[Hermes] Writer: recovery attempt ${recoveryCount}/${AGENT_RECOVERY_ATTEMPTS} for section ${section.id}`)
+              yield {
+                type: 'agent_status',
+                agent: 'Writer',
+                status: 'writing',
+                section: `${i + 1}/${sectionCount}`,
+                section_title: section.title,
+              }
+              // Don't increment rescopeCount — timeout is not a quality issue
+              continue
             }
 
             // After agent completes, read actual content from DB (writeSection tool persists there)
@@ -426,14 +479,16 @@ IMPORTANT: The content parameter must contain the FINAL document text. No preamb
             // Always save to DB: tool-written content takes priority, but if the
             // model stopped mid-stream or never called the tool, persist whatever
             // was captured so work isn't lost and resume can pick up from here.
-            if (sectionContent.trim().length > 0) {
+            // Strip any raw JSON tool call syntax the model may have output as text.
+            const cleanedContent = stripRawToolCalls(sectionContent)
+            if (cleanedContent.length > 0) {
               try {
                 await db
                   .update(sectionsTable)
-                  .set({ content: sectionContent.trim(), status: 'draft' })
+                  .set({ content: cleanedContent, status: 'draft' })
                   .where(eq(sectionsTable.id, section.id))
                 if (!toolCalled) {
-                  console.log(`[Hermes] Writer: tool not called, saved ${sectionContent.length} chars directly to DB`)
+                  console.log(`[Hermes] Writer: tool not called, saved ${cleanedContent.length} chars directly to DB`)
                 }
               } catch (err) {
                 console.warn('[Hermes] Writer: failed to save content directly:', err)
@@ -443,8 +498,8 @@ IMPORTANT: The content parameter must contain the FINAL document text. No preamb
             // If the model didn't call any tools, rescoping won't help — accept
             // whatever text was produced and move on to the next section
             if (!toolCalled) {
-              console.log(`[Hermes] Writer: no tools called — accepting ${sectionContent.length} chars of text output for section ${section.id}`)
-              if (sectionContent.trim().length === 0) {
+              console.log(`[Hermes] Writer: no tools called — accepting ${cleanedContent.length} chars of text output for section ${section.id}`)
+              if (cleanedContent.length === 0) {
                 yield {
                   type: 'generation_error',
                   agent: 'Writer',

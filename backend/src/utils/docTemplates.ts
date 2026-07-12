@@ -42,21 +42,21 @@ export const DOCUMENT_TEMPLATES: DocumentTemplate[] = [
     description: 'Document de specification complet avec exigences, diagrams et validation client',
     category: 'specification',
     colors: {
-      primary: '#1a365d',
-      secondary: '#2563eb',
-      heading: '#1a365d',
-      text: '#1a202c',
-      muted: '#718096',
-      border: '#e2e8f0',
-      tableHeader: '#1a365d',
-      tableHeaderText: '#ffffff',
-      tableAltRow: '#f7fafc',
+      primary: '#1a6faa',        // Section heading blue (reference match)
+      secondary: '#2563eb',      // Table header / accent blue
+      heading: '#1a6faa',        // Section headings
+      text: '#1a202c',           // Body text
+      muted: '#718096',          // Muted/secondary text
+      border: '#e2e8f0',         // Borders
+      tableHeader: '#2563eb',    // Table header background (vibrant blue)
+      tableHeaderText: '#ffffff', // White text on table headers
+      tableAltRow: '#f8fafc',    // Alternating row background
       calloutInfo: '#ebf8ff',
       calloutWarning: '#fffbeb',
       calloutSuccess: '#f0fff4',
       calloutDanger: '#fff5f5',
-      coverBg: '#1a365d',
-      coverText: '#ffffff',
+      coverBg: '#1a365d',        // Cover background (dark navy)
+      coverText: '#ffffff',      // Cover text (white)
     },
     fonts: {
       headingFamily: 'Helvetica-Bold',

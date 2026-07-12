@@ -185,3 +185,20 @@ export async function getDiagram(id: string) {
     rendered_url: renderedUrl,
   }
 }
+
+export async function listDiagramsByProject(projectId: string) {
+  const rows = await db.select().from(diagrams).where(eq(diagrams.projectId, projectId))
+  return rows.map((d) => {
+    const plantumlSource = d.plantumlSource || ''
+    const renderedUrl = d.renderedUrl || (plantumlSource
+      ? `${config.plantumlUrl}/svg/~1${encodePlantUML(plantumlSource)}`
+      : '')
+    return {
+      id: d.id,
+      type: d.type,
+      section_id: d.sectionId,
+      plantuml_source: plantumlSource,
+      rendered_url: renderedUrl,
+    }
+  })
+}

@@ -3,6 +3,7 @@ import { Link, useSearch } from '@tanstack/react-router'
 import {
   useDocument,
   useExportDocument,
+  useGenerateDocument,
   useAgents,
   useDocumentStream,
 } from '../hooks/useQueries'
@@ -19,7 +20,10 @@ import {
   ShareDialog,
   DiagramPanel,
 } from '../components/editor'
+import AssistantChat from '../components/editor/AssistantChat'
 import EditorFormatToolbar from '../components/editor/EditorFormatToolbar'
+
+type InspectorTab = 'agents' | 'chat' | 'structure'
 
 // ── Main Editor Page ──
 
@@ -52,21 +56,34 @@ export default function Editor() {
 function EditorPage({ docId }: { docId: string }) {
   const { data: document, isLoading, error } = useDocument(docId)
   const { data: agents = [] } = useAgents()
-  const { events: sseEvents, isStreaming: isGenerating } = useDocumentStream(docId)
   const exportDoc = useExportDocument()
+  const generateDoc = useGenerateDocument()
   const sessions = useGenerationStore((s) => s.sessions)
+  const { events: sseEvents } = useDocumentStream(docId)
   const [shareOpen, setShareOpen] = useState(false)
   const [sharePending, setSharePending] = useState(false)
   const [liveWordCount, setLiveWordCount] = useState(0)
   const [liveOutline, setLiveOutline] = useState<OutlineSection[]>([])
   const [editorInstance, setEditorInstance] = useState<any>(null)
   const [collabProvider, setCollabProvider] = useState<any>(null)
+  const [activeTab, setActiveTab] = useState<InspectorTab>('chat')
   const collabStatus = useCollabStatus(collabProvider)
+  // Derive isGenerating from store — no activeSession useState to avoid circular dependency
+  const isGenerating = sessions.some((s) => s.documentId === docId && s.status === 'generating')
 
+  // Auto-switch to agents tab during generation
   useEffect(() => {
-    if (!docId) return
+    if (isGenerating && activeTab !== 'agents') {
+      setActiveTab('agents')
+    }
+  }, [isGenerating])
+
+  // Sync store status when isGenerating changes (no sessions dep to avoid loop)
+  useEffect(() => {
+    if (!docId || !sessions.some((s) => s.documentId === docId)) return
     const { updateSession, completeSession } = useGenerationStore.getState()
-    const session = sessions.find((s) => s.documentId === docId)
+    const { sessions: currentSessions } = useGenerationStore.getState()
+    const session = currentSessions.find((s) => s.documentId === docId)
     if (session) {
       if (isGenerating && session.status !== 'generating') {
         updateSession(session.sessionId, { status: 'generating' })
@@ -75,7 +92,7 @@ function EditorPage({ docId }: { docId: string }) {
         completeSession(session.sessionId)
       }
     }
-  }, [isGenerating, docId, sessions])
+  }, [isGenerating, docId])
 
   const title = document?.title ?? 'Document sans titre'
   const status = document?.status ?? 'draft'
@@ -97,22 +114,20 @@ function EditorPage({ docId }: { docId: string }) {
 
   const wordCount = liveWordCount > 0 ? liveWordCount : 0
 
+  const sectionsTotalCount = document?.sections?.length ?? 0
+  const sectionsDoneCount = document?.sections?.filter((s: any) =>
+    s.status === 'final' || s.status === 'done' || s.status === 'reviewed' || s.status === 'validated'
+  ).length ?? 0
+
   const aiEfficiencyPercent = useMemo(() => {
-    if (sseEvents.length > 0) {
-      const statusEvents = sseEvents.filter((e) => e.type === 'agent_status')
-      const doneCount = statusEvents.filter((e) => (e as any).status === 'done').length
-      const agentNames = new Set(statusEvents.map((e) => (e as any).agent)).size
-      if (agentNames > 0) {
-        return Math.round((doneCount / agentNames) * 100)
-      }
-    }
+    // Calculate from document sections instead of SSE events
     const sections = document?.sections
     if (Array.isArray(sections) && sections.length > 0) {
       const done = sections.filter((s: any) => s.status === 'final' || s.status === 'done' || s.status === 'reviewed' || s.status === 'validated').length
       return Math.round((done / sections.length) * 100)
     }
     return -1
-  }, [document, sseEvents])
+  }, [document])
 
   const handleWordCountChange = useCallback((n: number) => {
     setLiveWordCount(n)
@@ -130,7 +145,29 @@ function EditorPage({ docId }: { docId: string }) {
     a.href = url
     a.download = `${title}.${format}`
     a.click()
-    URL.revokeObjectURL(url)
+    // Delay revocation to let the download start
+    setTimeout(() => URL.revokeObjectURL(url), 30_000)
+  }
+
+  async function handlePreview() {
+    if (!docId) return
+    const blob = await exportDoc.mutateAsync({ id: docId, format: 'pdf' })
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    // Don't revoke immediately — let the new tab load it
+    setTimeout(() => URL.revokeObjectURL(url), 30_000)
+  }
+
+  async function handleResume() {
+    if (!document?.projectId) return
+    try {
+      // Create a generation session so the UI tracks the generation
+      const { startSession } = useGenerationStore.getState()
+      startSession({ projectId: document.projectId, documentId: docId, title: document?.title || 'Document' })
+      await generateDoc.mutateAsync({ projectId: document.projectId, prompt: '' })
+    } catch (err) {
+      console.error('Generation failed to start:', err)
+    }
   }
 
   if (isLoading) {
@@ -163,8 +200,11 @@ function EditorPage({ docId }: { docId: string }) {
         title={title}
         status={status}
         docId={docId}
+        projectId={document?.projectId}
         onShare={() => setShareOpen(true)}
         onExport={handleExport}
+        onPreview={handlePreview}
+        onResume={handleResume}
         sharePending={sharePending}
         collabStatus={collabStatus}
       />
@@ -190,17 +230,70 @@ function EditorPage({ docId }: { docId: string }) {
 
         {/* Right Inspector */}
         <aside className="w-[320px] border-l border-outline-variant bg-surface-studio flex flex-col shrink-0 overflow-hidden">
-          <AgentProgressPanel sseEvents={sseEvents} isGenerating={isGenerating} agents={agents} />
-
-          <div className="flex-1 overflow-y-auto p-gutter">
-            <DiagramPanel projectId={document?.projectId} title={title} />
-            <OutlineTree sections={outlineSections} />
+          {/* Tab bar */}
+          <div className="flex border-b border-outline-variant shrink-0">
+            {([
+              { id: 'agents' as const, icon: 'smart_toy', label: 'Agents', badge: isGenerating ? 'active' : undefined },
+              { id: 'chat' as const, icon: 'auto_awesome', label: 'Chat' },
+              { id: 'structure' as const, icon: 'account_tree', label: 'Structure' },
+            ]).map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-label-sm font-label-sm transition-colors relative ${
+                  activeTab === tab.id
+                    ? 'text-ai-vibrant after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:bg-ai-vibrant after:rounded-full'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }`}
+              >
+                <Icon name={tab.icon} className="text-[15px]" />
+                <span className="hidden xl:inline">{tab.label}</span>
+                {tab.badge && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-ai-vibrant animate-pulse" />
+                )}
+              </button>
+            ))}
           </div>
 
-          <div className="p-4 border-t border-outline-variant bg-surface-container-lowest">
+          {/* Tab content */}
+          <div className="flex-1 overflow-hidden">
+            {activeTab === 'agents' && (
+              <div className="h-full flex flex-col">
+                <AgentProgressPanel isGenerating={isGenerating} agents={agents} sseEvents={sseEvents} />
+              </div>
+            )}
+
+            {activeTab === 'chat' && (
+              <AssistantChat
+                projectId={document?.projectId}
+                documentContext={document?.sections?.map((s: any) => `${s.title}: ${s.content || ''}`).join('\n\n')}
+              />
+            )}
+
+            {activeTab === 'structure' && (
+              <div className="h-full overflow-y-auto p-gutter space-y-4">
+                <DiagramPanel projectId={document?.projectId} title={title} />
+                <OutlineTree sections={outlineSections} />
+              </div>
+            )}
+          </div>
+
+          {/* Status bar */}
+          <div className="p-3 border-t border-outline-variant bg-surface-container-lowest shrink-0">
             <div className="flex justify-between items-center text-label-sm text-on-surface-variant mb-1">
               <span>{wordCount.toLocaleString()} MOTS</span>
-              <span>EFFICACITE IA : {aiEfficiencyPercent >= 0 ? `${aiEfficiencyPercent}%` : '—'}</span>
+              <span>
+                {isGenerating ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-ai-vibrant animate-pulse" />
+                    EN GENERATION
+                  </span>
+                ) : aiEfficiencyPercent >= 0 ? (
+                  `${sectionsDoneCount}/${sectionsTotalCount} sections`
+                ) : (
+                  'PRET'
+                )}
+              </span>
             </div>
             {aiEfficiencyPercent >= 0 && (
               <div className="h-1 bg-surface-alt rounded-full overflow-hidden">

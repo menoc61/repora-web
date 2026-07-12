@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import request from 'supertest'
 import { getApp, cleanupTestUser } from './setup'
+import { isLibreOfficeAvailable } from '../src/services/docxToPdf'
 
 let app: ReturnType<typeof getApp>
 let token: string
@@ -58,7 +59,11 @@ describe('GET /documents/:id/export', () => {
     expect(res.body instanceof ArrayBuffer || Buffer.isBuffer(res.body) || typeof res.body === 'object').toBe(true)
   })
 
-  it('exports pdf format', async () => {
+  it('exports pdf format (derived from docx)', { retry: 1, timeout: 60000 }, async () => {
+    if (!isLibreOfficeAvailable()) {
+      console.warn('SKIP: LibreOffice not available for DOCX->PDF conversion')
+      return
+    }
     const res = await request(app)
       .get(`/documents/${documentId}/export?format=pdf`)
       .set('Authorization', `Bearer ${token}`)

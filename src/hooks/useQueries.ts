@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useEffect, useRef } from 'react'
 import { api, sseStream } from '../api/client'
 import { useAuthStore } from '../stores'
+import { useGenerationStore } from '../stores/generationStore'
 import type { Document, Metrics, Template, Collaborator, DocumentFilters } from '../schemas'
 
 // ── Hermes SSE Event Types (aligned with backend HermesEvent union) ──
@@ -324,7 +325,23 @@ export function useDocumentStream(docId: string | undefined) {
   const [events, setEvents] = useState<HermesEvent[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const [streamVersion, setStreamVersion] = useState(0)
   const cancelledRef = useRef(false)
+  const prevSessionCount = useRef(0)
+
+  // Watch generation store for new sessions on this docId
+  useEffect(() => {
+    const current = useGenerationStore.getState().sessions
+    prevSessionCount.current = current.filter((s) => s.documentId === docId).length
+    const unsubscribe = useGenerationStore.subscribe((state) => {
+      const docSessions = state.sessions.filter((s) => s.documentId === docId)
+      if (docSessions.length > prevSessionCount.current) {
+        prevSessionCount.current = docSessions.length
+        setStreamVersion((v) => v + 1)
+      }
+    })
+    return unsubscribe
+  }, [docId])
 
   useEffect(() => {
     if (!docId) {
@@ -360,17 +377,12 @@ export function useDocumentStream(docId: string | undefined) {
     return () => {
       cancelledRef.current = true
     }
-  }, [docId])
+  }, [docId, streamVersion])
 
   // ── Derived values from the event stream ──
   const lastEvent = events.length > 0 ? events[events.length - 1] : null
 
-  const activeAgents = [...new Set(
-    events
-      .filter((e): e is HermesAgentStatus => e.type === 'agent_status' && (e as HermesAgentStatus).status !== 'done')
-      .map((e) => e.agent),
-  )]
-
+  // Build agent states first, then derive activeAgents from last known status
   const agentStates: Record<string, { status: string; section?: string; sectionTitle?: string; tokenCount: number }> = {}
   for (const e of events) {
     if (e.type === 'agent_status') {
@@ -398,6 +410,11 @@ export function useDocumentStream(docId: string | undefined) {
       }
     }
   }
+
+  // Active agents = those whose LAST known status is not 'done' or 'error'
+  const activeAgents = Object.entries(agentStates)
+    .filter(([, state]) => state.status !== 'done' && state.status !== 'error')
+    .map(([name]) => name)
 
   return { events, isStreaming, error, lastEvent, activeAgents, agentStates }
 }
@@ -867,10 +884,19 @@ export function useCreateDiagram() {
   return useMutation({
     mutationFn: async ({ projectId, type, source }: { projectId: string; type: string; source?: string }) =>
       api.post<{ id: string; rendered_url: string }>(`/projects/${projectId}/diagrams`, { type, source: source ?? '' }),
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       qc.invalidateQueries({ queryKey: ['diagrams'] })
+      qc.invalidateQueries({ queryKey: ['projectDiagrams', variables.projectId] })
       if (data?.id) qc.invalidateQueries({ queryKey: ['diagram', data.id] })
     },
+  })
+}
+
+export function useProjectDiagrams(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['projectDiagrams', projectId],
+    queryFn: async () => api.get<Array<{ id: string; type: string; section_id: string | null; rendered_url: string }>>(`/projects/${projectId}/diagrams`),
+    enabled: !!projectId,
   })
 }
 

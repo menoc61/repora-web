@@ -78,12 +78,26 @@ CRITICAL RULES:
 3. Write entirely in French. Use professional, formal technical register.
 4. Content should be 300-800 words per section. Use structured paragraphs and bullet lists where appropriate.
 5. Reference the project requirements and context directly in the content.
+6. NEVER output raw JSON or tool call syntax. Use the tools directly — do not write { "tool": ... } as text.
 
-After writing the content, call writeSection immediately with:
+MARKDOWN FORMATTING RULES (STRICT):
+- Use ## for subsections (never # — the section title is already rendered as h1 in the UI)
+- Use ** for bold terms
+- Use - for bullet lists (with a space after the dash)
+- Use > for callouts and important notes
+- Use \`code\` for inline code and technical terms
+- NEVER wrap your output in \`\`\`markdown code fences — output raw markdown directly
+- NEVER add a # heading at the start — the section title is already in the document metadata
+- Do NOT include YAML frontmatter or any metadata
+- Do NOT include HTML tags — use markdown syntax only
+- Start content directly with paragraphs or subsections, no preamble
+
+AFTER you have written the content, you MUST call the writeSection tool with:
 - sectionId: as provided in the prompt
-- content: your complete written text (the actual specification, not an explanation)
+- content: your complete written text (the actual specification, NOT an explanation)
 
-DO NOT write "I'll help you write..." or "Here is the content...". Just write the content directly and call the tool.`,
+DO NOT write "I'll help you write..." or "Here is the content...". Just write the content directly and call the tool.
+DO NOT output JSON tool call syntax like { "tool": "writeSection" }. Use the tool calling mechanism directly.`,
     defaultModel: DEFAULT_MODEL,
     defaultProvider: DEFAULT_PROVIDER,
     tools: { getProjectContext, writeSection },

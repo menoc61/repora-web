@@ -1,43 +1,63 @@
-import { useState } from 'react'
-import { useCreateDiagram, useDiagram } from '../../hooks/useQueries'
+import { useState, useEffect } from 'react'
+import { useCreateDiagram, useProjectDiagrams } from '../../hooks/useQueries'
 import Icon from '../Icon'
 import { Button } from '../ui/button'
 
-// ── Diagram card (refreshes rendered url via useDiagram) ──
+const DIAGRAM_TYPES = [
+  { value: 'use_case', label: 'Cas d\'utilisation' },
+  { value: 'sequence', label: 'Séquence' },
+  { value: 'activity', label: 'Activité' },
+  { value: 'class', label: 'Classe' },
+  { value: 'deployment', label: 'Déploiement' },
+]
 
-function DiagramCard({ id, type, initialUrl }: { id: string; type: string; initialUrl: string }) {
-  const { data } = useDiagram(id)
-  const renderedUrl = data?.rendered_url ?? initialUrl
+function DiagramCard({ id, type, renderedUrl }: { id: string; type: string; renderedUrl: string }) {
+  const [imgError, setImgError] = useState(false)
 
   return (
     <div className="border border-outline-variant rounded-lg overflow-hidden bg-white">
       <div className="flex items-center justify-between px-3 py-2 bg-surface-studio border-b border-outline-variant">
-        <span className="font-label-sm text-label-sm uppercase">{type}</span>
-        <a
-          href={renderedUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="text-ai-vibrant hover:underline font-label-sm"
-        >
-          Ouvrir
-        </a>
+        <span className="font-label-sm text-label-sm uppercase">{DIAGRAM_TYPES.find(t => t.value === type)?.label || type}</span>
+        {renderedUrl && (
+          <a
+            href={renderedUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-ai-vibrant hover:underline font-label-sm"
+          >
+            Ouvrir
+          </a>
+        )}
       </div>
-      {renderedUrl ? (
-        <img src={renderedUrl} alt={type} className="w-full p-2" />
+      {renderedUrl && !imgError ? (
+        <img
+          src={renderedUrl}
+          alt={type}
+          className="w-full p-2"
+          onError={() => setImgError(true)}
+        />
       ) : (
-        <p className="text-label-sm text-on-surface-variant p-3 italic">Rendu en cours...</p>
+        <div className="p-4 text-center">
+          <Icon name="broken_image" className="text-2xl text-outline mx-auto mb-1" />
+          <p className="text-label-sm text-on-surface-variant italic">{imgError ? 'Erreur de chargement' : 'Rendu en cours...'}</p>
+        </div>
       )}
     </div>
   )
 }
 
-// ── Diagram panel (owns diagram state/hook/handler) ──
-
 export function DiagramPanel({ projectId, title }: { projectId: string | undefined; title: string }) {
   const createDiagram = useCreateDiagram()
+  const { data: existingDiagrams = [] } = useProjectDiagrams(projectId)
   const [diagramType, setDiagramType] = useState<string>('use_case')
-  const [diagrams, setDiagrams] = useState<Array<{ id: string; type: string; rendered_url: string }>>([])
+  const [localDiagrams, setLocalDiagrams] = useState<Array<{ id: string; type: string; rendered_url: string }>>([])
   const [diagramError, setDiagramError] = useState<string | null>(null)
+
+  // Merge existing and locally generated diagrams
+  const allDiagrams = [
+    ...existingDiagrams.map(d => ({ id: d.id, type: d.type, rendered_url: d.rendered_url })),
+    ...localDiagrams.filter(ld => !existingDiagrams.some(ed => ed.id === ld.id)),
+  ]
 
   async function handleGenerateDiagram() {
     if (!projectId) return
@@ -48,7 +68,7 @@ export function DiagramPanel({ projectId, title }: { projectId: string | undefin
         type: diagramType,
         source: title,
       })
-      setDiagrams((prev) => [...prev, { ...result, type: diagramType }])
+      setLocalDiagrams((prev) => [...prev, { ...result, type: diagramType }])
     } catch {
       setDiagramError('Echec de la generation du diagramme.')
     }
@@ -72,11 +92,9 @@ export function DiagramPanel({ projectId, title }: { projectId: string | undefin
               value={diagramType}
               onChange={(e) => setDiagramType(e.target.value)}
             >
-              <option value="use_case">Cas d'utilisation</option>
-              <option value="sequence">Sequence</option>
-              <option value="activity">Activite</option>
-              <option value="class">Classe</option>
-              <option value="deployment">Deploiement</option>
+              {DIAGRAM_TYPES.map(t => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
             </select>
             <Button
               onClick={handleGenerateDiagram}
@@ -90,10 +108,10 @@ export function DiagramPanel({ projectId, title }: { projectId: string | undefin
           {diagramError && (
             <p className="text-label-sm text-error mb-2">{diagramError}</p>
           )}
-          {diagrams.length > 0 && (
+          {allDiagrams.length > 0 && (
             <div className="space-y-3">
-              {diagrams.map((d) => (
-                <DiagramCard key={d.id} id={d.id} type={d.type} initialUrl={d.rendered_url} />
+              {allDiagrams.map((d) => (
+                <DiagramCard key={d.id} id={d.id} type={d.type} renderedUrl={d.rendered_url} />
               ))}
             </div>
           )}

@@ -19,8 +19,6 @@ import Underline from '@tiptap/extension-underline'
 import { TextStyle } from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
 import Collaboration from '@tiptap/extension-collaboration'
-// CollaborationCursor removed: v2 extension crashes with v3 Collaboration
-// (y-prosemirror PluginKey mismatch). Re-add when v3-compatible version is available.
 import { Markdown } from 'tiptap-markdown'
 import { common, createLowlight } from 'lowlight'
 import * as Y from 'yjs'
@@ -53,11 +51,9 @@ interface EditorCanvasProps {
   onProviderReady?: (provider: any) => void
 }
 
-function collabWsUrl(docName: string): string {
+function collabWsUrl(): string {
   const { protocol, host } = window.location
-  const token = useAuthStore.getState().token
-  const base = `${protocol === 'https:' ? 'wss' : 'ws'}://${host}/collab/${docName}`
-  return token ? `${base}?token=${encodeURIComponent(token)}` : base
+  return `${protocol === 'https:' ? 'wss' : 'ws'}://${host}/collab`
 }
 
 function sectionsToMarkdown(sections: Array<{ title: string; content: string }>): string {
@@ -71,7 +67,22 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
   const saveDocument = useSaveDocument()
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [ydoc] = useState(() => new Y.Doc())
-  const [provider] = useState(() => new WebsocketProvider(collabWsUrl(docId), docId, ydoc))
+  const collabRef = useRef<{ provider: WebsocketProvider; ydoc: Y.Doc } | null>(null)
+  const [provider, setProvider] = useState<WebsocketProvider | null>(null)
+
+  useEffect(() => {
+    const token = useAuthStore.getState().token
+    const opts = token ? { params: { token } as Record<string, string> } : undefined
+    const p = new WebsocketProvider(collabWsUrl(), docId, ydoc, opts)
+    collabRef.current = { provider: p, ydoc }
+    setProvider(p)
+    return () => {
+      p.disconnect()
+      p.destroy()
+      ydoc.destroy()
+      collabRef.current = null
+    }
+  }, [docId])
   const [aiToolbarVisible, setAiToolbarVisible] = useState(false)
   const generating = useGenerationStore((s) =>
     s.sessions.some((x) => x.documentId === docId && x.status === 'generating'),
@@ -81,6 +92,10 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
     extensions: [
       StarterKit.configure({
         codeBlock: false,
+        link: false,
+        underline: false,
+        horizontalRule: false,
+        undoRedo: false,
       }),
       Link.configure({ openOnClick: false, HTMLAttributes: { class: 'text-ai-vibrant underline cursor-pointer' } }),
       Placeholder.configure({ placeholder: "Tapez '/' pour les commandes, ou commencez a ecrire..." }),
@@ -107,6 +122,72 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
       attributes: {
         class: 'prose prose-slate max-w-[800px] mx-auto py-20 px-12 focus:outline-none min-h-[60vh]',
       },
+      handleDrop: (view, event) => {
+        const files = event.dataTransfer?.files
+        if (!files || files.length === 0) return false
+
+        const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'))
+        if (imageFiles.length === 0) return false
+
+        event.preventDefault()
+
+        const { state } = view
+        const { from } = state.selection
+
+        for (const file of imageFiles) {
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            const base64 = e.target?.result as string
+            const { dispatch, state: currentState } = view
+            const pos = from || currentState.doc.content.size - 2
+
+            const imageNode = currentState.schema.nodes.image.create({
+              src: base64,
+              alt: file.name,
+              title: file.name,
+            })
+
+            const transaction = currentState.tr.insert(pos, imageNode)
+            dispatch(transaction)
+          }
+          reader.readAsDataURL(file)
+        }
+
+        return true
+      },
+      handlePaste: (view, event) => {
+        const files = event.clipboardData?.files
+        if (!files || files.length === 0) return false
+
+        const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'))
+        if (imageFiles.length === 0) return false
+
+        event.preventDefault()
+
+        const { state } = view
+        const { from } = state.selection
+
+        for (const file of imageFiles) {
+          const reader = new FileReader()
+          reader.onload = (e) => {
+            const base64 = e.target?.result as string
+            const { dispatch, state: currentState } = view
+            const pos = from || currentState.doc.content.size - 2
+
+            const imageNode = currentState.schema.nodes.image.create({
+              src: base64,
+              alt: file.name,
+              title: file.name,
+            })
+
+            const transaction = currentState.tr.insert(pos, imageNode)
+            dispatch(transaction)
+          }
+          reader.readAsDataURL(file)
+        }
+
+        return true
+      },
     },
   })
 
@@ -123,16 +204,18 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
   // Seed once from document.sections if collab doc is empty
   useEffect(() => {
     if (!editor || isLoading || !document?.sections?.length) return
+    const ref = collabRef.current
+    if (!ref) return
     const seed = () => {
       if (editor.isEmpty) {
         editor.commands.setContent(sectionsToMarkdown(document.sections))
         onOutlineChange(document.sections.map((s: any) => ({ title: s.title })))
       }
     }
-    provider.on('sync', seed)
-    if (provider.synced) seed()
-    return () => { provider.off('sync', seed) }
-  }, [editor, document, isLoading, provider, onOutlineChange])
+    ref.provider.on('sync', seed)
+    if (ref.provider.synced) seed()
+    return () => { ref.provider.off('sync', seed) }
+  }, [editor, document, isLoading, onOutlineChange])
 
   // Autosave markdown
   const handleUpdate = useCallback(() => {
@@ -149,14 +232,11 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
   useEffect(() => {
     if (!editor) return
     editor.on('update', handleUpdate)
-    return () => { editor.off('update', handleUpdate) }
+    return () => {
+      editor.off('update', handleUpdate)
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+    }
   }, [editor, handleUpdate])
-
-  // Lock editor while generating
-  useEffect(() => {
-    if (!editor) return
-    editor.setEditable(!generating)
-  }, [editor, generating])
 
   // Live generation streaming (SSE -> TipTap)
   useGenerationWriter(docId, editor)
@@ -174,12 +254,10 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
       aiStreamingRef.current = true
       setAiToolbarVisible(false)
 
-      // If there's selected text, delete it first so the AI replaces it
       if (!selection.empty) {
         editor.chain().focus().deleteSelection().run()
       }
 
-      // Insert a markdown separator before AI output
       editor.chain().focus().insertContent('\n\n').run()
 
       try {
@@ -197,7 +275,7 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
     [editor],
   )
 
-  // AI custom events — depends on handleAiCommand (defined above)
+  // AI custom events
   useEffect(() => {
     const handleAiGenerate = () => setAiToolbarVisible(true)
     const handleAiImprove = () => setAiToolbarVisible(true)
@@ -210,6 +288,8 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
           translate: `Traduisez ce texte en anglais :\n\n${text}`,
           summarize: `Resumez ce texte en 2-3 phrases :\n\n${text}`,
           rewrite: `Reformulez ce texte de maniere plus claire et professionnelle :\n\n${text}`,
+          table: `Generer un tableau structure avec des colonnes pertinentes pour cette section. Utilisez le format Markdown suivant :\n\n| Colonne 1 | Colonne 2 | Colonne 3 |\n|---|---|---|\n| Donnee 1 | Donnee 2 | Donnee 3 |`,
+          diagram: `Generer un diagramme UML pertinent pour cette section en utilisant la syntaxe PlantUML. Exemple :\n\n@startuml\nactor Utilisateur\nactor Systeme\nUtilisateur -> Systeme : Interaction\n@enduml`,
         }
         const prompt = promptMap[detail.action] || detail.action
         handleAiCommand(prompt)
@@ -229,15 +309,39 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center text-on-surface-variant font-label-md">
-        Chargement du document…
+        Chargement du document...
       </div>
     )
   }
 
   return (
-    <div className="flex-1 overflow-y-auto hide-scrollbar relative">
+    <div className="flex-1 overflow-y-auto hide-scrollbar relative bg-surface-studio">
+      {/* Preview page container — simulates the exported page */}
+      <div className="max-w-[900px] mx-auto py-8 px-4">
+        {/* Cover page block */}
+        <div className="bg-gradient-to-br from-[#0f1b2e] to-[#1a2d4a] rounded-t-2xl px-16 py-20 text-white mb-8 shadow-sm">
+          <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-blue-300/70 mb-6">Document</p>
+          <h1 className="text-4xl font-bold leading-tight mb-3">
+            {(document?.outline as any)?.title || document?.title || 'Document sans titre'}
+          </h1>
+          {(document?.outline as any)?.subtitle && (
+            <p className="text-lg text-blue-200/80 mb-4">{(document?.outline as any).subtitle}</p>
+          )}
+          {(document?.outline as any)?.description && (
+            <p className="text-sm text-blue-200/60 max-w-xl">{(document?.outline as any).description}</p>
+          )}
+          <div className="mt-12 text-xs text-blue-300/50 font-mono">
+            {new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long' })}
+          </div>
+        </div>
+
+        {/* Document content — white page */}
+        <div className="bg-white rounded-2xl shadow-sm border border-outline-variant overflow-hidden">
+          <EditorContent editor={editor} />
+        </div>
+      </div>
+
       {editor && <EditorBubbleMenu editor={editor} />}
-      <EditorContent editor={editor} />
       <AiToolbar
         visible={aiToolbarVisible}
         onCommand={handleAiCommand}
@@ -245,10 +349,10 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
         onCancel={() => setAiToolbarVisible(false)}
       />
       {generating && (
-        <div className="absolute inset-0 bg-surface-studio/60 flex items-center justify-center z-20">
-          <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-xl border border-outline-variant shadow-lg">
-            <span className="w-2.5 h-2.5 rounded-full bg-ai-vibrant animate-pulse" />
-            <span className="font-label-md text-label-md text-primary">Génération en cours…</span>
+        <div className="sticky bottom-20 left-1/2 -translate-x-1/2 z-20 w-fit">
+          <div className="flex items-center gap-3 bg-white/95 backdrop-blur px-5 py-2.5 rounded-xl border border-outline-variant shadow-lg">
+            <span className="w-2 h-2 rounded-full bg-ai-vibrant animate-pulse" />
+            <span className="font-label-sm text-label-sm text-primary">Generation en cours...</span>
           </div>
         </div>
       )}
