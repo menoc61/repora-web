@@ -31,6 +31,7 @@ import { useAuthStore } from '../../stores'
 import { SlashCommand } from './extensions/SlashCommand'
 import EditorBubbleMenu from './EditorBubbleMenu'
 import AiToolbar from './AiToolbar'
+import { collabWsUrl, type WsStatus } from '../../utils/ws'
 
 const lowlight = createLowlight(common)
 
@@ -51,11 +52,6 @@ interface EditorCanvasProps {
   onProviderReady?: (provider: any) => void
 }
 
-function collabWsUrl(): string {
-  const { protocol, host } = window.location
-  return `${protocol === 'https:' ? 'wss' : 'ws'}://${host}/collab`
-}
-
 function sectionsToMarkdown(sections: Array<{ title: string; content: string }>): string {
   return sections
     .map((s) => `## ${s.title}\n\n${s.content}`)
@@ -69,14 +65,33 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
   const [ydoc] = useState(() => new Y.Doc())
   const collabRef = useRef<{ provider: WebsocketProvider; ydoc: Y.Doc } | null>(null)
   const [provider, setProvider] = useState<WebsocketProvider | null>(null)
+  const [collabStatus, setCollabStatus] = useState<WsStatus>('connecting')
 
   useEffect(() => {
     const token = useAuthStore.getState().token
     const opts = token ? { params: { token } as Record<string, string> } : undefined
     const p = new WebsocketProvider(collabWsUrl(), docId, ydoc, opts)
+
+    p.on('status', (event: { status: string }) => {
+      switch (event.status) {
+        case 'connected':
+          setCollabStatus('connected')
+          break
+        case 'connecting':
+          setCollabStatus('connecting')
+          break
+        case 'disconnected':
+          setCollabStatus('disconnected')
+          break
+        default:
+          setCollabStatus(event.status === 'error' ? 'disconnected' : 'connecting')
+      }
+    })
+
     collabRef.current = { provider: p, ydoc }
     setProvider(p)
     return () => {
+      p.off('status')
       p.disconnect()
       p.destroy()
       ydoc.destroy()
@@ -354,6 +369,12 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
             <span className="w-2 h-2 rounded-full bg-ai-vibrant animate-pulse" />
             <span className="font-label-sm text-label-sm text-primary">Generation en cours...</span>
           </div>
+        </div>
+      )}
+      {collabStatus !== 'connected' && collabStatus !== 'connecting' && (
+        <div className="fixed bottom-4 right-4 z-30 flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/90 border border-outline-variant shadow-sm text-[11px] font-mono text-status-review">
+          <span className="w-1.5 h-1.5 rounded-full bg-status-review" />
+          Collaboration hors ligne
         </div>
       )}
     </div>
