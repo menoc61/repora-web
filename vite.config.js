@@ -10,6 +10,23 @@ export default defineConfig({
     },
   },
 
+  build: {
+    target: 'es2020',
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('@blocknote') || id.includes('blocknote') || id.includes('@tiptap')) return 'editor'
+            if (id.includes('@tanstack')) return 'tanstack'
+            if (id.includes('katex') || id.includes('mermaid') || id.includes('plantuml')) return 'diagram'
+            return 'vendor'
+          }
+        },
+      },
+    },
+  },
+
   server: {
     host: true,
     port: 5173,
