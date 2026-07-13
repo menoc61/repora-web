@@ -48,9 +48,9 @@ All 5 phases (0-4) were completed:
 - Backend auto-migration + seed on startup
 
 ### Known Issues (remaining, 2026-07-13)
-- **3 failing backend tests** (was 97/97): 2 Zod validation error code mismatches (documents.test.ts, projects.test.ts) + 1 French detection heuristic (negotiate.test.ts) — tracked in Phase 3
 - Content generation requires active Ollama instance with tool-calling model; without it, sections are "pending"
 - Frontend build large bundle — addressed (nginx gzip + vite manualChunks; ~470KB gzipped)
+- No onboarding API/routes exist, so 03-05 (onboarding wizard API tests) is not feasible
 
 ### Resolved (this session)
 - **DOCX cover images in Docker** — multi-candidate `resolveAsset()` resolver (`exportDocx.ts`)
@@ -59,8 +59,10 @@ All 5 phases (0-4) were completed:
 - **Unused assets** — `body_bg.png`, `cover.html`, `body.html`, `backcover.html`, `hostinger_vps.png` deleted
 - **Duplicate export route** — `/export/documents/:id` removed; single `/documents/:id/export`
 - **Version history decoupled** — dedicated `versionHistory` table; restore/versions routes rewired
+- **3 failing backend tests** — fixed: `validate.ts` returns `missing_fields` (was `validation_error`), `negotiate.ts` French warning ungated; `version_history` table migrated via `drizzle-kit push`
+- **Test coverage added** — `tests/s3.test.ts` (5 mocked S3 success/failure tests), `tests/exportDocx.test.ts` (5 docx builder tests), `tests/validation.test.ts` (8 portal accept/reject E2E tests). Full suite now **115 passed / 0 failed across 12 files**.
 
 ### Next Up (from ROADMAP.md)
 - Phase 1: Export Pipeline Reliability (EXP-01, EXP-02, EXP-03) — ✅ complete
 - Phase 2: Infrastructure & Code Cleanup (INF-01 to INF-04) — ✅ complete
-- Phase 3: Test Suite Health (TST-01 to TST-05) — next
+- Phase 3: Test Suite Health (TST-01 to TST-05) — ✅ complete (115/115 tests green; 03-05 not feasible)

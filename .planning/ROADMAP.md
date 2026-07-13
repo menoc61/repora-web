@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Export Pipeline Reliability** - Fix DOCX cover images in Docker, keep PDF export light (PDFKit fallback, no LibreOffice bloat), make cover reflect document type
 - [x] **Phase 2: Infrastructure & Code Cleanup** - Fix S3 client init, remove unused assets and duplicate routes, version history decoupling
-- [ ] **Phase 3: Test Suite Health** - Fix 3 failing tests and add coverage for S3, DOCX export, validation portal, and onboarding
+- [x] **Phase 3: Test Suite Health** - Fix 3 failing tests and add coverage for S3, DOCX export, validation portal (onboarding API tests not feasible — no onboarding API exists)
 
 ## Phase Details
 
@@ -58,16 +58,16 @@ Plans:
   1. `npm test` passes with 0 failures (was 3 failing)
   2. S3 service has mocked tests covering success + failure paths
   3. DOCX export builder has fixture-based tests asserting buffer validity
-  4. Validation portal has E2E tests covering accept/reject flow
-  5. Onboarding wizard has API integration tests covering all 5 steps
-**Plans**: 5 plans
+   4. Validation portal has E2E tests covering accept/reject flow
+   5. (Skipped) Onboarding wizard API tests — no onboarding API/routes exist in the codebase, so this is not feasible
+ **Plans**: 5 plans
 
 Plans:
-- [ ] 03-01: Fix 3 failing tests (Zod error codes + French detection heuristic)
-- [ ] 03-02: Add S3 service tests with mocked minIO client
-- [ ] 03-03: Add DOCX export builder tests with fixture data
-- [ ] 03-04: Add validation portal E2E flow tests
-- [ ] 03-05: Add onboarding wizard API integration tests
+- [x] 03-01: Fix 3 failing tests (Zod error codes + French detection heuristic)
+- [x] 03-02: Add S3 service tests with mocked minIO client
+- [x] 03-03: Add DOCX export builder tests with fixture data
+- [x] 03-04: Add validation portal E2E flow tests
+- [ ] 03-05: Add onboarding wizard API integration tests — NOT FEASIBLE (no onboarding API exists)
 
 ## Progress
 
@@ -78,6 +78,6 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Export Pipeline Reliability | 3/3 | Complete | 2026-07-13 |
 | 2. Infrastructure & Code Cleanup | 4/4 | Complete | 2026-07-13 |
-| 3. Test Suite Health | 0/5 | Not started | - |
+| 3. Test Suite Health | 4/5 | Complete (03-05 not feasible) | 2026-07-13 |
 
 > **Build-weight directive (2026-07-13):** User required all build images stay < 300MB and the frontend/backend builds be optimized. Addressed outside the phase structure: backend image reduced to 270MB (production-only deps, `node` runtime instead of `tsx`); frontend image 63.7MB with nginx gzip + vite `manualChunks` vendor splitting (transfer ~470KB gzipped vs ~1.5MB raw).
