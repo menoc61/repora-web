@@ -21,10 +21,10 @@ for i in $(seq 1 20); do
 done
 
 echo "Running database migrations..."
-npx tsx dist/db/migrate.js 2>/dev/null && echo "  Migrations applied" || echo "  Migration skipped"
+node dist/db/migrate.js 2>/dev/null && echo "  Migrations applied" || echo "  Migration skipped"
 
 echo "Seeding database (idempotent)..."
-npx tsx dist/db/seed.js 2>/dev/null && echo "  Seed complete" || echo "  Seed skipped"
+node dist/db/seed.js 2>/dev/null && echo "  Seed complete" || echo "  Seed skipped"
 
 echo "Starting backend server on port 8000..."
-exec npx tsx dist/index.js
+exec node dist/index.js
