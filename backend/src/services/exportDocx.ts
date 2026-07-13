@@ -11,7 +11,17 @@ import { getTemplate, type DocumentTemplate } from '../utils/docTemplates'
 import * as fs from 'fs'
 import * as path from 'path'
 
-const PROJECT_ROOT = path.resolve(process.cwd(), '..')
+function resolveAsset(name: string): string | null {
+  const candidates = [
+    path.join(process.cwd(), 'public', 'assets', name),
+    path.join(process.cwd(), '..', 'public', 'assets', name),
+    path.join(__dirname, '..', '..', 'public', 'assets', name),
+  ]
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c
+  }
+  return null
+}
 
 interface DocSection {
   id: string
@@ -365,7 +375,7 @@ export async function buildProfessionalDocx(doc: DocInput, diagrams: DiagramInpu
   const children: (Paragraph | Table)[] = []
 
   // ── COVER PAGE (full-page background via table cell) ──
-  const coverBg = loadImageBuf(path.join(PROJECT_ROOT, 'public', 'assets', 'cover_bg.png'))
+  const coverBg = loadImageBuf(resolveAsset('cover_bg.png') ?? '')
   const coverCells: (Paragraph | Table)[] = []
 
   // Background image as top banner (if available)
@@ -379,16 +389,17 @@ export async function buildProfessionalDocx(doc: DocInput, diagrams: DiagramInpu
 
   // Push title text below image, still on same page inside the table cell
   coverCells.push(new Paragraph({ spacing: { before: 600 }, children: [] }))
-  coverCells.push(new Paragraph({
-    alignment: AlignmentType.CENTER,
-    spacing: { after: 60 },
-    children: [new TextRun({ text: 'CAHIER DES', bold: true, size: 56, font: 'Calibri', color: COLORS.white })],
-  }))
-  coverCells.push(new Paragraph({
-    alignment: AlignmentType.CENTER,
-    spacing: { after: 100 },
-    children: [new TextRun({ text: 'CHARGES', bold: true, size: 56, font: 'Calibri', color: COLORS.white })],
-  }))
+  const coverTitle = template.name.toUpperCase()
+  const coverTitleLines = coverTitle.length <= 16
+    ? [coverTitle]
+    : (() => { const i = coverTitle.lastIndexOf(' '); return i === -1 ? [coverTitle] : [coverTitle.slice(0, i), coverTitle.slice(i + 1)] })()
+  coverTitleLines.forEach((line, i) => {
+    coverCells.push(new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: i < coverTitleLines.length - 1 ? 60 : 100 },
+      children: [new TextRun({ text: line, bold: true, size: 56, font: 'Calibri', color: COLORS.white })],
+    }))
+  })
   if (subtitle) {
     coverCells.push(new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -506,7 +517,7 @@ export async function buildProfessionalDocx(doc: DocInput, diagrams: DiagramInpu
   // ── BACK COVER ──
   children.push(new Paragraph({ children: [new PageBreak()] }))
 
-  const backCover = loadImageBuf(path.join(PROJECT_ROOT, 'public', 'assets', 'backcover_bg.png'))
+  const backCover = loadImageBuf(resolveAsset('backcover_bg.png') ?? '')
   if (backCover) {
     children.push(new Paragraph({
       spacing: { before: 0, after: 0 },

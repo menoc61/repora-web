@@ -10,7 +10,7 @@ Requirements for the current maintenance/stabilization milestone. Each maps to r
 ### Export & PDF
 
 - [ ] **EXP-01**: DOCX cover page background images render correctly in Docker (currently path resolution broken — `process.cwd()` going up one level doesn't work in containerized environment)
-- [ ] **EXP-02**: PDF export uses LibreOffice conversion in Docker (currently falls back to PDFKit because LibreOffice isn't installed in backend image)
+- [ ] **EXP-02**: PDF export works in Docker via the lightweight PDFKit fallback (LibreOffice intentionally NOT baked in — it stays an optional, mountable upgrade for higher-fidelity PDFs)
 - [ ] **EXP-03**: DOCX cover page reflects user's document type selection from onboarding config (currently hardcoded "CAHIER DES CHARGES")
 
 ### Infrastructure & Cleanup

@@ -12,7 +12,7 @@ This milestone stabilizes the existing Repora codebase: fixing export pipeline r
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Export Pipeline Reliability** - Fix DOCX cover images in Docker, install LibreOffice for PDF conversion, make cover reflect document type
+- [ ] **Phase 1: Export Pipeline Reliability** - Fix DOCX cover images in Docker, keep PDF export light (PDFKit fallback, no LibreOffice bloat), make cover reflect document type
 - [ ] **Phase 2: Infrastructure & Code Cleanup** - Fix S3 client init, remove unused assets and duplicate routes, decouple version history from audit logs
 - [ ] **Phase 3: Test Suite Health** - Fix 3 failing tests and add coverage for S3, DOCX export, validation portal, and onboarding
 
@@ -24,7 +24,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Requirements**: EXP-01, EXP-02, EXP-03
 **Success Criteria** (what must be TRUE):
   1. DOCX cover page background images render in Docker deployment (not just local dev)
-  2. PDF export produces proper converted output via LibreOffice (verified in Docker)
+  2. PDF export produces valid output in Docker via the lightweight PDFKit fallback (LibreOffice optional/mountable for higher fidelity)
   3. DOCX cover page title matches the user's document type selection from onboarding
 **Plans**: 3 plans
 

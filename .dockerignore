@@ -1,6 +1,8 @@
 node_modules
 dist
-.env
-*.md
 .git
-.gitignore
+.env
+frontend
+backend/node_modules
+backend/dist
+backend/uploads
