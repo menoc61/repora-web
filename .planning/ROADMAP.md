@@ -1,82 +1,81 @@
-# Repora — Roadmap
+# Roadmap: Repora
 
-## Milestone 1: Core AI Orchestration
+## Overview
 
-### Phase 1: Hermes Multi-Agent Orchestration
-**Status:** ✅ Complete
+This milestone stabilizes the existing Repora codebase: fixing export pipeline reliability (Docker cover images, LibreOffice PDF conversion, document-type-aware covers), cleaning up infrastructure debt (S3 client init, unused assets, duplicate routes, version history decoupling), and bringing the test suite to green with comprehensive coverage for the critical paths. The journey takes the app from "3 tests failing, broken Docker exports" to "all tests green, exports work in Docker, architecture debt reduced."
 
-**Goal:** A working multi-agent pipeline (Planner → Writer → UML → Tables → Reviewer) with shared GenerationContext, Hermes negotiation loop (accept/rescope/adjust), live SSE streaming to frontend, template integration, and properly typed tools.
+## Phases
 
-**Plans:**
-- [x] 001-01-PLAN.md — GenerationContext + Agent Registry + SSE Event Types + Tool Migration
-- [x] 001-02-PLAN.md — Hermes Negotiation Loop + Template Integration + Default Model
-- [x] 001-03-PLAN.md — Frontend Live Agent Progress + Dashboard + Page Fixes
+**Phase Numbering:**
+- Integer phases (1, 2, 3): Planned milestone work
+- Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
 
----
+Decimal phases appear between their surrounding integers in numeric order.
 
-### Phase 0: Tests & Pipeline Hermes
-**Status:** ✅ Complete
+- [ ] **Phase 1: Export Pipeline Reliability** - Fix DOCX cover images in Docker, install LibreOffice for PDF conversion, make cover reflect document type
+- [ ] **Phase 2: Infrastructure & Code Cleanup** - Fix S3 client init, remove unused assets and duplicate routes, decouple version history from audit logs
+- [ ] **Phase 3: Test Suite Health** - Fix 3 failing tests and add coverage for S3, DOCX export, validation portal, and onboarding
 
-**Goal:** All backend tests pass + Hermes pipeline produces real document content (not just empty "Introduction pending").
+## Phase Details
 
-**Success Criteria:**
-- [x] `cd backend && npm test` → 0 failed (97 tests, 9 files)
-- [x] `POST /projects/:id/generate` → document created with sections (content requires LLM backend)
-- [x] Ollama fallback generates structured content (requires running Ollama instance)
-- [x] DB connection stabilized (port 5434 to avoid conflict with local PostgreSQL)
-- [x] Export tests added (5 tests for MD/DOCX/PDF formats)
+### Phase 1: Export Pipeline Reliability
+**Goal**: Documents export correctly in Docker with proper cover pages and high-quality PDF output
+**Depends on**: Nothing (first phase)
+**Requirements**: EXP-01, EXP-02, EXP-03
+**Success Criteria** (what must be TRUE):
+  1. DOCX cover page background images render in Docker deployment (not just local dev)
+  2. PDF export produces proper converted output via LibreOffice (verified in Docker)
+  3. DOCX cover page title matches the user's document type selection from onboarding
+**Plans**: 3 plans
 
----
+Plans:
+- [ ] 01-01: Fix DOCX cover image path resolution for Docker (use `__dirname`-based asset resolution instead of `process.cwd()` going up a level)
+- [ ] 01-02: Add LibreOffice to backend Dockerfile and configure PDF export to use it
+- [ ] 01-03: Make DOCX cover page reflect document type from onboarding config (pass `documentType` through export pipeline)
 
-### Phase 1: Export DOCX/MD
-**Status:** ✅ Complete
+### Phase 2: Infrastructure & Code Cleanup
+**Goal**: Reduce architecture debt — fix S3 client initialization, remove dead code, decouple version history
+**Depends on**: Phase 1
+**Requirements**: INF-01, INF-02, INF-03, INF-04
+**Success Criteria** (what must be TRUE):
+  1. S3 service initializes the client once (no dynamic re-import per call) and exports still cache to minIO
+  2. Unused assets (`body_bg.png`, `cover.html`, `body.html`, `backcover.html`) are deleted and build passes
+  3. Only one export route exists (`/documents/:id/export`); duplicate removed
+  4. Version history stored in dedicated table, not in `auditLogs.metadata`
+**Plans**: 4 plans
 
-**Goal:** `GET /documents/:id/export?format=docx` and `?format=md` produce real files with actual section content.
+Plans:
+- [ ] 02-01: Refactor S3 service to lazy-init client once at module load
+- [ ] 02-02: Delete unused assets and verify no references remain
+- [ ] 02-03: Remove duplicate export route and consolidate to single endpoint
+- [ ] 02-04: Create version history table and migrate snapshots out of audit logs
 
-**Success Criteria:**
-- [x] DOCX export → valid `.docx` file with all sections and titles
-- [x] MD export → valid `.md` file with `##` headings
-- [x] PDF export → valid PDF with title, TOC, and sections
-- [x] Correct Content-Type headers for each format
-- [x] Export tests passing (5 tests)
+### Phase 3: Test Suite Health
+**Goal**: All tests green with comprehensive coverage for critical export/validation/onboarding paths
+**Depends on**: Phase 2
+**Requirements**: TST-01, TST-02, TST-03, TST-04, TST-05
+**Success Criteria** (what must be TRUE):
+  1. `npm test` passes with 0 failures (was 3 failing)
+  2. S3 service has mocked tests covering success + failure paths
+  3. DOCX export builder has fixture-based tests asserting buffer validity
+  4. Validation portal has E2E tests covering accept/reject flow
+  5. Onboarding wizard has API integration tests covering all 5 steps
+**Plans**: 5 plans
 
----
+Plans:
+- [ ] 03-01: Fix 3 failing tests (Zod error codes + French detection heuristic)
+- [ ] 03-02: Add S3 service tests with mocked minIO client
+- [ ] 03-03: Add DOCX export builder tests with fixture data
+- [ ] 03-04: Add validation portal E2E flow tests
+- [ ] 03-05: Add onboarding wizard API integration tests
 
-### Phase 2: Admin Panel (agents + BYOK)
-**Status:** ✅ Complete
+## Progress
 
-**Goal:** UI to configure agents (temperature, provider, model) and manage BYOK API keys.
+**Execution Order:**
+Phases execute in numeric order: 1 → 2 → 3
 
-**Success Criteria:**
-- [x] Agent config table with temperature/top_p/max_tokens/enable toggles
-- [x] BYOK key add/delete/list in Settings
-- [x] Changes take effect without server restart (dynamic config)
-- [x] Settings page at /settings with full admin panel
-
----
-
-### Phase 3: Validation Portal
-**Status:** ✅ Complete
-
-**Goal:** End-to-end validation flow: submit → single-use link → consult → decide → notify.
-
-**Success Criteria:**
-- [x] Token creation locks after first decision
-- [x] ValidatePortal shows section-by-section accept/reject
-- [x] WebSocket notification to redacteur on decision
-- [x] "Motif obligatoire" modal on rejection per section
-- [x] Public /validate/:token route without auth
-
----
-
-### Phase 4: Conversational Assistant
-**Status:** ✅ Complete
-
-**Goal:** Dialogue-based requirements elicitation instead of the 5-step wizard.
-
-**Success Criteria:**
-- [x] Chat interface for natural language requirements gathering
-- [x] AI extracts context, objectives, features, constraints, actors
-- [x] "Generate" button launches Hermes with all collected context
-- [x] Backend POST /assistant/start, POST /assistant/chat, POST /assistant/generate
-- [x] Frontend Assistant page at /assistant/:id with structured extraction panel
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Export Pipeline Reliability | 0/3 | Not started | - |
+| 2. Infrastructure & Code Cleanup | 0/4 | Not started | - |
+| 3. Test Suite Health | 0/5 | Not started | - |
