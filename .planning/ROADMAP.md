@@ -12,7 +12,7 @@ This milestone stabilizes the existing Repora codebase: fixing export pipeline r
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Export Pipeline Reliability** - Fix DOCX cover images in Docker, keep PDF export light (PDFKit fallback, no LibreOffice bloat), make cover reflect document type
+- [x] **Phase 1: Export Pipeline Reliability** - Fix DOCX cover images in Docker, keep PDF export light (PDFKit fallback, no LibreOffice bloat), make cover reflect document type
 - [ ] **Phase 2: Infrastructure & Code Cleanup** - Fix S3 client init, remove unused assets and duplicate routes, decouple version history from audit logs
 - [ ] **Phase 3: Test Suite Health** - Fix 3 failing tests and add coverage for S3, DOCX export, validation portal, and onboarding
 
@@ -29,9 +29,9 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 3 plans
 
 Plans:
-- [ ] 01-01: Fix DOCX cover image path resolution for Docker (use `__dirname`-based asset resolution instead of `process.cwd()` going up a level)
-- [ ] 01-02: Add LibreOffice to backend Dockerfile and configure PDF export to use it
-- [ ] 01-03: Make DOCX cover page reflect document type from onboarding config (pass `documentType` through export pipeline)
+- [x] 01-01: Fix DOCX cover image path resolution for Docker (robust multi-candidate resolver instead of `process.cwd()` going up a level)
+- [x] 01-02: Keep backend image light (Alpine, no LibreOffice) + copy shared assets so cover images render
+- [x] 01-03: Make DOCX cover page reflect document type from onboarding config (uppercase template-name title)
 
 ### Phase 2: Infrastructure & Code Cleanup
 **Goal**: Reduce architecture debt — fix S3 client initialization, remove dead code, decouple version history
@@ -76,6 +76,8 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Export Pipeline Reliability | 0/3 | Not started | - |
+| 1. Export Pipeline Reliability | 3/3 | Complete | 2026-07-13 |
 | 2. Infrastructure & Code Cleanup | 0/4 | Not started | - |
 | 3. Test Suite Health | 0/5 | Not started | - |
+
+> **Build-weight directive (2026-07-13):** User required all build images stay < 300MB and the frontend/backend builds be optimized. Addressed outside the phase structure: backend image reduced to 270MB (production-only deps, `node` runtime instead of `tsx`); frontend image 63.7MB with nginx gzip + vite `manualChunks` vendor splitting (transfer ~470KB gzipped vs ~1.5MB raw).

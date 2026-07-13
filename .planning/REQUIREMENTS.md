@@ -60,9 +60,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| EXP-01 | Phase 1 | Pending |
-| EXP-02 | Phase 1 | Pending |
-| EXP-03 | Phase 1 | Pending |
+| EXP-01 | Phase 1 | Complete |
+| EXP-02 | Phase 1 | Complete |
+| EXP-03 | Phase 1 | Complete |
 | INF-01 | Phase 2 | Pending |
 | INF-02 | Phase 2 | Pending |
 | INF-03 | Phase 2 | Pending |
