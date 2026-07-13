@@ -97,7 +97,7 @@ export function evaluateWriterOutput(sectionContent: string): { passed: boolean;
     const re = new RegExp(`\\b${w}\\b`, 'i')
     return re.test(trimmed)
   })
-  if (!hasFrench && trimmed.length >= 100) {
+  if (!hasFrench) {
     issues.push('content may not be in French')
   }
 

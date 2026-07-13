@@ -9,7 +9,7 @@ export function validate(schema: ZodSchema, coerceEmpty = true) {
     if (!result.success) {
       const first = result.error.issues[0]
       const message = first ? `${first.path.join('.')}: ${first.message}` : 'Invalid request body'
-      return next(new AppError(400, 'validation_error', message))
+      return next(new AppError(400, 'missing_fields', message))
     }
     req.body = result.data
     next()
