@@ -17,113 +17,104 @@ export async function generatePdfFallback(doc: FallbackDoc): Promise<Buffer> {
     pdf.on('end', () => resolve(Buffer.concat(chunks)))
     pdf.on('error', reject)
 
-    // ── Cover page ──
+    let pageCounter = 0
+    function footer() {
+      pageCounter++
+      if (pageCounter <= 1) return
+      const PAGE_WIDTH = 595.28
+      const mx = pdf.x
+      const my = pdf.y
+      pdf.fontSize(9).font('Helvetica').fillColor('#718096')
+      pdf.text(`Page ${pageCounter}`, 60, 810, { align: 'center', width: PAGE_WIDTH - 120 })
+      pdf.x = mx
+      pdf.y = my
+    }
+
     const COVER_BG = '#0f1b2e'
     const WHITE = '#FFFFFF'
     const BLUE_ACCENT = '#60a5fa'
     const DIM_TEXT = '#a0c4e8'
     const BLUE = '#2563EB'
     const DARK_TEXT = '#1a202c'
-    const MUTED_TEXT = '#718096'
-    const PAGE_WIDTH = 595.28 // A4 width in points
+    const PAGE_WIDTH = 595.28
 
-    // Background rectangle
+    // ── Cover page ──
     pdf.rect(0, 0, PAGE_WIDTH, 842).fill(COVER_BG)
-
-    // Decorative line
     pdf.rect(60, 200, 200, 4).fill('#2563EB')
     pdf.rect(60, 210, 120, 2).fill('#60a5fa')
 
-    // Title
     pdf.fontSize(42).font('Helvetica-Bold').fillColor(WHITE)
-    pdf.text('CAHIER DES', 60, 240, { width: PAGE_WIDTH - 120, align: 'left' })
-    pdf.text('CHARGES', 60, 290, { width: PAGE_WIDTH - 120, align: 'left' })
+    pdf.text('CAHIER DES CHARGES', 60, 240, { width: PAGE_WIDTH - 120, align: 'left' })
 
-    // Subtitle
     if (doc.subtitle) {
       pdf.fontSize(22).font('Helvetica').fillColor(BLUE_ACCENT)
       pdf.text(doc.subtitle, 60, 360, { width: PAGE_WIDTH - 120 })
     }
 
-    // Description
     if (doc.description) {
       pdf.fontSize(12).font('Helvetica').fillColor(DIM_TEXT)
       pdf.text(doc.description, 60, 395, { width: PAGE_WIDTH - 120 })
     }
 
-    // Date and author
+    const infoY = 580
     pdf.fontSize(12).font('Helvetica').fillColor('#8898aa')
-    const footerY = 580
-    pdf.text(doc.monthYear, 60, footerY)
+    pdf.text(doc.monthYear, 60, infoY)
     if (doc.author) {
-      pdf.text(`Pr\u00e9par\u00e9 par: ${doc.author}`, 60, footerY + 20)
+      pdf.text(`Pr\u00e9par\u00e9 par: ${doc.author}`, 60, infoY + 20)
     }
 
-    // Page break
-    pdf.addPage()
-
     // ── Table of Contents ──
+    pdf.addPage()
+    footer()
     pdf.fontSize(26).font('Helvetica-Bold').fillColor(BLUE)
     pdf.text('Table des Mati\u00e8res', 60, 60, { align: 'center' })
     pdf.moveDown(2)
 
     for (let i = 0; i < doc.sections.length; i++) {
-      const s = doc.sections[i]
-      const pageNum = i + 3
       pdf.fontSize(12).font('Helvetica').fillColor(DARK_TEXT)
-      pdf.text(`${i + 1}.  ${s.title}`, 60, undefined, { continued: false })
-      pdf.fontSize(11).font('Helvetica-Bold').fillColor(BLUE)
-      pdf.text(`  ${pageNum}`, PAGE_WIDTH - 120, pdf.y - 15, { width: 60, align: 'right' })
+      pdf.text(`${i + 1}.  ${doc.sections[i].title}`, 60, undefined)
       pdf.moveDown(0.5)
     }
 
-    pdf.addPage()
-
     // ── Sections ──
-    for (let sIdx = 0; sIdx < doc.sections.length; sIdx++) {
-      const s = doc.sections[sIdx]
+    for (const s of doc.sections) {
+      pdf.addPage()
+      footer()
 
-      // Section title
+      const idx = doc.sections.indexOf(s)
       pdf.fontSize(24).font('Helvetica-Bold').fillColor(BLUE)
-      pdf.text(`${sIdx + 1}. ${s.title}`, 60, 60)
+      pdf.text(`${idx + 1}. ${s.title}`, 60, 60)
       pdf.moveDown(0.5)
-
-      // Blue underline
       pdf.rect(60, pdf.y, 100, 2).fill(BLUE)
       pdf.moveDown(1.5)
 
-      // Section content (simple markdown-like rendering)
-      pdf.fontSize(11).font('Helvetica').fillColor(DARK_TEXT)
       const paragraphs = s.content.split(/\n\n+/)
       for (const para of paragraphs) {
-        const trimmed = para.trim()
-        if (!trimmed) continue
+        const t = para.trim()
+        if (!t) continue
 
-        // Detect basic formatting
-        if (trimmed.startsWith('## ')) {
+        if (t.startsWith('## ')) {
           pdf.fontSize(16).font('Helvetica-Bold').fillColor(BLUE)
-          pdf.text(trimmed.replace(/^##+\s*/, ''), 60, undefined)
+          pdf.text(t.replace(/^##+\s*/, ''), 60, undefined)
           pdf.moveDown(0.5)
-          pdf.fontSize(11).font('Helvetica').fillColor(DARK_TEXT)
           continue
         }
-        if (trimmed.startsWith('### ')) {
+        if (t.startsWith('### ')) {
           pdf.fontSize(13).font('Helvetica-Bold').fillColor(BLUE)
-          pdf.text(trimmed.replace(/^###+\s*/, ''), 60, undefined)
+          pdf.text(t.replace(/^###+\s*/, ''), 60, undefined)
           pdf.moveDown(0.3)
-          pdf.fontSize(11).font('Helvetica').fillColor(DARK_TEXT)
           continue
         }
-        if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
-          const lines = trimmed.split('\n').filter(l => l.startsWith('- ') || l.startsWith('* '))
+        if (t.startsWith('- ') || t.startsWith('* ')) {
+          const lines = t.split('\n').filter(l => l.startsWith('- ') || l.startsWith('* '))
           for (const line of lines) {
             pdf.text(`  \u2022  ${line.replace(/^[-*]\s+/, '')}`, 60, undefined)
           }
           pdf.moveDown(0.3)
           continue
         }
-        if (/^\d+\.\s/.test(trimmed)) {
-          const lines = trimmed.split('\n').filter(l => /^\d+\.\s/.test(l))
+        if (/^\d+\.\s/.test(t)) {
+          const lines = t.split('\n').filter(l => /^\d+\.\s/.test(l))
           for (const line of lines) {
             pdf.text(`  ${line}`, 60, undefined)
           }
@@ -131,31 +122,15 @@ export async function generatePdfFallback(doc: FallbackDoc): Promise<Buffer> {
           continue
         }
 
-        // Regular paragraph
-        pdf.text(trimmed, 60, undefined, {
-          align: 'justify',
-          lineGap: 2,
-        })
+        pdf.fontSize(11).font('Helvetica').fillColor(DARK_TEXT)
+        pdf.text(t, 60, undefined, { align: 'justify', lineGap: 2 })
         pdf.moveDown(0.5)
 
-        // Page break if near end
         if (pdf.y > 720) {
           pdf.addPage()
+          footer()
         }
       }
-
-      // Page break between sections (except last)
-      if (sIdx < doc.sections.length - 1) {
-        pdf.addPage()
-      }
-    }
-
-    // ── Footer on all pages ──
-    const totalPages = pdf.bufferedPageRange().count
-    for (let i = 1; i <= totalPages; i++) {
-      pdf.switchToPage(i - 1)
-      pdf.fontSize(9).font('Helvetica').fillColor(MUTED_TEXT)
-      pdf.text(`Page ${i} / ${totalPages}`, 60, 810, { align: 'center' })
     }
 
     pdf.end()

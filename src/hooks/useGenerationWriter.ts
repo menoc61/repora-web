@@ -5,39 +5,154 @@ import { useGenerationStore } from '../stores/generationStore'
 import { notify } from '../components/Toast'
 
 /**
- * Convert simple markdown to HTML for TipTap's insertContent.
- * Handles: headings, bold, italic, code, lists, blockquotes, horizontal rules.
+ * Convert markdown to HTML for TipTap's insertContent.
+ * Handles all standard markdown features for well-formatted editor content.
  */
 function mdToHtml(md: string): string {
-  let html = md
-  // Headings (must be processed before bold/italic to avoid conflicts)
-  html = html.replace(/^###### (.+)$/gm, '<h6>$1</h6>')
-  html = html.replace(/^##### (.+)$/gm, '<h5>$1</h5>')
-  html = html.replace(/^#### (.+)$/gm, '<h4>$1</h4>')
-  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>')
-  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>')
-  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>')
-  // Bold and italic
-  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>')
+  const lines = md.split('\n')
+  const out: string[] = []
+  let i = 0
+
+  while (i < lines.length) {
+    const line = lines[i]
+
+    // Code block (fenced)
+    if (/^```/.test(line)) {
+      const lang = line.slice(3).trim()
+      const codeLines: string[] = []
+      i++
+      while (i < lines.length && !/^```/.test(lines[i])) {
+        codeLines.push(lines[i])
+        i++
+      }
+      i++ // skip closing ```
+      out.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`)
+      continue
+    }
+
+    // Thematic break
+    if (/^(---|\*\*\*|___)\s*$/.test(line)) {
+      out.push('<hr />')
+      i++
+      continue
+    }
+
+    // Heading
+    const hMatch = line.match(/^(#{1,6})\s+(.+)$/)
+    if (hMatch) {
+      const level = hMatch[1].length
+      const content = parseInline(hMatch[2])
+      out.push(`<h${level}>${content}</h${level}>`)
+      i++
+      continue
+    }
+
+    // Blockquote
+    if (/^>\s/.test(line)) {
+      const quoteLines: string[] = []
+      while (i < lines.length && /^>/.test(lines[i])) {
+        quoteLines.push(lines[i].replace(/^>\s?/, ''))
+        i++
+      }
+      out.push(`<blockquote><p>${parseInline(quoteLines.join('\n'))}</p></blockquote>`)
+      continue
+    }
+
+    // Table
+    if (/\|.*\|/.test(line) && i + 1 < lines.length && /^\|[\s:-]+\|/.test(lines[i + 1])) {
+      const headerCells = line.split('|').filter(c => c.trim()).map(c => c.trim())
+      i += 2 // skip header separator
+      out.push('<table><thead><tr>')
+      for (const cell of headerCells) {
+        out.push(`<th>${parseInline(cell)}</th>`)
+      }
+      out.push('</tr></thead><tbody>')
+      while (i < lines.length && /\|.*\|/.test(lines[i])) {
+        const cells = lines[i].split('|').filter(c => c.trim()).map(c => c.trim())
+        out.push('<tr>')
+        for (const cell of cells) {
+          out.push(`<td>${parseInline(cell)}</td>`)
+        }
+        out.push('</tr>')
+        i++
+      }
+      out.push('</tbody></table>')
+      continue
+    }
+
+    // Task list
+    const taskMatch = line.match(/^(\s*)[-*]\s+\[([ xX])\]\s+(.+)$/)
+    if (taskMatch) {
+      const checked = taskMatch[2] !== ' '
+      out.push(`<ul><li data-type="taskItem" data-checked="${checked}">${parseInline(taskMatch[3])}</li></ul>`)
+      i++
+      continue
+    }
+
+    // Unordered list
+    if (/^(\s*)[-*+]\s+(.+)$/.test(line)) {
+      out.push('<ul>')
+      while (i < lines.length && /^(\s*)[-*+]\s+(.+)$/.test(lines[i])) {
+        const content = lines[i].replace(/^(\s*)[-*+]\s+(.+)$/, '$2')
+        out.push(`<li>${parseInline(content)}</li>`)
+        i++
+      }
+      out.push('</ul>')
+      continue
+    }
+
+    // Ordered list
+    if (/^\s*\d+\.\s+(.+)$/.test(line)) {
+      out.push('<ol>')
+      while (i < lines.length && /^\s*\d+\.\s+(.+)$/.test(lines[i])) {
+        const content = lines[i].replace(/^\s*\d+\.\s+(.+)$/, '$1')
+        out.push(`<li>${parseInline(content)}</li>`)
+        i++
+      }
+      out.push('</ol>')
+      continue
+    }
+
+    // Empty line → paragraph break
+    if (/^\s*$/.test(line)) {
+      i++
+      continue
+    }
+
+    // Regular paragraph (collect consecutive lines)
+    const paraLines: string[] = []
+    while (i < lines.length && !/^\s*$/.test(lines[i]) && !/^#{1,6}\s/.test(lines[i]) && !/^```/.test(lines[i]) && !/^>/.test(lines[i]) && !/^\s*[-*+]\s/.test(lines[i]) && !/^\s*\d+\.\s/.test(lines[i])) {
+      paraLines.push(lines[i])
+      i++
+    }
+    if (paraLines.length > 0) {
+      out.push(`<p>${parseInline(paraLines.join('<br />'))}</p>`)
+    }
+  }
+
+  return out.join('\n')
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function parseInline(text: string): string {
+  // Links: [text](url)
+  let s = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+  // Images: ![alt](src)
+  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />')
+  // Bold+italic
+  s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+  // Bold
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  // Italic
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>')
   // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>')
-  // Code blocks
-  html = html.replace(/```[\w]*\n([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-  // Blockquotes
-  html = html.replace(/^> (.+)$/gm, '<blockquote><p>$1</p></blockquote>')
-  // Horizontal rules
-  html = html.replace(/^---$/gm, '<hr />')
-  html = html.replace(/^\*\*\*$/gm, '<hr />')
-  // Unordered lists
-  html = html.replace(/^- (.+)$/gm, '<li>$1</li>')
-  html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`)
-  // Ordered lists
-  html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-  // Wrap standalone lines in paragraphs (but not already-wrapped content)
-  html = html.replace(/^(?!<[huplbo]|<\/|<li|<hr|<code)(.+)$/gm, '<p>$1</p>')
-  return html
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>')
+  // Strikethrough
+  s = s.replace(/~~(.+?)~~/g, '<s>$1</s>')
+  return s
 }
 
 export function useGenerationWriter(docId: string | undefined, editor: Editor | null) {

@@ -120,7 +120,7 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
     ],
     editorProps: {
       attributes: {
-        class: 'prose prose-slate max-w-[800px] mx-auto py-20 px-12 focus:outline-none min-h-[60vh]',
+        class: 'max-w-[800px] mx-auto py-16 px-12 focus:outline-none min-h-[60vh]',
       },
       handleDrop: (view, event) => {
         const files = event.dataTransfer?.files

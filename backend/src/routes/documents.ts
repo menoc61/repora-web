@@ -23,7 +23,7 @@ documentRouter.get('/', requireAuth, async (req, res, next) => {
 
 documentRouter.get('/:id', requireAuth, async (req, res, next) => {
   try {
-    const doc = await getDocument(req.params.id as string)
+    const doc = await getDocument(req.params.id as string, req.user!.userId, req.user!.role)
     res.json(doc)
   } catch (err) { next(err) }
 })
@@ -95,7 +95,7 @@ documentRouter.get('/:id/export', requireAuth, async (req, res, next) => {
     }
 
     // Generate fresh export (slow path, then stores in S3)
-    const result = await exportDocument(docId, format as 'pdf' | 'docx' | 'md')
+    const result = await exportDocument(docId, format as 'pdf' | 'docx' | 'md', req.user!.userId, req.user!.role)
     res.setHeader('Content-Type', result.mimeType)
     res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`)
     res.setHeader('X-Cache', 'MISS')
@@ -277,7 +277,7 @@ documentRouter.patch('/:id', requireAuth, async (req, res, next) => {
       }
     }
 
-    const doc = await getDocument(docId)
+    const doc = await getDocument(docId, req.user!.userId, req.user!.role)
     await logAudit({ userId: req.user!.userId, action: 'document.updated', target: docId })
     res.json(doc)
   } catch (err) { next(err) }
@@ -288,7 +288,7 @@ documentRouter.post('/:id/accept', requireAuth, async (req, res, next) => {
     const docId = req.params.id as string
     await db.update(documents).set({ status: 'validated', updatedAt: new Date() }).where(eq(documents.id, docId))
     await logAudit({ userId: req.user!.userId, action: 'document.changes_accepted', target: docId })
-    const doc = await getDocument(docId)
+    const doc = await getDocument(docId, req.user!.userId, req.user!.role)
     res.json(doc)
   } catch (err) { next(err) }
 })

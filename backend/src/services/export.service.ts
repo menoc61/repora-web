@@ -30,8 +30,8 @@ interface ExportResult {
   s3Key?: string
 }
 
-export async function exportDocument(documentId: string, format: 'pdf' | 'docx' | 'md'): Promise<ExportResult> {
-  const doc = await getDocument(documentId)
+export async function exportDocument(documentId: string, format: 'pdf' | 'docx' | 'md', userId?: string, role?: string): Promise<ExportResult> {
+  const doc = await getDocument(documentId, userId, role)
   const shortId = documentId.slice(0, 8)
 
   const diagramRows = await db.select({

@@ -3,9 +3,18 @@ import { eq, and, desc, sql } from 'drizzle-orm'
 import crypto from 'crypto'
 import { AppError } from '../middleware/error'
 
-export async function getDocument(id: string) {
+export async function getDocument(id: string, userId?: string, role?: string) {
   const [doc] = await db.select().from(schema.documents).where(eq(schema.documents.id, id)).limit(1)
   if (!doc) throw new AppError(404, 'not_found', 'Document not found')
+
+  // Verify project ownership unless admin/super_admin
+  if (userId && role !== 'admin' && role !== 'super_admin') {
+    const [project] = await db.select({ ownerId: schema.projects.ownerId })
+      .from(schema.projects).where(eq(schema.projects.id, doc.projectId)).limit(1)
+    if (!project || project.ownerId !== userId) {
+      throw new AppError(404, 'not_found', 'Document not found')
+    }
+  }
 
   const sectionsList = await db.select().from(schema.sections)
     .where(eq(schema.sections.documentId, id))

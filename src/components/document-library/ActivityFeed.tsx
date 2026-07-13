@@ -18,7 +18,7 @@ export default function ActivityFeed({ activities, onViewAll }: ActivityFeedProp
       <div className="space-y-4">
         {activities.length > 0 ? (
           activities.slice(0, 5).map((entry: any, i: number) => (
-            <div key={i} className={`flex items-start gap-4 p-3 rounded-lg ${i === 0 ? 'bg-ai-glow/30 border border-ai-vibrant/10' : 'hover:bg-surface-container-low transition-colors'}`}>
+            <div key={`act-${entry.id ?? entry.action ?? i}`} className={`flex items-start gap-4 p-3 rounded-lg ${i === 0 ? 'bg-ai-glow/30 border border-ai-vibrant/10' : 'hover:bg-surface-container-low transition-colors'}`}>
               <div className={`w-8 h-8 rounded flex items-center justify-center ${i === 0 ? 'bg-ai-vibrant/20 text-ai-vibrant' : 'bg-surface-container-high text-on-surface-variant'}`}>
                 <Icon name={i === 0 ? 'auto_awesome' : 'update'} className="scale-75" />
               </div>

@@ -9,14 +9,14 @@ diagramRouter.use(requireAuth)
 // All mounted at /projects
 diagramRouter.post('/:id/diagrams', async (req, res, next) => {
   try {
-    const result = await diagramService.createDiagram(req.params.id, req.body.type, req.body.source, req.body.sectionId)
+    const result = await diagramService.createDiagram(req.params.id, req.body.type, req.body.source, req.body.sectionId, req.user!.userId, req.user!.role)
     res.status(201).json(result)
   } catch (err) { next(err) }
 })
 
 diagramRouter.get('/:projectId/diagrams', async (req, res, next) => {
   try {
-    const result = await diagramService.listDiagramsByProject(req.params.projectId)
+    const result = await diagramService.listDiagramsByProject(req.params.projectId, req.user!.userId, req.user!.role)
     res.json(result)
   } catch (err) { next(err) }
 })
@@ -24,7 +24,7 @@ diagramRouter.get('/:projectId/diagrams', async (req, res, next) => {
 // GET /projects/diagrams/:id — single diagram access
 diagramRouter.get('/diagrams/:id', async (req, res, next) => {
   try {
-    const result = await diagramService.getDiagram(req.params.id)
+    const result = await diagramService.getDiagram(req.params.id, req.user!.userId, req.user!.role)
     res.json(result)
   } catch (err) { next(err) }
 })
@@ -32,7 +32,7 @@ diagramRouter.get('/diagrams/:id', async (req, res, next) => {
 diagramRouter.get('/diagrams/:id/export', async (req, res, next) => {
   try {
     const format = (req.query.format as string) || 'svg'
-    const diagram = await diagramService.getDiagram(req.params.id)
+    const diagram = await diagramService.getDiagram(req.params.id, req.user!.userId, req.user!.role)
 
     if (!diagram.plantuml_source) {
       res.status(404).json({ error: { code: 'no_source', message: 'Diagram has no PlantUML source' } })

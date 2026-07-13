@@ -118,7 +118,15 @@ user --> uc
 @enduml`
 }
 
-export async function createDiagram(projectId: string, type: string, source?: string, sectionId?: string) {
+export async function createDiagram(projectId: string, type: string, source?: string, sectionId?: string, userId?: string, role?: string) {
+  // Verify project ownership
+  if (userId && role !== 'admin' && role !== 'super_admin') {
+    const [project] = await db.select({ ownerId: projects.ownerId })
+      .from(projects).where(eq(projects.id, projectId)).limit(1)
+    if (!project || project.ownerId !== userId) {
+      throw new AppError(404, 'not_found', 'Project not found')
+    }
+  }
   // If source looks like valid PlantUML, use it directly.
   // Otherwise generate PlantUML from project context.
   let plantumlSource: string
@@ -168,9 +176,18 @@ export async function createDiagram(projectId: string, type: string, source?: st
   }
 }
 
-export async function getDiagram(id: string) {
+export async function getDiagram(id: string, userId?: string, role?: string) {
   const [diagram] = await db.select().from(diagrams).where(eq(diagrams.id, id)).limit(1)
   if (!diagram) throw new AppError(404, 'not_found', 'Diagram not found')
+
+  // Verify project ownership
+  if (userId && role !== 'admin' && role !== 'super_admin') {
+    const [project] = await db.select({ ownerId: projects.ownerId })
+      .from(projects).where(eq(projects.id, diagram.projectId)).limit(1)
+    if (!project || project.ownerId !== userId) {
+      throw new AppError(404, 'not_found', 'Diagram not found')
+    }
+  }
 
   const plantumlSource = diagram.plantumlSource || ''
   const encodedSource = plantumlSource ? encodePlantUML(plantumlSource) : ''
@@ -186,7 +203,16 @@ export async function getDiagram(id: string) {
   }
 }
 
-export async function listDiagramsByProject(projectId: string) {
+export async function listDiagramsByProject(projectId: string, userId?: string, role?: string) {
+  // Verify project ownership
+  if (userId && role !== 'admin' && role !== 'super_admin') {
+    const [project] = await db.select({ ownerId: projects.ownerId })
+      .from(projects).where(eq(projects.id, projectId)).limit(1)
+    if (!project || project.ownerId !== userId) {
+      throw new AppError(404, 'not_found', 'Project not found')
+    }
+  }
+
   const rows = await db.select().from(diagrams).where(eq(diagrams.projectId, projectId))
   return rows.map((d) => {
     const plantumlSource = d.plantumlSource || ''
