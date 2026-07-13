@@ -1,7 +1,61 @@
 import { db, schema } from '../db'
-import { eq, and, desc, sql } from 'drizzle-orm'
+import { versionHistory } from '../db/schema'
+import { eq, and, desc, asc, sql } from 'drizzle-orm'
 import crypto from 'crypto'
 import { AppError } from '../middleware/error'
+
+export interface VersionSection {
+  id: string
+  title: string
+  content: string
+  order: number
+  status: string
+}
+
+export async function createVersion(
+  documentId: string,
+  userId: string | undefined,
+  sections: VersionSection[],
+  documentStatus: string | undefined,
+  label?: string,
+): Promise<number> {
+  const [row] = await db.select({ max: sql<number>`COALESCE(MAX(${versionHistory.version}), 0)` })
+    .from(versionHistory)
+    .where(eq(versionHistory.documentId, documentId))
+  const next = (row?.max ?? 0) + 1
+  await db.insert(versionHistory).values({
+    documentId,
+    version: next,
+    sections,
+    documentStatus: documentStatus ?? null,
+    createdBy: userId ?? null,
+    label: label ?? null,
+  })
+  return next
+}
+
+export async function listVersions(documentId: string) {
+  return db.select()
+    .from(versionHistory)
+    .where(eq(versionHistory.documentId, documentId))
+    .orderBy(desc(versionHistory.version))
+}
+
+export async function getVersion(versionId: string, documentId: string) {
+  const [row] = await db.select()
+    .from(versionHistory)
+    .where(and(eq(versionHistory.id, versionId), eq(versionHistory.documentId, documentId)))
+    .limit(1)
+  return row
+}
+
+export async function getVersionByNumber(documentId: string, versionNumber: number) {
+  const rows = await db.select()
+    .from(versionHistory)
+    .where(eq(versionHistory.documentId, documentId))
+    .orderBy(asc(versionHistory.createdAt))
+  return rows[versionNumber - 1] ?? null
+}
 
 export async function getDocument(id: string, userId?: string, role?: string) {
   const [doc] = await db.select().from(schema.documents).where(eq(schema.documents.id, id)).limit(1)

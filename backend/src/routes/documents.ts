@@ -2,17 +2,51 @@ import { Router } from 'express'
 import { requireAuth } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { updateDocumentSchema, createCommentSchema } from '../validation/schemas'
-import { getDocument, listDocuments, createValidationToken } from '../services/document.service'
+import { getDocument, listDocuments, createValidationToken, createVersion, listVersions, getVersion, getVersionByNumber } from '../services/document.service'
 import { exportDocument, getStoredExport } from '../services/export.service'
 import { logAudit } from '../services/audit.service'
 import { getGenerationState, streamGeneration, clearGenerationState } from '../ai/hermes'
 import { listComments, addComment } from '../services/comment.service'
 import { db } from '../db'
-import { auditLogs, documents, sections } from '../db/schema'
-import { eq, and, desc, asc } from 'drizzle-orm'
+import { documents, sections } from '../db/schema'
+import { eq } from 'drizzle-orm'
 import { AppError } from '../middleware/error'
 
 export const documentRouter = Router()
+
+type VersionSnapshot = { id: string; sections: Array<{ id?: string; title?: string; content?: string; order?: number; status?: string }>; documentStatus: string | null }
+
+// Snapshot the current section state as a new version (so a restore is itself
+// reversible), then overwrite the document's sections with the target snapshot.
+async function restoreToVersion(id: string, userId: string, target: VersionSnapshot): Promise<void> {
+  const currentSections = await db.select().from(sections).where(eq(sections.documentId, id)).orderBy(sections.order)
+  const [currentDoc] = await db.select({ status: documents.status }).from(documents).where(eq(documents.id, id)).limit(1)
+  await createVersion(
+    id,
+    userId,
+    currentSections.map((s) => ({ id: s.id, title: s.title, content: s.content, order: s.order, status: s.status })),
+    currentDoc?.status,
+    'Auto-backup before restore',
+  )
+
+  const versionSections = target.sections
+  if (Array.isArray(versionSections) && versionSections.length) {
+    await db.delete(sections).where(eq(sections.documentId, id))
+    for (const sec of versionSections) {
+      await db.insert(sections).values({
+        documentId: id,
+        title: sec.title ?? '',
+        content: sec.content ?? '',
+        order: sec.order ?? 0,
+        status: sec.status ?? 'draft',
+      })
+    }
+  }
+
+  if (target.documentStatus) {
+    await db.update(documents).set({ status: target.documentStatus, updatedAt: new Date() }).where(eq(documents.id, id))
+  }
+}
 
 documentRouter.get('/', requireAuth, async (req, res, next) => {
   try {
@@ -109,17 +143,16 @@ documentRouter.get('/:id/export', requireAuth, async (req, res, next) => {
 documentRouter.get('/:id/versions', requireAuth, async (req, res, next) => {
   try {
     const id = req.params.id as string
-    const logs = await db.select().from(auditLogs)
-      .where(eq(auditLogs.target, id))
-      .orderBy(desc(auditLogs.timestamp))
-    const versions = logs.map((l, idx) => ({
-      id: l.id,
-      version: logs.length - idx,
-      action: l.action,
-      timestamp: l.timestamp?.toISOString() ?? new Date().toISOString(),
-      metadata: l.metadata,
-    }))
-    res.json(versions)
+    const versions = await listVersions(id)
+    res.json(versions.map((v) => ({
+      id: v.id,
+      version: v.version,
+      label: v.label,
+      documentStatus: v.documentStatus,
+      createdBy: v.createdBy,
+      timestamp: v.createdAt?.toISOString() ?? new Date().toISOString(),
+      sectionCount: Array.isArray(v.sections) ? v.sections.length : 0,
+    })))
   } catch (err) { next(err) }
 })
 
@@ -133,43 +166,13 @@ documentRouter.post('/:id/versions/restore', requireAuth, async (req, res, next)
       return
     }
 
-    const [versionLog] = await db.select().from(auditLogs)
-      .where(and(eq(auditLogs.id, versionId), eq(auditLogs.target, id)))
-      .limit(1)
-    if (!versionLog) {
+    const version = await getVersion(versionId, id)
+    if (!version) {
       res.status(404).json({ error: { code: 'not_found', message: 'Version not found' } })
       return
     }
 
-    const currentSections = await db.select().from(sections).where(eq(sections.documentId, id)).orderBy(sections.order)
-
-    await logAudit({
-      userId: req.user!.userId,
-      action: 'document.version_backup',
-      target: id,
-      metadata: {
-        backupOf: versionId,
-        previousState: currentSections.map(s => ({ id: s.id, title: s.title, content: s.content, order: s.order, status: s.status })),
-      },
-    })
-
-    const versionMeta = versionLog.metadata as Record<string, unknown> | null
-    if (versionMeta?.sections && Array.isArray(versionMeta.sections)) {
-      await db.delete(sections).where(eq(sections.documentId, id))
-      for (const sec of versionMeta.sections as Array<Record<string, unknown>>) {
-        await db.insert(sections).values({
-          documentId: id,
-          title: (sec.title as string) || '',
-          content: (sec.content as string) || '',
-          order: (sec.order as number) || 0,
-          status: (sec.status as string) || 'draft',
-        })
-      }
-    }
-
-    if (versionMeta?.documentStatus) {
-      await db.update(documents).set({ status: versionMeta.documentStatus as string }).where(eq(documents.id, id))
-    }
+    await restoreToVersion(id, req.user!.userId, version)
 
     await logAudit({ userId: req.user!.userId, action: 'document.version_restored', target: id, metadata: { restoredFromVersion: versionId } })
     res.json({ ok: true, restoredFromVersion: versionId })
@@ -182,73 +185,31 @@ documentRouter.post('/:id/restore', requireAuth, async (req, res, next) => {
     const { versionId, version } = req.body
 
     let resolvedVersionId: string | undefined = versionId as string | undefined
+    let target: Awaited<ReturnType<typeof getVersion>> | null = null
 
-    if (!resolvedVersionId && version != null) {
+    if (resolvedVersionId) {
+      target = await getVersion(resolvedVersionId, id)
+    } else if (version != null) {
       const versionNum = parseInt(String(version).replace(/[^0-9]/g, ''), 10)
       if (isNaN(versionNum) || versionNum < 1) {
         res.status(400).json({ error: { code: 'invalid_version', message: 'version must be a positive number or valid version label' } })
         return
       }
-
-      const allLogs = await db.select().from(auditLogs)
-        .where(eq(auditLogs.target, id))
-        .orderBy(asc(auditLogs.timestamp))
-
-      if (versionNum > allLogs.length) {
-        res.status(404).json({ error: { code: 'not_found', message: `Version ${versionNum} not found. Latest version is ${allLogs.length}` } })
+      target = await getVersionByNumber(id, versionNum)
+      if (!target) {
+        const all = await listVersions(id)
+        res.status(404).json({ error: { code: 'not_found', message: `Version ${versionNum} not found. Latest version is ${all.length}` } })
         return
       }
-
-      resolvedVersionId = allLogs[versionNum - 1].id
+      resolvedVersionId = target.id
     }
 
-    if (!resolvedVersionId) {
+    if (!target) {
       res.status(400).json({ error: { code: 'missing_version', message: 'versionId or version is required' } })
       return
     }
 
-    const [versionLog] = await db.select().from(auditLogs)
-      .where(and(eq(auditLogs.id, resolvedVersionId), eq(auditLogs.target, id)))
-      .limit(1)
-
-    if (!versionLog) {
-      res.status(404).json({ error: { code: 'not_found', message: 'Version not found' } })
-      return
-    }
-
-    const currentSections = await db.select().from(sections)
-      .where(eq(sections.documentId, id))
-      .orderBy(sections.order)
-
-    await logAudit({
-      userId: req.user!.userId,
-      action: 'document.version_backup',
-      target: id,
-      metadata: {
-        backupOf: resolvedVersionId,
-        previousState: currentSections.map(s => ({
-          id: s.id, title: s.title, content: s.content, order: s.order, status: s.status,
-        })),
-      },
-    })
-
-    const versionMeta = versionLog.metadata as Record<string, unknown> | null
-    if (versionMeta?.sections && Array.isArray(versionMeta.sections)) {
-      await db.delete(sections).where(eq(sections.documentId, id))
-      for (const sec of versionMeta.sections as Array<Record<string, unknown>>) {
-        await db.insert(sections).values({
-          documentId: id,
-          title: (sec.title as string) || '',
-          content: (sec.content as string) || '',
-          order: (sec.order as number) || 0,
-          status: (sec.status as string) || 'draft',
-        })
-      }
-    }
-
-    if (versionMeta?.documentStatus) {
-      await db.update(documents).set({ status: versionMeta.documentStatus as string }).where(eq(documents.id, id))
-    }
+    await restoreToVersion(id, req.user!.userId, target)
 
     await logAudit({
       userId: req.user!.userId,
@@ -280,6 +241,19 @@ documentRouter.patch('/:id', requireAuth, validate(updateDocumentSchema), async 
     }
 
     const doc = await getDocument(docId, req.user!.userId, req.user!.role)
+
+    // Record a version snapshot whenever content is actually saved (not on a
+    // pure status ping), so version history is decoupled from audit logs.
+    if (incomingSections && Array.isArray(incomingSections)) {
+      await createVersion(
+        docId,
+        req.user!.userId,
+        doc.sections.map((s) => ({ id: s.id, title: s.title, content: s.content, order: s.order, status: s.status })),
+        (status as string) || doc.status,
+        title ? `Save: ${title}` : 'Document save',
+      )
+    }
+
     await logAudit({ userId: req.user!.userId, action: 'document.updated', target: docId })
     res.json(doc)
   } catch (err) { next(err) }

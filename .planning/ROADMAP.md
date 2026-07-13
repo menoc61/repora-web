@@ -13,7 +13,7 @@ This milestone stabilizes the existing Repora codebase: fixing export pipeline r
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Export Pipeline Reliability** - Fix DOCX cover images in Docker, keep PDF export light (PDFKit fallback, no LibreOffice bloat), make cover reflect document type
-- [ ] **Phase 2: Infrastructure & Code Cleanup** - Fix S3 client init, remove unused assets and duplicate routes, decouple version history from audit logs
+- [x] **Phase 2: Infrastructure & Code Cleanup** - Fix S3 client init, remove unused assets and duplicate routes, version history decoupling
 - [ ] **Phase 3: Test Suite Health** - Fix 3 failing tests and add coverage for S3, DOCX export, validation portal, and onboarding
 
 ## Phase Details
@@ -45,10 +45,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 02-01: Refactor S3 service to lazy-init client once at module load
-- [ ] 02-02: Delete unused assets and verify no references remain
-- [ ] 02-03: Remove duplicate export route and consolidate to single endpoint
-- [ ] 02-04: Create version history table and migrate snapshots out of audit logs
+- [x] 02-01: Refactor S3 service to lazy-init client once at module load
+- [x] 02-02: Delete unused assets and verify no references remain
+- [x] 02-03: Remove duplicate export route and consolidate to single endpoint
+- [x] 02-04: Create version history table and migrate snapshots out of audit logs
 
 ### Phase 3: Test Suite Health
 **Goal**: All tests green with comprehensive coverage for critical export/validation/onboarding paths
@@ -77,7 +77,7 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Export Pipeline Reliability | 3/3 | Complete | 2026-07-13 |
-| 2. Infrastructure & Code Cleanup | 0/4 | Not started | - |
+| 2. Infrastructure & Code Cleanup | 4/4 | Complete | 2026-07-13 |
 | 3. Test Suite Health | 0/5 | Not started | - |
 
 > **Build-weight directive (2026-07-13):** User required all build images stay < 300MB and the frontend/backend builds be optimized. Addressed outside the phase structure: backend image reduced to 270MB (production-only deps, `node` runtime instead of `tsx`); frontend image 63.7MB with nginx gzip + vite `manualChunks` vendor splitting (transfer ~470KB gzipped vs ~1.5MB raw).

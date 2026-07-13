@@ -47,18 +47,20 @@ All 5 phases (0-4) were completed:
 - DB healthcheck passing
 - Backend auto-migration + seed on startup
 
-### Known Issues (current state, 2026-07-13)
-- **3 failing backend tests** (was 97/97): 2 Zod validation error code mismatches (documents.test.ts, projects.test.ts) + 1 French detection heuristic (negotiate.test.ts)
-- **DOCX cover images broken in Docker** — `exportDocx.ts:368` uses `path.resolve(process.cwd(),'..')` which doesn't resolve correctly in containerized environment
-- **No LibreOffice in backend Docker** — PDF export falls back to PDFKit (lower quality)
-- **S3 service wasteful** — re-imports SDK on every function call instead of lazy-init once
-- **Unused assets** — `public/assets/body_bg.png`, `cover.html`, `body.html`, `backcover.html`
-- **Duplicate export route** — `/export/documents/:id` vs `/documents/:id/export`
-- **Version history coupled to audit logs** — snapshots stored in `auditLogs.metadata`
+### Known Issues (remaining, 2026-07-13)
+- **3 failing backend tests** (was 97/97): 2 Zod validation error code mismatches (documents.test.ts, projects.test.ts) + 1 French detection heuristic (negotiate.test.ts) — tracked in Phase 3
 - Content generation requires active Ollama instance with tool-calling model; without it, sections are "pending"
-- Frontend build has large bundle (1.5MB main chunk) — consider code-splitting
+- Frontend build large bundle — addressed (nginx gzip + vite manualChunks; ~470KB gzipped)
+
+### Resolved (this session)
+- **DOCX cover images in Docker** — multi-candidate `resolveAsset()` resolver (`exportDocx.ts`)
+- **No LibreOffice bloat** — PDFKit fallback; backend image 270MB (< 300MB budget)
+- **S3 service wasteful** — SDK module + client now cached once (`services/s3.service.ts`)
+- **Unused assets** — `body_bg.png`, `cover.html`, `body.html`, `backcover.html`, `hostinger_vps.png` deleted
+- **Duplicate export route** — `/export/documents/:id` removed; single `/documents/:id/export`
+- **Version history decoupled** — dedicated `versionHistory` table; restore/versions routes rewired
 
 ### Next Up (from ROADMAP.md)
-- Phase 1: Export Pipeline Reliability (EXP-01, EXP-02, EXP-03)
-- Phase 2: Infrastructure & Code Cleanup (INF-01 to INF-04)
-- Phase 3: Test Suite Health (TST-01 to TST-05)
+- Phase 1: Export Pipeline Reliability (EXP-01, EXP-02, EXP-03) — ✅ complete
+- Phase 2: Infrastructure & Code Cleanup (INF-01 to INF-04) — ✅ complete
+- Phase 3: Test Suite Health (TST-01 to TST-05) — next

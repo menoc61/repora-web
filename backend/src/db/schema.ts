@@ -120,6 +120,20 @@ export const auditLogs = pgTable('audit_logs', {
   timestamp: timestamp('timestamp').defaultNow().notNull(),
 })
 
+// Dedicated version-history table. Version snapshots used to be embedded in
+// auditLogs.metadata (action `document.version_backup`); they now live here so
+// the audit log stays a lightweight activity feed and version storage is decoupled.
+export const versionHistory = pgTable('version_history', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  documentId: uuid('document_id').references(() => documents.id).notNull(),
+  version: integer('version').notNull(),
+  sections: jsonb('sections').$type<Array<{ id: string; title: string; content: string; order: number; status: string }>>().notNull(),
+  documentStatus: text('document_status'),
+  createdBy: uuid('created_by').references(() => users.id),
+  label: text('label'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 export const assistantSessions = pgTable('assistant_sessions', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').references(() => users.id).notNull(),

@@ -10,7 +10,6 @@ import { projectRouter } from './routes/projects'
 import { documentRouter } from './routes/documents'
 import { diagramRouter } from './routes/diagrams'
 import { adminRouter } from './routes/admin'
-import { exportRouter } from './routes/export'
 import { validationRouter } from './routes/validation'
 import { modelsRouter } from './routes/models'
 import { templateRouter } from './routes/templates'
@@ -49,7 +48,6 @@ app.use('/projects', diagramRouter)
 app.use('/models', modelsRouter)
 app.use('/documents', documentRouter)
 app.use('/admin', adminRouter)
-app.use('/export', exportRouter)
 app.use('/validate', validationRouter)
 app.use('/templates', templateRouter)
 app.use('/collaboration', collaborationRouter)
