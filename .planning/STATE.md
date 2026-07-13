@@ -1,8 +1,17 @@
 # Repora — State
 
-## Current Phase: All Phases Complete ✅
+---
+GSD_INIT: 2026-07-13
+GSD_SOURCE: .planning/PROJECT.md, .planning/REQUIREMENTS.md, .planning/ROADMAP.md
+---
 
-All 5 phases (0-4) have been completed:
+## Current Phase: Milestone 1 — Stabilization (GSD-managed)
+
+Phases 0-4 (below) are historical context. New work is managed through GSD (PROJECT.md, REQUIREMENTS.md, ROADMAP.md).
+
+### Historical Phases (complete)
+
+All 5 phases (0-4) were completed:
 
 ### Phase 0: Tests & Pipeline ✅
 - 97/97 backend tests passing across 9 test files
@@ -38,7 +47,18 @@ All 5 phases (0-4) have been completed:
 - DB healthcheck passing
 - Backend auto-migration + seed on startup
 
-### Known Issues
-- Content generation requires an active Ollama instance with a tool-calling model
-- Without Ollama, generated documents have empty "pending" sections
+### Known Issues (current state, 2026-07-13)
+- **3 failing backend tests** (was 97/97): 2 Zod validation error code mismatches (documents.test.ts, projects.test.ts) + 1 French detection heuristic (negotiate.test.ts)
+- **DOCX cover images broken in Docker** — `exportDocx.ts:368` uses `path.resolve(process.cwd(),'..')` which doesn't resolve correctly in containerized environment
+- **No LibreOffice in backend Docker** — PDF export falls back to PDFKit (lower quality)
+- **S3 service wasteful** — re-imports SDK on every function call instead of lazy-init once
+- **Unused assets** — `public/assets/body_bg.png`, `cover.html`, `body.html`, `backcover.html`
+- **Duplicate export route** — `/export/documents/:id` vs `/documents/:id/export`
+- **Version history coupled to audit logs** — snapshots stored in `auditLogs.metadata`
+- Content generation requires active Ollama instance with tool-calling model; without it, sections are "pending"
 - Frontend build has large bundle (1.5MB main chunk) — consider code-splitting
+
+### Next Up (from ROADMAP.md)
+- Phase 1: Export Pipeline Reliability (EXP-01, EXP-02, EXP-03)
+- Phase 2: Infrastructure & Code Cleanup (INF-01 to INF-04)
+- Phase 3: Test Suite Health (TST-01 to TST-05)
