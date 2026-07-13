@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { requireAuth } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { updateDocumentSchema, createCommentSchema } from '../validation/schemas'
-import { getDocument, listDocuments, createValidationToken, createVersion, listVersions, getVersion, getVersionByNumber } from '../services/document.service'
+import { getDocument, listDocuments, createValidationToken, createVersion, listVersions, getVersion, getVersionByNumber, reconcileSectionsFromMarkdown, renameDocument, deleteDocument } from '../services/document.service'
 import { exportDocument, getStoredExport } from '../services/export.service'
 import { logAudit } from '../services/audit.service'
 import { getGenerationState, streamGeneration, clearGenerationState } from '../ai/hermes'
@@ -64,6 +64,15 @@ documentRouter.get('/:id', requireAuth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
+documentRouter.delete('/:id', requireAuth, async (req, res, next) => {
+  try {
+    const docId = req.params.id as string
+    await deleteDocument(docId, req.user!.userId, req.user!.role)
+    await logAudit({ userId: req.user!.userId, action: 'document.deleted', target: docId })
+    res.json({ ok: true, id: docId })
+  } catch (err) { next(err) }
+})
+
 documentRouter.get('/:id/stream', requireAuth, async (req, res, next) => {
   try {
     const docId = req.params.id as string
@@ -104,7 +113,7 @@ documentRouter.get('/:id/stream', requireAuth, async (req, res, next) => {
 
 documentRouter.post('/:id/validation-token', requireAuth, async (req, res, next) => {
   try {
-    const token = await createValidationToken(req.params.id as string)
+    const token = await createValidationToken(req.params.id as string, req.user!.userId, req.user!.role)
     await logAudit({ userId: req.user!.userId, action: 'validation.token_created', target: req.params.id as string, metadata: { token } })
     res.json({ token })
   } catch (err) { next(err) }
@@ -224,7 +233,11 @@ documentRouter.post('/:id/restore', requireAuth, async (req, res, next) => {
 documentRouter.patch('/:id', requireAuth, validate(updateDocumentSchema), async (req, res, next) => {
   try {
     const docId = req.params.id as string
-    const { sections: incomingSections, title, status } = req.body
+    const { sections: incomingSections, title, status, content } = req.body
+
+    if (title) {
+      await renameDocument(docId, title, req.user!.userId, req.user!.role)
+    }
 
     if (status) {
       await db.update(documents).set({ status, updatedAt: new Date() }).where(eq(documents.id, docId))
@@ -238,13 +251,20 @@ documentRouter.patch('/:id', requireAuth, validate(updateDocumentSchema), async 
             .where(eq(sections.id, s.id))
         }
       }
+    } else if (typeof content === 'string' && content.length > 0) {
+      // Editor autosave sends the full document as markdown. Reconcile it into
+      // structured sections so user edits actually persist.
+      await reconcileSectionsFromMarkdown(docId, content)
     }
 
     const doc = await getDocument(docId, req.user!.userId, req.user!.role)
 
     // Record a version snapshot whenever content is actually saved (not on a
     // pure status ping), so version history is decoupled from audit logs.
-    if (incomingSections && Array.isArray(incomingSections)) {
+    const contentChanged =
+      (incomingSections && Array.isArray(incomingSections)) ||
+      (typeof content === 'string' && content.length > 0)
+    if (contentChanged) {
       await createVersion(
         docId,
         req.user!.userId,

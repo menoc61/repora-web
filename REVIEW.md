@@ -44,7 +44,14 @@ findings:
   warning: 7
   info: 4
   total: 15
-status: issues_found
+status: resolved
+resolved: 2026-07-13T00:00:00Z
+resolution_note: >
+  All critical and warning findings (CR-01..04, WR-01..06) were fixed against the
+  current codebase. WR-07 (rate limiting) intentionally deferred per maintainer
+  decision. Info findings (IN-01..04) are non-blocking stubs/divergence notes.
+  IN-02 (FK cascade deletes) requires a DB migration and was left as a tracked
+  operational item.
 ---
 
 # Backend Code Review Report

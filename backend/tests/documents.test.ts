@@ -176,3 +176,38 @@ describe('GET /documents/:id/comments', () => {
     expect(Array.isArray(res.body)).toBe(true)
   })
 })
+
+describe('PATCH /documents/:id title', () => {
+  it('persists the title into the document outline', async () => {
+    const res = await request(app)
+      .patch(`/documents/${documentId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Renamed Via Test' })
+      .expect(200)
+
+    expect(res.body).toHaveProperty('id')
+
+    const getRes = await request(app)
+      .get(`/documents/${documentId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
+    expect(getRes.body.outline?.title).toBe('Renamed Via Test')
+  })
+})
+
+describe('DELETE /documents/:id', () => {
+  it('deletes the document and returns 404 afterwards', async () => {
+    const res = await request(app)
+      .delete(`/documents/${documentId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
+    expect(res.body.ok).toBe(true)
+
+    await request(app)
+      .get(`/documents/${documentId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(404)
+  })
+})

@@ -42,6 +42,8 @@ export const updateDocumentSchema = z.object({
     content: z.string().optional(),
     title: z.string().optional(),
   })).optional(),
+  // Full-document markdown from the editor autosave (converted to sections).
+  content: z.string().optional(),
   title: z.string().max(500).optional(),
   status: z.enum(['draft', 'in_review', 'validated', 'rejected']).optional(),
 })

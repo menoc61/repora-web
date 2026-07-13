@@ -10,6 +10,8 @@ import {
   useGenerateDocument,
   useAnalytics,
   useActivity,
+  useDeleteDocument,
+  useSaveDocument,
 } from '@/hooks/useQueries'
 import type { Document, DocumentFilters } from '@/schemas'
 import { useWorkspaceStore } from '@/stores'
@@ -19,6 +21,7 @@ import DocumentTable from './DocumentTable'
 import Pagination from './Pagination'
 import ActivityFeed from './ActivityFeed'
 import MetricsPanel from './MetricsPanel'
+import ConfirmDialog from '@/components/ui/confirm-dialog'
 
 export default function DocumentLibraryView() {
   const navigate = useNavigate()
@@ -27,9 +30,12 @@ export default function DocumentLibraryView() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [pendingDelete, setPendingDelete] = useState<{ ids: string[]; title: string } | null>(null)
   const exportMutation = useExportDocument()
   const createProject = useCreateProject()
   const generateDoc = useGenerateDocument()
+  const deleteDoc = useDeleteDocument()
+  const saveDoc = useSaveDocument()
 
   const filters: DocumentFilters = {
     ...(status !== 'all' ? { status } : {}),
@@ -64,6 +70,27 @@ export default function DocumentLibraryView() {
 
   const handleExportSingle = (doc: Document) => {
     exportMutation.mutate({ id: doc.id, format: 'pdf' })
+  }
+
+  const handleRename = (doc: Document, newTitle: string) => {
+    saveDoc.mutate({ id: doc.id, title: newTitle })
+  }
+
+  const handleDelete = (doc: Document) => {
+    setPendingDelete({ ids: [doc.id], title: doc.title })
+  }
+
+  const handleBulkDelete = () => {
+    const ids = [...selectedIds]
+    if (ids.length === 0) return
+    setPendingDelete({ ids, title: `${ids.length} document(s) selectionne(s)` })
+  }
+
+  const confirmDelete = () => {
+    if (!pendingDelete) return
+    pendingDelete.ids.forEach((id) => deleteDoc.mutate(id))
+    setSelectedIds(new Set())
+    setPendingDelete(null)
   }
 
   const handleClearFilters = () => {
@@ -111,6 +138,12 @@ export default function DocumentLibraryView() {
             <h1 className="font-headline-lg text-headline-lg text-primary">Depot d&apos;entreprise</h1>
           </div>
           <div className="flex gap-2">
+            {selectedIds.size > 0 && (
+              <Button variant="outline" className="flex items-center gap-2 text-[#dc2626] border-[#dc2626]/30 hover:bg-[#dc2626]/10" onClick={handleBulkDelete} disabled={deleteDoc.isPending}>
+                <Icon name="delete" />
+                Supprimer ({selectedIds.size})
+              </Button>
+            )}
             <Button variant="outline" className="flex items-center gap-2" onClick={handleBulkExport} disabled={exportMutation.isPending}>
               <Icon name="download" />
               {exportMutation.isPending ? 'Exportation...' : 'Export groupe'}
@@ -154,10 +187,12 @@ export default function DocumentLibraryView() {
             selectedIds={selectedIds}
             onToggleSelect={toggleSelect}
             onToggleAll={handleToggleAll}
-            onExportSingle={handleExportSingle}
-            onOpenSharing={handleOpenSharing}
-            onOpenHistory={handleOpenHistory}
-          />
+              onExportSingle={handleExportSingle}
+              onOpenSharing={handleOpenSharing}
+              onOpenHistory={handleOpenHistory}
+              onRename={handleRename}
+              onDelete={handleDelete}
+            />
 
           <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setPage} />
         </div>
@@ -168,6 +203,17 @@ export default function DocumentLibraryView() {
           <MetricsPanel metrics={metrics} />
         </div>
       </div>
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={pendingDelete && pendingDelete.ids.length > 1 ? 'Supprimer les documents' : 'Supprimer le document'}
+        description={pendingDelete ? `Supprimer « ${pendingDelete.title} » ? Cette action est irreversible et supprime aussi le projet et toutes les sections associees.` : ''}
+        confirmLabel="Supprimer"
+        cancelLabel="Annuler"
+        destructive
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </>
   )
 }

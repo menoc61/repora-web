@@ -15,8 +15,9 @@ export default function Pagination({ currentPage, totalPages, onPageChange }: Pa
           <Icon name="chevron_left" />
         </button>
         {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-          const pageNum = Math.max(1, Math.min(currentPage - 2 + i, totalPages - 4))
-          if (pageNum < 1) return null
+          const start = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
+          const pageNum = start + i
+          if (pageNum > totalPages) return null
           return (
             <button
               key={pageNum}

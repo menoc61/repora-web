@@ -72,7 +72,7 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
     const opts = token ? { params: { token } as Record<string, string> } : undefined
     const p = new WebsocketProvider(collabWsUrl(), docId, ydoc, opts)
 
-    p.on('status', (event: { status: string }) => {
+    const onStatus = (event: { status: string }) => {
       switch (event.status) {
         case 'connected':
           setCollabStatus('connected')
@@ -86,12 +86,13 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
         default:
           setCollabStatus(event.status === 'error' ? 'disconnected' : 'connecting')
       }
-    })
+    }
+    p.on('status', onStatus)
 
     collabRef.current = { provider: p, ydoc }
     setProvider(p)
     return () => {
-      p.off('status')
+      p.off('status', onStatus)
       p.disconnect()
       p.destroy()
       ydoc.destroy()
@@ -235,6 +236,9 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
   // Autosave markdown
   const handleUpdate = useCallback(() => {
     if (!editor || !docId) return
+    // Never autosave mid-generation: the orchestrator owns the document then,
+    // and writing the partial streamed markdown back would race its DB writes.
+    if (useGenerationStore.getState().sessions.some((s) => s.documentId === docId && s.status === 'generating')) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       const md = (editor.storage as any).markdown?.getMarkdown?.() ?? ''
@@ -252,6 +256,15 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
     }
   }, [editor, handleUpdate])
+
+  // Lock the canvas while the AI is generating so the user can only edit the
+  // finished document (product requirement). Programmatic SSE writes still
+  // apply because they dispatch transactions directly — live streaming is
+  // unaffected by editable:false.
+  useEffect(() => {
+    if (!editor) return
+    editor.setEditable(!generating)
+  }, [editor, generating])
 
   // Live generation streaming (SSE -> TipTap)
   useGenerationWriter(docId, editor)

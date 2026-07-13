@@ -23,8 +23,25 @@ export async function listAgents() {
   return agents.map(a => ({ name: a.agentName, provider: a.provider, enabled: a.enabled, modelId: a.modelId }))
 }
 
-export async function patchAgent(name: string, data: Partial<typeof agentConfigs.$inferInsert>) {
-  await db.update(agentConfigs).set(data).where(eq(agentConfigs.agentName, name))
+export interface PatchAgentInput {
+  provider?: string
+  modelId?: string
+  enabled?: boolean
+  temperature?: number
+  topP?: number
+  maxTokens?: number
+}
+
+export async function patchAgent(name: string, data: PatchAgentInput) {
+  const [updated] = await db
+    .update(agentConfigs)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(agentConfigs.agentName, name))
+    .returning({ id: agentConfigs.id })
+  if (!updated) {
+    throw new AppError(404, 'not_found', 'Agent not found')
+  }
+  return { ok: true }
 }
 
 export async function getMetrics() {

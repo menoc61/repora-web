@@ -71,8 +71,8 @@ export default function TemplateGalleryView() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
-          {filtered.map((t) => (
-            <TemplateCard key={t.title} template={t} onUse={() => handleUseTemplate(t)} isPending={isPending} />
+          {filtered.map((t, i) => (
+            <TemplateCard key={`${t.title}-${i}`} template={t} onUse={() => handleUseTemplate(t)} isPending={isPending} />
           ))}
 
           <CreateTemplateCard />

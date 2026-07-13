@@ -1,8 +1,9 @@
 import { db, schema } from '../db'
 import { versionHistory } from '../db/schema'
-import { eq, and, desc, asc, sql } from 'drizzle-orm'
+import { eq, and, desc, asc, sql, inArray } from 'drizzle-orm'
 import crypto from 'crypto'
 import { AppError } from '../middleware/error'
+import { parseMarkdown, inlineToText, astToText } from '../utils/markdownParser'
 
 export interface VersionSection {
   id: string
@@ -120,6 +121,58 @@ export async function listDocuments(userId: string, role?: string, filters?: { s
   return docs
 }
 
+export async function renameDocument(id: string, title: string, userId?: string, role?: string) {
+  const [doc] = await db.select({ projectId: schema.documents.projectId })
+    .from(schema.documents).where(eq(schema.documents.id, id)).limit(1)
+  if (!doc) throw new AppError(404, 'not_found', 'Document not found')
+
+  if (userId && role !== 'admin' && role !== 'super_admin') {
+    const [project] = await db.select({ ownerId: schema.projects.ownerId })
+      .from(schema.projects).where(eq(schema.projects.id, doc.projectId)).limit(1)
+    if (!project || project.ownerId !== userId) throw new AppError(404, 'not_found', 'Document not found')
+  }
+
+  const [current] = await db.select({ outline: schema.documents.outline })
+    .from(schema.documents).where(eq(schema.documents.id, id)).limit(1)
+  const outline = { ...(current?.outline as Record<string, unknown> | null), title } as Record<string, unknown>
+
+  const [updated] = await db.update(schema.documents)
+    .set({ outline, updatedAt: new Date() })
+    .where(eq(schema.documents.id, id))
+    .returning({ id: schema.documents.id })
+  if (!updated) throw new AppError(404, 'not_found', 'Document not found')
+  return { id }
+}
+
+export async function deleteDocument(id: string, userId?: string, role?: string) {
+  const [doc] = await db.select({ projectId: schema.documents.projectId })
+    .from(schema.documents).where(eq(schema.documents.id, id)).limit(1)
+  if (!doc) throw new AppError(404, 'not_found', 'Document not found')
+
+  if (userId && role !== 'admin' && role !== 'super_admin') {
+    const [project] = await db.select({ ownerId: schema.projects.ownerId })
+      .from(schema.projects).where(eq(schema.projects.id, doc.projectId)).limit(1)
+    if (!project || project.ownerId !== userId) throw new AppError(404, 'not_found', 'Document not found')
+  }
+
+  const docSections = await db.select({ id: schema.sections.id })
+    .from(schema.sections).where(eq(schema.sections.documentId, id))
+  if (docSections.length) {
+    const sectionIds = docSections.map((s) => s.id)
+    await db.delete(schema.comments).where(inArray(schema.comments.sectionId, sectionIds))
+  }
+
+  await db.delete(schema.sections).where(eq(schema.sections.documentId, id))
+  await db.delete(schema.versionHistory).where(eq(schema.versionHistory.documentId, id))
+  await db.delete(schema.validations).where(eq(schema.validations.documentId, id))
+  await db.delete(schema.diagrams).where(eq(schema.diagrams.projectId, doc.projectId))
+  await db.delete(schema.requirements).where(eq(schema.requirements.projectId, doc.projectId))
+  await db.delete(schema.documents).where(eq(schema.documents.id, id))
+  await db.delete(schema.projects).where(eq(schema.projects.id, doc.projectId))
+
+  return { id }
+}
+
 export async function getDocumentByValidationToken(token: string) {
   const [validation] = await db.select().from(schema.validations)
     .where(eq(schema.validations.validatorToken, token))
@@ -157,12 +210,99 @@ export async function getDocumentByValidationToken(token: string) {
   }
 }
 
-export async function createValidationToken(documentId: string) {
-  const [doc] = await db.select({ id: schema.documents.id }).from(schema.documents)
-    .where(eq(schema.documents.id, documentId)).limit(1)
+export async function createValidationToken(documentId: string, userId?: string, role?: string) {
+  const [doc] = await db
+    .select({ id: schema.documents.id, projectId: schema.documents.projectId })
+    .from(schema.documents)
+    .where(eq(schema.documents.id, documentId))
+    .limit(1)
   if (!doc) throw new AppError(404, 'not_found', 'Document not found')
+
+  // Enforce ownership: only the project owner (or an admin) may mint a
+  // validation token. Without this, any authenticated user could generate a
+  // validator link for a document they don't own.
+  const isAdmin = role === 'admin' || role === 'super_admin'
+  if (userId && !isAdmin) {
+    const [project] = await db
+      .select({ ownerId: schema.projects.ownerId })
+      .from(schema.projects)
+      .where(eq(schema.projects.id, doc.projectId))
+      .limit(1)
+    if (!project || project.ownerId !== userId) {
+      throw new AppError(404, 'not_found', 'Document not found')
+    }
+  }
 
   const token = crypto.randomBytes(32).toString('hex')
   await db.insert(schema.validations).values({ documentId, validatorToken: token })
   return token
+}
+
+/**
+ * Split a full markdown document (as produced by the editor autosave) into
+ * sections. Level-2 (`##`) headings start a new section; everything else
+ * (paragraphs, lists, tables, deeper headings) becomes that section's body.
+ */
+function markdownToSections(md: string): Array<{ title: string; content: string }> {
+  const nodes = parseMarkdown(md)
+  const sections: Array<{ title: string; content: string }> = []
+  let current: { title: string; content: string } | null = null
+  let intro = ''
+  for (const node of nodes) {
+    if (node.type === 'heading' && node.level === 2) {
+      if (current) sections.push(current)
+      current = { title: inlineToText(node.children).trim() || 'Section', content: '' }
+    } else if (current) {
+      current.content += astToText([node]).trim() + '\n\n'
+    } else {
+      intro += astToText([node]).trim() + '\n\n'
+    }
+  }
+  if (current) {
+    current.content = current.content.trim()
+    sections.push(current)
+  } else if (intro.trim()) {
+    sections.push({ title: 'Introduction', content: intro.trim() })
+  }
+  return sections
+}
+
+/**
+ * Reconcile a markdown document into the structured sections for a document.
+ * Existing sections are matched by position so their ids — and any linked
+ * comments/diagrams — are preserved; parsed sections beyond the existing set
+ * are inserted, and existing sections no longer present are removed.
+ */
+export async function reconcileSectionsFromMarkdown(documentId: string, markdown: string): Promise<void> {
+  const parsed = markdownToSections(markdown)
+  const existing = await db
+    .select({ id: schema.sections.id, title: schema.sections.title, order: schema.sections.order })
+    .from(schema.sections)
+    .where(eq(schema.sections.documentId, documentId))
+    .orderBy(schema.sections.order)
+
+  const kept = new Set<string>()
+  for (let i = 0; i < parsed.length; i++) {
+    const p = parsed[i]
+    const ex = existing[i]
+    if (ex) {
+      await db.update(schema.sections)
+        .set({ order: i, title: p.title, content: p.content, updatedAt: new Date() })
+        .where(eq(schema.sections.id, ex.id))
+      kept.add(ex.id)
+    } else {
+      await db.insert(schema.sections).values({
+        documentId,
+        order: i,
+        title: p.title,
+        content: p.content,
+        status: 'draft',
+      })
+    }
+  }
+  for (const ex of existing) {
+    if (!kept.has(ex.id)) {
+      await db.delete(schema.sections).where(eq(schema.sections.id, ex.id))
+    }
+  }
 }

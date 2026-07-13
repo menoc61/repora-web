@@ -34,6 +34,17 @@ process.on('uncaughtException', (err) => {
   console.warn('[Process] Uncaught exception (ignored):', err?.message ?? err)
 })
 
+// WR-04 (code review 2026-07-09): the encryption key used for BYOK API keys
+// has an insecure compile-time default. Refuse to boot with it in production
+// and warn loudly in every other environment.
+if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY === '0123456789abcdef0123456789abcdef') {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('FATAL: ENCRYPTION_KEY is not set — refusing to boot with the public default key.')
+    process.exit(1)
+  }
+  console.warn('[SECURITY] ENCRYPTION_KEY is not set; using an insecure public default. Set it before any BYOK keys are stored.')
+}
+
 const app = express()
 
 app.use(cors({ origin: config.corsOrigin, credentials: true }))

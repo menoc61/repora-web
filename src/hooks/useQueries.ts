@@ -459,6 +459,17 @@ export function useAcceptChanges() {
   })
 }
 
+export function useDeleteDocument() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => api.delete(`/documents/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['documents'] })
+      qc.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}
+
 export function useApplyPatch() {
   const qc = useQueryClient()
   return useMutation({
