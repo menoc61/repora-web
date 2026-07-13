@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth'
+import { validate } from '../middleware/validate'
+import { updateDocumentSchema, createCommentSchema } from '../validation/schemas'
 import { getDocument, listDocuments, createValidationToken } from '../services/document.service'
 import { exportDocument, getStoredExport } from '../services/export.service'
 import { logAudit } from '../services/audit.service'
@@ -258,7 +260,7 @@ documentRouter.post('/:id/restore', requireAuth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-documentRouter.patch('/:id', requireAuth, async (req, res, next) => {
+documentRouter.patch('/:id', requireAuth, validate(updateDocumentSchema), async (req, res, next) => {
   try {
     const docId = req.params.id as string
     const { sections: incomingSections, title, status } = req.body
@@ -322,10 +324,9 @@ documentRouter.get('/:id/comments', requireAuth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-documentRouter.post('/:id/comments', requireAuth, async (req, res, next) => {
+documentRouter.post('/:id/comments', requireAuth, validate(createCommentSchema), async (req, res, next) => {
   try {
     const { sectionId, text } = req.body
-    if (!sectionId || !text) throw new AppError(400, 'missing_fields', 'sectionId and text are required')
     const comment = await addComment(sectionId, req.user!.userId, text)
     await logAudit({ userId: req.user!.userId, action: 'comment.created', target: comment.id, metadata: { documentId: req.params.id as string } })
     res.status(201).json(comment)

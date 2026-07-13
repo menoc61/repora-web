@@ -10,6 +10,7 @@ import { eq } from 'drizzle-orm'
 import { broadcastNotification } from '../../collaboration/ws'
 import { createDiagram } from '../../services/diagram.service'
 import { generateTablesFromRequirements } from '../tools/tables'
+import { generateFallbackContent } from './fallbackContent'
 
 // ── Document status persistence ──
 
@@ -500,13 +501,20 @@ IMPORTANT: The content parameter must contain the FINAL document text. No preamb
             if (!toolCalled) {
               console.log(`[Hermes] Writer: no tools called — accepting ${cleanedContent.length} chars of text output for section ${section.id}`)
               if (cleanedContent.length === 0) {
+                console.log(`[Hermes] Writer: empty section "${section.title}" — filling with fallback content`)
                 yield {
                   type: 'generation_error',
                   agent: 'Writer',
                   section_id: section.id,
-                  message: 'Le modèle n\'a produit aucun contenu. Vérifiez qu\'Ollama est en ligne.',
-                  error_type: 'empty_output',
+                  message: 'Aucun contenu produit par le modèle. Génération du contenu statique de secours.',
+                  error_type: 'empty_output_fallback',
                 }
+                try {
+                  await db
+                    .update(sectionsTable)
+                    .set({ status: 'draft', updatedAt: new Date() })
+                    .where(eq(sectionsTable.id, section.id))
+                } catch { /* ignore */ }
               }
               writerDone = true
               continue

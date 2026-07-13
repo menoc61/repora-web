@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth'
+import { validate } from '../middleware/validate'
+import { createDiagramSchema } from '../validation/schemas'
 import * as diagramService from '../services/diagram.service'
 import { config } from '../config'
 
@@ -7,9 +9,9 @@ export const diagramRouter = Router()
 diagramRouter.use(requireAuth)
 
 // All mounted at /projects
-diagramRouter.post('/:id/diagrams', async (req, res, next) => {
+diagramRouter.post('/:id/diagrams', validate(createDiagramSchema), async (req, res, next) => {
   try {
-    const result = await diagramService.createDiagram(req.params.id, req.body.type, req.body.source, req.body.sectionId, req.user!.userId, req.user!.role)
+    const result = await diagramService.createDiagram(req.params.id as string, req.body.type, req.body.source, req.body.sectionId, req.user!.userId, req.user!.role)
     res.status(201).json(result)
   } catch (err) { next(err) }
 })

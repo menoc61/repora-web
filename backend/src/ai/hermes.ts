@@ -8,6 +8,7 @@ import { db } from '../db'
 import { agentConfigs } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { generateFallbackContent } from '../ai/pipeline/fallbackContent'
 
 // Re-export the orchestrator pipeline (refactored into pipeline/ directory)
 export { orchestrateGeneration } from './pipeline/orchestrate'
@@ -319,12 +320,18 @@ export async function* runAgent(
       yield* generateWithoutTools()
     }
   } catch (err) {
-    // Any error when tools are passed → retry without tools
-    if (tools) {
-      console.warn(`[Hermes] ${agentName}: error with tools (${(err as Error).message?.slice(0, 80)}) — retrying without tools`)
-      yield* generateWithoutTools()
-    } else {
-      throw err
+    try {
+      // Any error when tools are passed → retry without tools
+      if (tools) {
+        console.warn(`[Hermes] ${agentName}: error with tools (${(err as Error).message?.slice(0, 80)}) — retrying without tools`)
+        yield* generateWithoutTools()
+      } else {
+        console.warn(`[Hermes] ${agentName}: LLM unavailable (${(err as Error).message?.slice(0, 80)}). Continuing with fallback.`)
+        yield { type: 'generation_error', agent: agentName, message: (err as Error).message, error_type: 'provider_unavailable' }
+      }
+    } catch (fallbackErr) {
+      console.warn(`[Hermes] ${agentName}: all attempts failed (${(fallbackErr as Error).message?.slice(0, 80)}). Continuing with fallback.`)
+      yield { type: 'generation_error', agent: agentName, message: (fallbackErr as Error).message, error_type: 'provider_unavailable' }
     }
   }
 
@@ -384,6 +391,15 @@ export function initiateGeneration(projectId: string, prompt: string, documentId
       state.events.push(errorEvent)
       for (const listener of state.listeners) {
         try { listener(errorEvent) } catch { /* listener disconnected */ }
+      }
+
+      // Generate fallback content so the document is never empty
+      try {
+        const count = await generateFallbackContent(projectId, documentId, prompt)
+        console.log(`[Hermes] Fallback content generated: ${count} sections`)
+        state.events.push({ type: 'context_updated', agent: 'Hermes', key: 'fallbackSections', value: count })
+      } catch (fbErr) {
+        console.warn('[Hermes] Fallback content generation also failed:', (fbErr as Error).message)
       }
     } finally {
       state.done = true

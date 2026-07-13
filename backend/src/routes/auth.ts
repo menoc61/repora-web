@@ -1,6 +1,8 @@
 import { Router } from 'express'
 import { registerUser, loginUser } from '../services/auth.service'
 import { requireAuth } from '../middleware/auth'
+import { validate } from '../middleware/validate'
+import { registerSchema, loginSchema, updateMeSchema } from '../validation/schemas'
 import { db } from '../db'
 import { users } from '../db/schema'
 import { eq } from 'drizzle-orm'
@@ -8,7 +10,7 @@ import { AppError } from '../middleware/error'
 
 export const authRouter = Router()
 
-authRouter.post('/register', async (req, res, next) => {
+authRouter.post('/register', validate(registerSchema), async (req, res, next) => {
   try {
     const { name, email, password } = req.body
     const result = await registerUser(name, email, password)
@@ -16,7 +18,7 @@ authRouter.post('/register', async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-authRouter.post('/login', async (req, res, next) => {
+authRouter.post('/login', validate(loginSchema), async (req, res, next) => {
   try {
     const { email, password } = req.body
     const result = await loginUser(email, password)
@@ -30,7 +32,7 @@ authRouter.post('/logout', (_req, res) => {
   res.json({ ok: true })
 })
 
-authRouter.patch('/me', requireAuth, async (req, res, next) => {
+authRouter.patch('/me', requireAuth, validate(updateMeSchema), async (req, res, next) => {
   try {
     const { name, password } = req.body
     const updates: Record<string, any> = {}

@@ -1,5 +1,7 @@
 import { Router } from 'express'
 import { requireAuth } from '../middleware/auth'
+import { validate } from '../middleware/validate'
+import { createProjectSchema, updateProjectSchema, generateDocumentSchema, createRequirementSchema } from '../validation/schemas'
 import {
   getProjects,
   getProjectById,
@@ -29,7 +31,7 @@ projectRouter.get('/:id', requireAuth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-projectRouter.post('/', requireAuth, async (req, res, next) => {
+projectRouter.post('/', requireAuth, validate(createProjectSchema), async (req, res, next) => {
   try {
     const { name, brief } = req.body
     const project = await createProject(req.user!.userId, name, brief)
@@ -38,7 +40,7 @@ projectRouter.post('/', requireAuth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-projectRouter.patch('/:id', requireAuth, async (req, res, next) => {
+projectRouter.patch('/:id', requireAuth, validate(updateProjectSchema), async (req, res, next) => {
   try {
     const { name, brief, status } = req.body
     const project = await updateProject(req.params.id as string, req.user!.userId, { name, brief, status })
@@ -55,9 +57,9 @@ projectRouter.delete('/:id', requireAuth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-projectRouter.post('/:id/generate', requireAuth, async (req, res, next) => {
+projectRouter.post('/:id/generate', requireAuth, validate(generateDocumentSchema), async (req, res, next) => {
   try {
-    const { templateId, config } = req.body ?? {}
+    const { templateId, config } = req.body
     const result = await generateDocument(req.params.id as string, req.user!.userId, req.user!.role, config)
     const project = await getProjectById(req.params.id as string, req.user!.userId, req.user!.role)
     initiateGeneration(req.params.id as string, project.brief || '', result.document_id, templateId, config)
@@ -73,10 +75,9 @@ projectRouter.get('/:id/requirements', requireAuth, async (req, res, next) => {
   } catch (err) { next(err) }
 })
 
-projectRouter.post('/:id/requirements', requireAuth, async (req, res, next) => {
+projectRouter.post('/:id/requirements', requireAuth, validate(createRequirementSchema), async (req, res, next) => {
   try {
     const { type, text, sourceActor } = req.body
-    if (!type || !text) throw new AppError(400, 'missing_fields', 'type and text are required')
     const requirement = await createRequirement(req.params.id as string, { type, text, sourceActor })
     await logAudit({ userId: req.user!.userId, action: 'requirement.created', target: requirement.id, metadata: { projectId: req.params.id as string } })
     res.status(201).json(requirement)

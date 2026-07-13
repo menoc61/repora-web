@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { requireAuth, requireRole } from '../middleware/auth'
+import { validate } from '../middleware/validate'
+import { createUserSchema, updateUserSchema, patchAgentSchema, createApiKeySchema } from '../validation/schemas'
 import { listAgents, patchAgent, getMetrics, getLogs, listApiKeys, createApiKey, deleteApiKey } from '../services/admin.service'
 import { listUsers, createUser, updateUserRole, deleteUser } from '../services/user.service'
 import { AppError } from '../middleware/error'
@@ -15,18 +17,15 @@ adminRouter.get('/users', requireAuth, requireRole('admin', 'super_admin'), asyn
   } catch (err) { next(err) }
 })
 
-adminRouter.post('/users', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
+adminRouter.post('/users', requireAuth, requireRole('admin', 'super_admin'), validate(createUserSchema), async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body
-    if (!name || !email || !password) {
-      return next(new AppError(400, 'missing_fields', 'name, email, and password are required'))
-    }
     const user = await createUser({ name, email, password, role: role ?? 'redacteur' })
     res.status(201).json(user)
   } catch (err) { next(err) }
 })
 
-adminRouter.patch('/users/:id', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
+adminRouter.patch('/users/:id', requireAuth, requireRole('admin', 'super_admin'), validate(updateUserSchema), async (req, res, next) => {
   try {
     const { role } = req.body
     if (!role) return next(new AppError(400, 'missing_role', 'role is required'))
@@ -49,7 +48,7 @@ adminRouter.get('/agents', requireAuth, requireRole('admin', 'super_admin'), asy
   } catch (err) { next(err) }
 })
 
-adminRouter.patch('/agents/:name', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
+adminRouter.patch('/agents/:name', requireAuth, requireRole('admin', 'super_admin'), validate(patchAgentSchema), async (req, res, next) => {
   try {
     const name = String(req.params.name)
     if (!name) return next(new AppError(400, 'missing_name', 'Agent name is required'))
@@ -65,12 +64,9 @@ adminRouter.get('/api-keys', requireAuth, requireRole('admin', 'super_admin'), a
   } catch (err) { next(err) }
 })
 
-adminRouter.post('/api-keys', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
+adminRouter.post('/api-keys', requireAuth, requireRole('admin', 'super_admin'), validate(createApiKeySchema), async (req, res, next) => {
   try {
     const { provider, key } = req.body
-    if (!provider || !key) {
-      return next(new AppError(400, 'missing_fields', 'provider and key are required'))
-    }
     const apiKey = await createApiKey(req.user!.userId, provider, key)
     res.status(201).json(apiKey)
   } catch (err) { next(err) }
