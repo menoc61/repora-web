@@ -8,7 +8,7 @@ import {
   redirect,
   useRouterState,
 } from '@tanstack/react-router'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient } from '@tanstack/react-query'
 import Sidebar from './layout/Sidebar'
 import { useAuthStore } from './stores'
 import { useNotificationSocket } from './hooks/useNotificationSocket'
@@ -66,16 +66,14 @@ function RootLayout() {
   useNotificationSocket()
   useKeyboardShortcuts()
   return (
-    <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-surface-studio text-on-surface">
-        {isPublic ? null : <Sidebar />}
-        <div className={isPublic ? '' : 'ml-sidebar-width min-h-screen flex flex-col'}>
-          <Outlet />
-        </div>
-        <ToastContainer />
-        <NotificationCenter />
+    <div className="min-h-screen bg-surface-studio text-on-surface">
+      {isPublic ? null : <Sidebar />}
+      <div className={isPublic ? '' : 'ml-sidebar-width min-h-screen flex flex-col'}>
+        <Outlet />
       </div>
-    </QueryClientProvider>
+      <ToastContainer />
+      <NotificationCenter />
+    </div>
   )
 }
 

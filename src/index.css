@@ -235,6 +235,22 @@
   width: 88%;
 }
 
+/* Live "AI is writing" caret shown at the end of streamed content */
+.gen-caret::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: #2563eb;
+  border-radius: 1px;
+  animation: gen-caret-blink 1s steps(2, start) infinite;
+}
+@keyframes gen-caret-blink {
+  to { visibility: hidden; }
+}
+
 .ProseMirror .editor-skeleton-heading {
   height: 28px;
   border-radius: 4px;

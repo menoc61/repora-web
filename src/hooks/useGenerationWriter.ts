@@ -146,30 +146,87 @@ function parseInline(text: string): string {
 
 export function useGenerationWriter(docId: string | undefined, editor: Editor | null) {
   const { events, isStreaming } = useDocumentStream(docId)
-  const fullBuffer = useRef('')
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pending = useRef('')
+  const rafId = useRef<number | null>(null)
   const currentSection = useRef<string | null>(null)
-  const lastEventCount = useRef(0)
+  const seen = useRef(0)
 
-  const flush = () => {
-    if (!editor) return
-    let content = fullBuffer.current
-    if (currentSection.current) {
-      content = `## ${currentSection.current}\n\n${content}`
+  // Append only the newly-arrived text to the END of the document instead of
+  // re-parsing the whole thing. `setContent` on every token batch was the cause
+  // of the main-thread freeze: it re-parsed + re-rendered the entire doc (and,
+  // with the Collaboration/Yjs extension, produced a full doc diff) on each
+  // tick — cost grew quadratically with document length.
+  //
+  // To guarantee the screen never freezes:
+  //  - writes are batched to one per animation frame (rAF),
+  //  - oversized batches are split into capped chunks so a single insert can
+  //    never block the main thread for long,
+  //  - a destroyed/closed editor is detected and skipped before touching it.
+  const MAX_CHUNK = 4000
+
+  const isAlive = (ed: Editor | null): ed is Editor =>
+    !!ed && !ed.isDestroyed && ed.state?.doc != null
+
+  const appendPending = (ed: Editor) => {
+    rafId.current = null
+    if (!isAlive(ed) || !pending.current) return
+    const text = stripRawToolCalls(pending.current)
+    pending.current = ''
+    if (!text) return
+    // Split into capped chunks and insert across frames so no single
+    // synchronous parse/render can jank the UI.
+    let from = 0
+    const insertChunks = (start: number) => {
+      if (!isAlive(ed)) return
+      const chunk = text.slice(start, start + MAX_CHUNK)
+      if (!chunk) {
+        requestAnimationFrame(() => isAlive(ed) && ed.commands.scrollIntoView())
+        return
+      }
+      const end = ed.state.doc.content.size
+      ed.chain().insertContentAt(end, chunk).setTextSelection(end + chunk.length).run()
+      if (start + MAX_CHUNK < text.length) {
+        requestAnimationFrame(() => insertChunks(start + MAX_CHUNK))
+      } else {
+        requestAnimationFrame(() => isAlive(ed) && ed.commands.scrollIntoView())
+      }
     }
+    insertChunks(0)
+  }
+
+  // Full re-render (used on section boundaries and final done), kept off the
+  // hot path. Yields a frame first so the UI can paint before the (rare) heavy
+  // parse, and never runs on a destroyed editor.
+  const renderFull = (ed: Editor, content: string) => {
     content = stripRawToolCalls(content)
-    if (!content.trim()) return
-    const html = mdToHtml(content)
-    editor.commands.setContent(html)
-    const size = editor.state.doc.content.size
-    editor.commands.setTextSelection({ from: size, to: size })
-    editor.commands.scrollIntoView()
+    if (!content.trim() || !isAlive(ed)) return
+    requestAnimationFrame(() => {
+      if (!isAlive(ed)) return
+      ed.commands.setContent(mdToHtml(content))
+      const size = ed.state.doc.content.size
+      ed.commands.setTextSelection({ from: size, to: size })
+      ed.commands.scrollIntoView()
+    })
+  }
+
+  const schedule = (ed: Editor) => {
+    if (rafId.current == null) rafId.current = requestAnimationFrame(() => appendPending(ed))
   }
 
   useEffect(() => {
-    if (!editor) return
-    if (!isStreaming && events.length && events[events.length - 1].type === 'done') {
-      flush()
+    if (!isAlive(editor) || events.length <= seen.current) return
+
+    const newEvents = events.slice(seen.current)
+    seen.current = events.length
+
+    // Final flush: render the complete doc once, then close the session.
+    if (!isStreaming && events[events.length - 1]?.type === 'done') {
+      if (rafId.current != null) { cancelAnimationFrame(rafId.current); rafId.current = null }
+      if (pending.current) {
+        const tail = currentSection.current ? `## ${currentSection.current}\n\n${pending.current}` : pending.current
+        renderFull(editor, tail)
+        pending.current = ''
+      }
       const doneEvent = events[events.length - 1] as any
       const { completeSession, updateSession } = useGenerationStore.getState()
       const sess = useGenerationStore.getState().sessions.find((s) => s.documentId === docId && s.status === 'generating')
@@ -183,26 +240,24 @@ export function useGenerationWriter(docId: string | undefined, editor: Editor | 
       notify({ type: 'generation_complete', title: 'Generation terminee', message: `Le document a ete genere avec succes${elapsed}.` })
       return
     }
-    const last = events[events.length - 1]
-    if (!last) return
-    if (last.type === 'agent_status' && (last as any).section_title) {
-      flush()
-      fullBuffer.current = ''
-      currentSection.current = (last as any).section_title
-    } else if (last.type === 'token') {
-      fullBuffer.current += (last as any).token
-      if (!timer.current) {
-        timer.current = setTimeout(() => { flush(); timer.current = null }, 200)
+
+    for (const ev of newEvents) {
+      if (ev.type === 'agent_status' && (ev as any).section_title) {
+        // Section boundary: commit what we have, then start the new section header.
+        if (pending.current) { renderFull(editor, currentSection.current ? `## ${currentSection.current}\n\n${pending.current}` : pending.current); pending.current = '' }
+        currentSection.current = (ev as any).section_title
+        pending.current += `\n\n## ${currentSection.current}\n\n`
+      } else if (ev.type === 'token') {
+        pending.current += (ev as any).token
       }
     }
+    schedule(editor)
   }, [events, isStreaming, editor, docId])
 
   useEffect(() => {
     return () => {
-      if (timer.current) {
-        clearTimeout(timer.current)
-        timer.current = null
-      }
+      if (rafId.current != null) cancelAnimationFrame(rafId.current)
+      rafId.current = null
     }
   }, [])
 }

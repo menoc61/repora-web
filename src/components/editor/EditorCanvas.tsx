@@ -148,6 +148,8 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
       SlashCommand,
       Collaboration.configure({ document: ydoc }),
     ],
+    immediatelyRender: false,
+    shouldRerenderOnTransaction: false,
     editorProps: {
       attributes: {
         class: 'max-w-[800px] mx-auto py-16 px-12 focus:outline-none min-h-[60vh]',
@@ -416,7 +418,8 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
         <div className="sticky bottom-20 left-1/2 -translate-x-1/2 z-20 w-fit">
           <div className="flex items-center gap-3 bg-white/95 backdrop-blur px-5 py-2.5 rounded-xl border border-outline-variant shadow-lg">
             <span className="w-2 h-2 rounded-full bg-ai-vibrant animate-pulse" />
-            <span className="font-label-sm text-label-sm text-primary">Generation en cours...</span>
+            <span className="font-label-sm text-label-sm text-primary">Generation en cours</span>
+            <span className="gen-caret inline-block h-3 w-[2px] bg-ai-vibrant align-middle" />
           </div>
         </div>
       )}
