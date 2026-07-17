@@ -28,12 +28,12 @@ function Btn({
     <button
       aria-label={label}
       onClick={onClick}
-      className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
+      className={`inline-flex items-center justify-center w-7 h-7 rounded transition-all duration-150 ${
         isAI
-          ? 'bg-ai-vibrant text-white hover:opacity-80'
+          ? 'bg-ai-vibrant text-white hover:opacity-80 active:scale-95'
           : active
             ? 'bg-ai-glow text-ai-vibrant'
-            : 'text-on-surface-variant hover:bg-surface-studio'
+            : 'text-on-surface-variant hover:bg-surface-studio hover:text-on-surface active:scale-90'
       }`}
       title={label}
     >
@@ -59,7 +59,8 @@ export default function EditorBubbleMenu({ editor }: EditorBubbleMenuProps) {
   return (
     <BubbleMenu
       editor={editor}
-      className="bg-white border border-outline-variant rounded-lg shadow-xl px-1.5 py-1 flex items-center gap-0.5 z-50"
+      className="bg-white border border-outline-variant rounded-xl shadow-xl px-1.5 py-1 flex items-center gap-0.5 z-50 transition-all duration-150 origin-bottom"
+      style={{ boxShadow: '0 4px 20px -2px rgba(15,23,42,0.08)' }}
     >
       {/* Formatting */}
       <Btn

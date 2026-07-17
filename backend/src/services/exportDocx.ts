@@ -56,7 +56,7 @@ interface DiagramInput {
   pngBuffer?: Buffer
 }
 
-const COLORS = {
+const DEFAULT_COLORS = {
   blue: '1a6faa',
   blueHeader: '2563EB',
   blueAccent: '60a5fa',
@@ -70,6 +70,8 @@ const COLORS = {
   coverAuthor: 'c0d8ef',
   coverAuthorDim: 'a0b8d0',
   coverCopyright: '8898aa',
+  coverBg: '0f1b2e',
+  coverText: 'FFFFFF',
   bgInfo: 'ebf8ff',
   bgWarning: 'fff9e6',
   bgSuccess: 'f0fff4',
@@ -81,6 +83,31 @@ const COLORS = {
   borderDanger: 'e53e3e',
   borderNote: '718096',
   quoteBorder: '60a5fa',
+  heading: '1a6faa',
+  text: '1a202c',
+  muted: '718096',
+}
+
+function buildColorsFromTemplate(template: DocumentTemplate) {
+  const c = template.colors
+  return {
+    ...DEFAULT_COLORS,
+    blue: c.primary.replace('#', ''),
+    blueHeader: c.secondary.replace('#', ''),
+    blueAccent: c.secondary.replace('#', ''),
+    tableBorder: c.border.replace('#', ''),
+    tableAltRow: c.tableAltRow.replace('#', ''),
+    bgInfo: c.calloutInfo.replace('#', ''),
+    bgWarning: c.calloutWarning.replace('#', ''),
+    bgSuccess: c.calloutSuccess.replace('#', ''),
+    bgDanger: c.calloutDanger.replace('#', ''),
+    coverBg: c.coverBg.replace('#', ''),
+    coverText: c.coverText.replace('#', ''),
+    quoteBorder: c.secondary.replace('#', ''),
+    heading: c.heading.replace('#', ''),
+    text: c.text.replace('#', ''),
+    muted: c.muted.replace('#', ''),
+  }
 }
 
 const DIAGRAM_TYPE_LABELS: Record<string, string> = {
@@ -90,6 +117,8 @@ const DIAGRAM_TYPE_LABELS: Record<string, string> = {
   class: 'Diagramme de classes',
   deployment: 'Diagramme de deploiement',
 }
+
+let COLORS = { ...DEFAULT_COLORS }
 
 function inlineRuns(nodes: InlineNode[]): TextRun[] {
   return nodes.map(n => {
@@ -307,6 +336,7 @@ export async function buildProfessionalDocx(doc: DocInput, diagrams: DiagramInpu
   const description = (doc.outline as { description?: string } | null)?.description || ''
   const monthYear = new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long' })
   const template = getTemplate(doc.config.documentType || 'cahier_des_charges') || getTemplate('cahier_des_charges')!
+  COLORS = buildColorsFromTemplate(template)
   const headerCfg = doc.config.header || {}
   const footerCfg = doc.config.footer || {}
   const companyName = headerCfg.companyName || 'Repora'
@@ -323,6 +353,8 @@ export async function buildProfessionalDocx(doc: DocInput, diagrams: DiagramInpu
     } else if (d.renderedUrl?.startsWith('/uploads/')) {
       buf = loadImageBuf(path.join(process.cwd(), d.renderedUrl))
     }
+    // Note: S3-stored SVG diagrams cannot be embedded as PNG without conversion.
+    // They will be shown as placeholders in the DOCX export.
     if (buf) diagramBuffers.set(d.id, buf)
   }
 
@@ -436,7 +468,7 @@ export async function buildProfessionalDocx(doc: DocInput, diagrams: DiagramInpu
   }))
 
   // Wrap in a full-page table with dark background
-  const coverBgColor = '0f1b2e'
+  const coverBgColor = COLORS.coverBg || '0f1b2e'
   children.push(new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [new TableRow({

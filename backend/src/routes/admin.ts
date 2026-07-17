@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import { logger } from '../lib/logger'
 import { requireAuth, requireRole } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { createUserSchema, updateUserSchema, patchAgentSchema, createApiKeySchema } from '../validation/schemas'
@@ -8,6 +9,7 @@ import { AppError } from '../middleware/error'
 import { getAvailableModels, probeToolSupport } from '../ai/hermes'
 import { setDefaultModel } from '../ai/providers/interface'
 
+const log = logger.child('Admin')
 export const adminRouter = Router()
 
 adminRouter.get('/users', requireAuth, requireRole('admin', 'super_admin'), async (req, res, next) => {
@@ -116,7 +118,7 @@ adminRouter.patch('/models/active', requireAuth, requireRole('admin', 'super_adm
       return next(new AppError(400, 'missing_model', 'model name is required'))
     }
     setDefaultModel(model)
-    console.log(`[Admin] Active model changed to: ${model}`)
+    log.info(`Active model changed to: ${model}`)
     res.json({ ok: true, model })
   } catch (err) { next(err) }
 })

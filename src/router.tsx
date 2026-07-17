@@ -12,6 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Sidebar from './layout/Sidebar'
 import { useAuthStore } from './stores'
 import { useNotificationSocket } from './hooks/useNotificationSocket'
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import ToastContainer from './components/Toast'
 import NotificationCenter from './components/NotificationCenter'
 import WorkspaceDashboard from './pages/WorkspaceDashboard'
@@ -63,6 +64,7 @@ function RootLayout() {
   const isPublic = isPublicPath(pathname)
   const authenticated = useAuthStore((s) => s.isAuthenticated)
   useNotificationSocket()
+  useKeyboardShortcuts()
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-surface-studio text-on-surface">

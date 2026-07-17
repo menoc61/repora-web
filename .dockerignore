@@ -1,8 +1,24 @@
+# Shared exclusions for both frontend and backend Docker builds
 node_modules
-dist
 .git
 .env
-frontend
+*.log
+uploads/
+dist/
+
+# Frontend build doesn't need backend source
 backend/node_modules
 backend/dist
-backend/uploads
+
+# Backend build doesn't need frontend source
+src/
+index.html
+vite.config.js
+tsconfig.json
+tailwind.config.js
+postcss.config.js
+components.json
+AGENTS.md
+DESIGN.md
+REVIEW.md
+docs/

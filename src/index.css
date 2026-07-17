@@ -76,6 +76,69 @@
   animation: slide-in 0.3s ease-out forwards;
 }
 
+@keyframes slide-out {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%) scale(0.95);
+  }
+}
+
+.animate-slide-out {
+  animation: slide-out 0.25s ease-in forwards;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #f0edef 25%, #e4e2e4 50%, #f0edef 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-scale {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.animate-pulse-scale {
+  animation: pulse-scale 2s ease-in-out infinite;
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s ease-out forwards;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
 /* ── TipTap / ProseMirror Editor ── */
 
 .tiptap {
@@ -88,6 +151,99 @@
 
 .tiptap > * + * {
   margin-top: 0.75em;
+}
+
+.tiptap .ProseMirror > * {
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  border-radius: 2px;
+}
+
+.tiptap .ProseMirror > * {
+  position: relative;
+}
+
+.tiptap .ProseMirror > *:hover {
+  background-color: rgba(241, 245, 249, 0.5);
+}
+
+.tiptap .ProseMirror > *:hover::before {
+  content: '';
+  position: absolute;
+  left: -24px;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  background: #e4e2e4;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.tiptap .ProseMirror > *:hover::before {
+  opacity: 1;
+}
+
+.tiptap .ProseMirror > *.ProseMirror-selectednode {
+  background-color: rgba(37, 99, 235, 0.05);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
+}
+
+/* Active heading indicator */
+.tiptap h1:hover::before,
+.tiptap h2:hover::before,
+.tiptap h3:hover::before,
+.tiptap h4:hover::before {
+  background: #2563EB;
+  opacity: 0.4;
+}
+
+.tiptap .ProseMirror > p:hover,
+.tiptap .ProseMirror > h1:hover,
+.tiptap .ProseMirror > h2:hover,
+.tiptap .ProseMirror > h3:hover,
+.tiptap .ProseMirror > h4:hover,
+.tiptap .ProseMirror > blockquote:hover,
+.tiptap .ProseMirror > pre:hover,
+.tiptap .ProseMirror > ul:hover,
+.tiptap .ProseMirror > ol:hover {
+  background-color: rgba(241, 245, 249, 0.6);
+}
+
+/* Loading skeleton blocks in editor */
+.ProseMirror .editor-skeleton-line {
+  height: 16px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  background: linear-gradient(90deg, #f0edef 25%, #e4e2e4 50%, #f0edef 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+}
+
+.ProseMirror .editor-skeleton-line:nth-child(2) {
+  width: 95%;
+}
+.ProseMirror .editor-skeleton-line:nth-child(3) {
+  width: 85%;
+}
+.ProseMirror .editor-skeleton-line:nth-child(4) {
+  width: 90%;
+}
+.ProseMirror .editor-skeleton-line:nth-child(6) {
+  width: 75%;
+}
+.ProseMirror .editor-skeleton-line:nth-child(7) {
+  width: 88%;
+}
+
+.ProseMirror .editor-skeleton-heading {
+  height: 28px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  width: 60%;
+  background: linear-gradient(90deg, #f0edef 25%, #e4e2e4 50%, #f0edef 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
 }
 
 .tiptap h1 {

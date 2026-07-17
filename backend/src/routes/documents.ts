@@ -1,9 +1,11 @@
 import { Router } from 'express'
+import { logger } from '../lib/logger'
 import { requireAuth } from '../middleware/auth'
 import { validate } from '../middleware/validate'
 import { updateDocumentSchema, createCommentSchema } from '../validation/schemas'
 import { getDocument, listDocuments, createValidationToken, createVersion, listVersions, getVersion, getVersionByNumber, reconcileSectionsFromMarkdown, renameDocument, deleteDocument } from '../services/document.service'
 import { exportDocument, getStoredExport } from '../services/export.service'
+import { uploadDocument } from '../services/s3.service'
 import { logAudit } from '../services/audit.service'
 import { getGenerationState, streamGeneration, clearGenerationState } from '../ai/hermes'
 import { listComments, addComment } from '../services/comment.service'
@@ -12,6 +14,7 @@ import { documents, sections } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { AppError } from '../middleware/error'
 
+const log = logger.child('Documents')
 export const documentRouter = Router()
 
 type VersionSnapshot = { id: string; sections: Array<{ id?: string; title?: string; content?: string; order?: number; status?: string }>; documentStatus: string | null }
@@ -52,7 +55,8 @@ documentRouter.get('/', requireAuth, async (req, res, next) => {
   try {
     const status = req.query.status as string | undefined
     const search = req.query.search as string | undefined
-    const docs = await listDocuments(req.user!.userId, req.user!.role, { status, search })
+    const tag = req.query.tag as string | undefined
+    const docs = await listDocuments(req.user!.userId, req.user!.role, { status, search, tag })
     res.json(docs)
   } catch (err) { next(err) }
 })
@@ -99,11 +103,19 @@ documentRouter.get('/:id/stream', requireAuth, async (req, res, next) => {
     let disconnected = false
     req.on('close', () => { disconnected = true })
 
+    // Keepalive heartbeat every 15s to prevent proxy/browser idle timeout
+    const heartbeat = setInterval(() => {
+      if (!disconnected) {
+        try { res.write(': keepalive\n\n') } catch { /* ignore */ }
+      }
+    }, 15_000)
+
     for await (const event of streamGeneration(docId)) {
       if (disconnected) break
       sendEvent(event)
     }
 
+    clearInterval(heartbeat)
     if (!disconnected) res.end()
   } catch (err) {
     clearGenerationState(req.params.id as string)
@@ -272,6 +284,16 @@ documentRouter.patch('/:id', requireAuth, validate(updateDocumentSchema), async 
         (status as string) || doc.status,
         title ? `Save: ${title}` : 'Document save',
       )
+
+      // Async S3 backup — non-blocking, fire-and-forget
+      const mdContent = doc.sections
+        .sort((a, b) => a.order - b.order)
+        .map(s => `## ${s.title}\n\n${s.content || ''}`)
+        .join('\n\n')
+      const titleStr = (doc.outline as Record<string, unknown> | null)?.title as string || 'Document'
+      uploadDocument(doc.projectId, docId, `# ${titleStr}\n\n${mdContent}`)
+        .then(key => { if (key) log.info(`[S3] Document ${docId.slice(0, 8)} backed up: ${key}`) })
+        .catch(err => log.warn(`[S3] Document backup failed:`, (err as Error).message))
     }
 
     await logAudit({ userId: req.user!.userId, action: 'document.updated', target: docId })

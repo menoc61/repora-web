@@ -13,11 +13,14 @@ interface FilterBarProps {
   status: string
   owner: string
   search: string
+  tag: string
+  availableTags: string[]
   ownerFilteredCount: number
   onDepartmentChange: (v: string) => void
   onStatusChange: (v: string) => void
   onOwnerChange: (v: string) => void
   onSearchChange: (v: string) => void
+  onTagChange: (v: string) => void
   onClearFilters: () => void
 }
 
@@ -26,11 +29,14 @@ export default function FilterBar({
   status,
   owner,
   search,
+  tag,
+  availableTags,
   ownerFilteredCount,
   onDepartmentChange,
   onStatusChange,
   onOwnerChange,
   onSearchChange,
+  onTagChange,
   onClearFilters,
 }: FilterBarProps) {
   return (
@@ -74,6 +80,19 @@ export default function FilterBar({
             <SelectItem value="lead">Chef d&apos;equipe</SelectItem>
           </SelectContent>
         </Select>
+        {availableTags.length > 0 && (
+          <Select value={tag || 'all'} onValueChange={(v) => onTagChange(v === 'all' || v === null ? '' : v)}>
+            <SelectTrigger className="bg-surface-container-low border border-outline-variant rounded-lg px-3 py-1.5 font-label-md text-label-md focus:ring-1 focus:ring-ai-vibrant outline-none">
+              <SelectValue placeholder="Etiquette : Toutes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Etiquette : Toutes</SelectItem>
+              {availableTags.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
       <div className="flex items-center gap-2">
         <Input

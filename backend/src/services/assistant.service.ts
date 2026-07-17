@@ -1,10 +1,12 @@
 import { db } from '../db'
+import { logger } from '../lib/logger'
 import { projects, assistantSessions } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { initiateGeneration, getDefaultModel } from '../ai/hermes'
 import { getLanguageModel } from '../ai/providers/interface'
 import { streamText, isStepCount } from 'ai'
 
+const log = logger.child('Assistant')
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
@@ -44,7 +46,7 @@ export function createSession(userId: string, projectId: string): string {
     projectId,
     messages: [welcomeMessage],
     context: { context: [], features: [], constraints: [], actors: [] },
-  }).execute().catch((err) => console.error('Failed to create assistant session:', err))
+  }).execute().catch((err) => log.error('Failed to create assistant session:', err))
 
   return sessionId
 }
@@ -85,7 +87,7 @@ export async function processMessage(sessionId: string, message: string) {
     .set({ messages: finalMessages, context: updatedContext, updatedAt: new Date() })
     .where(eq(assistantSessions.id, sessionId))
     .execute()
-    .catch((err) => console.error('Failed to persist assistant session:', err))
+    .catch((err) => log.error('Failed to persist assistant session:', err))
 
   return { reply, extraction }
 }

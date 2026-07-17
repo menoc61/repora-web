@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express'
+import { logger } from '../lib/logger'
 import { requireAuth, requireRole } from '../middleware/auth'
 import { logAudit } from '../services/audit.service'
 import { db } from '../db'
@@ -6,6 +7,7 @@ import { sql } from 'drizzle-orm'
 import os from 'os'
 import { config } from '../config'
 
+const log = logger.child('Infrastructure')
 export const infrastructureRouter = Router()
 
 async function checkDb(): Promise<{ status: string; latencyMs?: number }> {
@@ -53,8 +55,11 @@ function detectGpu(): string | null {
   }
 }
 
-infrastructureRouter.get('/health', async (_req: Request, res: Response) => {
+infrastructureRouter.get('/health', async (req: Request, res: Response) => {
   const [dbHealth, ollamaHealth] = await Promise.all([checkDb(), checkOllama()])
+
+  const clientIp = req.ip || req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || 'unknown'
+  const userAgent = req.headers['user-agent'] || 'unknown'
 
   res.json({
     status: dbHealth.status === 'up' ? 'healthy' : 'degraded',
@@ -70,6 +75,10 @@ infrastructureRouter.get('/health', async (_req: Request, res: Response) => {
       memoryTotalMb: Math.round(os.totalmem() / (1024 * 1024)),
       memoryFreeMb: Math.round(os.freemem() / (1024 * 1024)),
       gpu: detectGpu(),
+    },
+    client: {
+      ip: clientIp,
+      userAgent,
     },
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),

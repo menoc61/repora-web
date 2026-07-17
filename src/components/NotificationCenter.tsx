@@ -32,13 +32,13 @@ export function NotificationBell() {
 
   return (
     <button
-      className="relative text-on-surface-variant hover:text-primary transition-colors"
+      className={`relative text-on-surface-variant hover:text-primary transition-colors ${unreadCount > 0 ? 'animate-pulse-scale' : ''}`}
       onClick={togglePanel}
       aria-label="Notifications"
     >
-      <Icon name="notifications" />
+      <Icon name={unreadCount > 0 ? 'notifications_active' : 'notifications'} />
       {unreadCount > 0 && (
-        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+        <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none shadow-sm">
           {unreadCount > 9 ? '9+' : unreadCount}
         </span>
       )}

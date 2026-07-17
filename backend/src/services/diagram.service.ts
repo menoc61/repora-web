@@ -1,4 +1,5 @@
 import { db } from '../db'
+import { logger } from '../lib/logger'
 import { diagrams, documents, sections, projects } from '../db/schema'
 import { eq } from 'drizzle-orm'
 import { AppError } from '../middleware/error'
@@ -6,9 +7,11 @@ import { deflateSync } from 'zlib'
 import { config } from '../config'
 import { getLanguageModel } from '../ai/providers/interface'
 import type { ProviderType } from '../ai/providers/interface'
+import { uploadDiagram } from './s3.service'
 import * as fs from 'fs'
 import * as path from 'path'
 
+const log = logger.child('Diagram')
 const DIAGRAMS_DIR = path.join(process.cwd(), 'uploads', 'diagrams')
 
 function encodePlantUML(source: string): string {
@@ -104,7 +107,7 @@ RULES:
       return `@startuml\n${cleaned}\n@enduml`
     }
   } catch (err) {
-    console.warn('[Diagram] LLM PlantUML generation failed:', (err as Error).message)
+    log.warn('LLM PlantUML generation failed:', (err as Error).message)
   }
 
   // Fallback: minimal valid PlantUML
@@ -149,23 +152,30 @@ export async function createDiagram(projectId: string, type: string, source?: st
       const filename = `${projectId}_${type}_${Date.now()}.png`
       fs.writeFileSync(path.join(DIAGRAMS_DIR, filename), buffer)
       localPngUrl = `/uploads/diagrams/${filename}`
-      console.log(`[Diagram] Saved PNG: ${localPngUrl} (${buffer.length} bytes)`)
+      log.info(`Saved PNG: ${localPngUrl} (${buffer.length} bytes)`)
     } else {
-      console.warn(`[Diagram] PNG download failed (${resp.status}), using SVG URL`)
+      log.warn(`PNG download failed (${resp.status}), using SVG URL`)
     }
   } catch (err) {
-    console.warn('[Diagram] PNG download error:', (err as Error).message)
+    log.warn('PNG download error:', (err as Error).message)
   }
 
   const renderedUrl = localPngUrl || `${config.plantumlUrl}/svg/~1${encodedSource}`
 
+  const typeDescription = PLANTUML_TYPE_LABELS[type] || `Diagramme ${type}`
   const [diagram] = await db.insert(diagrams).values({
     projectId,
     sectionId: sectionId || null,
     type,
     plantumlSource,
     renderedUrl,
+    description: typeDescription,
   }).returning()
+
+  // Async S3 backup — non-blocking, fire-and-forget
+  uploadDiagram(projectId, diagram.id, plantumlSource)
+    .then(key => { if (key) log.info(`[S3] Diagram ${diagram.id.slice(0, 8)} backed up: ${key}`) })
+    .catch(err => log.warn(`[S3] Diagram backup failed:`, (err as Error).message))
 
   return {
     id: diagram.id,
@@ -173,6 +183,7 @@ export async function createDiagram(projectId: string, type: string, source?: st
     section_id: diagram.sectionId,
     plantuml_source: plantumlSource,
     rendered_url: renderedUrl,
+    description: typeDescription,
   }
 }
 

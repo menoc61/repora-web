@@ -68,6 +68,8 @@ export interface HermesDone {
   type: 'done'
   document_id?: string
   agent?: string
+  elapsed_ms?: number
+  completed_at?: string
   [key: string]: unknown
 }
 
@@ -80,6 +82,31 @@ export type HermesEvent =
   | HermesContextUpdated
   | HermesGenerationError
   | HermesDone
+
+/** Compare two events for deduplication on stream reconnect (backend replays buffered events). */
+function isSameEvent(a: HermesEvent, b: HermesEvent): boolean {
+  if (a.type !== b.type) return false
+  switch (a.type) {
+    case 'agent_status':
+      return a.agent === (b as HermesAgentStatus).agent && a.status === (b as HermesAgentStatus).status
+    case 'token':
+      return a.agent === (b as HermesToken).agent && a.token === (b as HermesToken).token
+    case 'tool_call':
+      return a.agent === (b as HermesToolCall).agent && a.tool === (b as HermesToolCall).tool
+    case 'tool_result':
+      return a.agent === (b as HermesToolResult).agent && a.tool === (b as HermesToolResult).tool
+    case 'section_complete':
+      return a.section_id === (b as HermesSectionComplete).section_id
+    case 'context_updated':
+      return a.key === (b as HermesContextUpdated).key && a.value === (b as HermesContextUpdated).value
+    case 'generation_error':
+      return a.agent === (b as HermesGenerationError).agent
+    case 'done':
+      return a.document_id === (b as HermesDone).document_id
+    default:
+      return false
+  }
+}
 
 // ── Backend response shapes ──
 
@@ -132,6 +159,7 @@ interface BackendDocumentRow {
   projectName: string | null
   status: string
   outline: Record<string, unknown> | null
+  tags: string[] | null
   createdAt: string
   updatedAt: string
   sectionCount: number
@@ -223,7 +251,7 @@ function mapDocRowToDocument(d: BackendDocumentRow): Document {
     version: 'v1.0.0',
     createdAt: d.createdAt,
     updatedAt: d.updatedAt,
-    tags: [],
+    tags: d.tags ?? [],
   }
 }
 
@@ -299,6 +327,7 @@ export function useDocuments(filters?: DocumentFilters) {
       const params = new URLSearchParams()
       if (filters?.status && filters.status !== 'all') params.set('status', filters.status)
       if (filters?.search) params.set('search', filters.search)
+      if (filters?.tag) params.set('tag', filters.tag)
       const qs = params.toString()
       const path = `/documents${qs ? `?${qs}` : ''}`
 
@@ -360,7 +389,12 @@ export function useDocumentStream(docId: string | undefined) {
       try {
         for await (const evt of sseStream(`/documents/${docId}/stream`)) {
           if (cancelledRef.current) break
-          setEvents((prev) => [...prev, evt as HermesEvent])
+          // Dedupe events on reconnect — backend replays buffered events
+          setEvents((prev) => {
+            const exists = prev.some((e) => isSameEvent(e, evt as HermesEvent))
+            if (exists) return prev
+            return [...prev, evt as HermesEvent]
+          })
         }
       } catch (e) {
         if (!cancelledRef.current) {
@@ -466,6 +500,12 @@ export function useDeleteDocument() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['documents'] })
       qc.invalidateQueries({ queryKey: ['projects'] })
+    },
+    onError: (err: unknown) => {
+      const message = err instanceof Error ? err.message : 'erreur inconnue'
+      if (typeof window !== 'undefined') {
+        window.alert(`La suppression a echoue : ${message}`)
+      }
     },
   })
 }

@@ -1,10 +1,13 @@
 import { db, schema } from '../db'
+import { logger } from '../lib/logger'
 import { versionHistory } from '../db/schema'
 import { eq, and, desc, asc, sql, inArray } from 'drizzle-orm'
 import crypto from 'crypto'
 import { AppError } from '../middleware/error'
 import { parseMarkdown, inlineToText, astToText } from '../utils/markdownParser'
+import { deleteProjectStorage } from './s3.service'
 
+const log = logger.child('Documents')
 export interface VersionSection {
   id: string
   title: string
@@ -78,7 +81,7 @@ export async function getDocument(id: string, userId?: string, role?: string) {
   return { ...doc, sections: sectionsList }
 }
 
-export async function listDocuments(userId: string, role?: string, filters?: { status?: string; search?: string }) {
+export async function listDocuments(userId: string, role?: string, filters?: { status?: string; search?: string; tag?: string }) {
   const isSuperAdmin = role === 'super_admin' || role === 'admin'
   const conditions: ReturnType<typeof eq>[] = isSuperAdmin
     ? []
@@ -94,6 +97,7 @@ export async function listDocuments(userId: string, role?: string, filters?: { s
     projectName: schema.projects.name,
     status: schema.documents.status,
     outline: schema.documents.outline,
+    tags: schema.documents.tags,
     createdAt: schema.documents.createdAt,
     updatedAt: schema.documents.updatedAt,
     sectionCount: sql<number>`COALESCE((SELECT COUNT(*) FROM ${schema.sections} WHERE ${schema.sections.documentId} = ${schema.documents.id}), 0)`,
@@ -107,6 +111,7 @@ export async function listDocuments(userId: string, role?: string, filters?: { s
     createdAt: r.createdAt?.toISOString() ?? new Date().toISOString(),
     updatedAt: r.updatedAt?.toISOString() ?? new Date().toISOString(),
     sectionCount: Number(r.sectionCount),
+    tags: (r.tags as string[]) ?? [],
   }))
 
   if (filters?.search) {
@@ -116,6 +121,10 @@ export async function listDocuments(userId: string, role?: string, filters?: { s
       const title = (outline?.title as string) ?? ''
       return title.toLowerCase().includes(q)
     })
+  }
+
+  if (filters?.tag) {
+    docs = docs.filter((d) => d.tags.includes(filters.tag!))
   }
 
   return docs
@@ -169,6 +178,11 @@ export async function deleteDocument(id: string, userId?: string, role?: string)
   await db.delete(schema.requirements).where(eq(schema.requirements.projectId, doc.projectId))
   await db.delete(schema.documents).where(eq(schema.documents.id, id))
   await db.delete(schema.projects).where(eq(schema.projects.id, doc.projectId))
+
+  // Async S3 cleanup — non-blocking, fire-and-forget
+  deleteProjectStorage(doc.projectId)
+    .then(() => log.info(`[S3] Cleaned up storage for project ${doc.projectId.slice(0, 8)}`))
+    .catch(err => log.warn(`[S3] Storage cleanup failed:`, (err as Error).message))
 
   return { id }
 }

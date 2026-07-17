@@ -5,6 +5,7 @@ import { getApp, cleanupTestUser } from './setup'
 let app: ReturnType<typeof getApp>
 let token: string
 let documentId: string
+let projRes: any
 let sectionId: string
 let userId: string
 
@@ -25,7 +26,7 @@ beforeEach(async () => {
   token = res.body.token
   userId = res.body.user.id
 
-  const projRes = await request(app)
+  projRes = await request(app)
     .post('/projects')
     .set('Authorization', `Bearer ${token}`)
     .send({ name: 'Document Test Project', brief: 'Project for document tests' })
@@ -198,6 +199,48 @@ describe('PATCH /documents/:id title', () => {
 
 describe('DELETE /documents/:id', () => {
   it('deletes the document and returns 404 afterwards', async () => {
+    const res = await request(app)
+      .delete(`/documents/${documentId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
+    expect(res.body.ok).toBe(true)
+
+    await request(app)
+      .get(`/documents/${documentId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(404)
+  })
+})
+
+describe('DELETE /documents/:id with full FK graph', () => {
+  it('removes diagrams, requirements, comments, validations and version history', async () => {
+    // Build a populated document by attaching child rows via the APIs.
+    await request(app)
+      .post(`/projects/${projRes.body.id}/requirements`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'functional', text: 'Exigence de test', sourceActor: 'Testeur' })
+      .expect(201)
+
+    await request(app)
+      .post(`/projects/${projRes.body.id}/diagrams`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'use_case', source: '@startuml\n@enduml' })
+      .expect(201)
+
+    if (sectionId) {
+      await request(app)
+        .post(`/documents/${documentId}/comments`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ sectionId, text: 'Commentaire de test' })
+        .expect(201)
+    }
+
+    await request(app)
+      .post(`/documents/${documentId}/validation-token`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+
     const res = await request(app)
       .delete(`/documents/${documentId}`)
       .set('Authorization', `Bearer ${token}`)

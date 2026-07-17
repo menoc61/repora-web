@@ -1,4 +1,5 @@
 import http from 'http'
+import { logger } from '../lib/logger'
 import { WebSocketServer, WebSocket } from 'ws'
 import * as Y from 'yjs'
 import * as syncProtocol from 'y-protocols/sync'
@@ -7,6 +8,7 @@ import * as encoding from 'lib0/encoding'
 import * as decoding from 'lib0/decoding'
 import { verifyToken } from '../services/auth.service'
 
+const log = logger.child('WS')
 const messageSync = 0
 const messageAwareness = 1
 const messageAuth = 2
@@ -123,12 +125,12 @@ function messageListener(
           break
         }
         case messageAuth: {
-          console.log(`Auth message received for doc ${docName}`)
+          log.info(`Auth message received for doc ${docName}`)
           break
         }
       }
     } catch (err) {
-      console.error('Collaboration message error:', err)
+      log.error('Collaboration message error:', err)
     }
   })
 }
@@ -148,14 +150,14 @@ export function createCollaborationServer(server: http.Server) {
     // JWT auth — token passed as query param (browser WebSocket API)
     const token = url.searchParams.get('token')
     if (!token) {
-      console.warn('[WS] Connection rejected: missing token')
+      log.warn('Connection rejected: missing token')
       ws.close(4001, 'Authentication required')
       return
     }
     try {
       verifyToken(token)
     } catch {
-      console.warn('[WS] Connection rejected: invalid token')
+      log.warn('Connection rejected: invalid token')
       ws.close(4001, 'Invalid or expired token')
       return
     }
@@ -175,10 +177,10 @@ export function createCollaborationServer(server: http.Server) {
     })
 
     messageListener(ws, doc, awareness, docName)
-    console.log(`Collaboration: client connected to document ${docName}`)
+    log.info(`Collaboration: client connected to document ${docName}`)
   })
 
-  console.log('Collaboration WebSocket server ready')
+  log.info('Collaboration WebSocket server ready')
   return wss
 }
 

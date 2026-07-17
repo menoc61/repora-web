@@ -104,6 +104,20 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
     s.sessions.some((x) => x.documentId === docId && x.status === 'generating'),
   )
 
+  // ── Editable title ──
+
+  const [titleDraft, setTitleDraft] = useState('')
+
+  useEffect(() => {
+    if (document?.title) setTitleDraft(document.title)
+    else setTitleDraft('Document sans titre')
+  }, [document?.title])
+
+  const handleTitleSave = useCallback(() => {
+    if (!docId || !titleDraft.trim()) return
+    saveDocument.mutate({ id: docId, title: titleDraft.trim() })
+  }, [docId, titleDraft, saveDocument])
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -336,35 +350,57 @@ export default forwardRef<any, EditorCanvasProps>((props, ref) => {
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-on-surface-variant font-label-md">
-        Chargement du document...
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] px-12 py-16 max-w-[800px] mx-auto w-full">
+        <div className="w-full space-y-4">
+          <div className="editor-skeleton-heading" />
+          <div className="editor-skeleton-line w-full" />
+          <div className="editor-skeleton-line" />
+          <div className="editor-skeleton-line" />
+          <div className="editor-skeleton-line" />
+          <div className="h-4" />
+          <div className="editor-skeleton-heading" />
+          <div className="editor-skeleton-line w-full" />
+          <div className="editor-skeleton-line" />
+          <div className="editor-skeleton-line" />
+          <div className="editor-skeleton-line" />
+          <div className="editor-skeleton-line" />
+          <div className="h-4" />
+          <div className="editor-skeleton-heading" />
+          <div className="editor-skeleton-line w-full" />
+          <div className="editor-skeleton-line" />
+          <div className="editor-skeleton-line" />
+        </div>
+        <div className="mt-8 flex items-center gap-3 text-on-surface-variant font-label-md">
+          <span className="w-4 h-4 border-2 border-ai-vibrant/30 border-t-ai-vibrant rounded-full animate-spin" />
+          Chargement du document...
+        </div>
       </div>
     )
   }
 
   return (
     <div className="flex-1 overflow-y-auto hide-scrollbar relative bg-surface-studio">
-      {/* Preview page container — simulates the exported page */}
-      <div className="max-w-[900px] mx-auto py-8 px-4">
-        {/* Cover page block */}
-        <div className="bg-gradient-to-br from-[#0f1b2e] to-[#1a2d4a] rounded-t-2xl px-16 py-20 text-white mb-8 shadow-sm">
-          <p className="text-[10px] font-mono tracking-[0.3em] uppercase text-blue-300/70 mb-6">Document</p>
-          <h1 className="text-4xl font-bold leading-tight mb-3">
-            {(document?.outline as any)?.title || document?.title || 'Document sans titre'}
-          </h1>
-          {(document?.outline as any)?.subtitle && (
-            <p className="text-lg text-blue-200/80 mb-4">{(document?.outline as any).subtitle}</p>
-          )}
-          {(document?.outline as any)?.description && (
-            <p className="text-sm text-blue-200/60 max-w-xl">{(document?.outline as any).description}</p>
-          )}
-          <div className="mt-12 text-xs text-blue-300/50 font-mono">
-            {new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long' })}
-          </div>
-        </div>
-
-        {/* Document content — white page */}
+      <div className="py-8 px-4">
         <div className="bg-white rounded-2xl shadow-sm border border-outline-variant overflow-hidden">
+          <div className="max-w-[800px] mx-auto pt-12 px-12 pb-2">
+            <input
+              type="text"
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={handleTitleSave}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+              className="w-full text-2xl font-bold text-primary bg-transparent border-none outline-none p-0 focus:ring-0"
+              placeholder="Titre du document"
+            />
+            {document?.brief && (
+              <p className="text-body-sm text-on-surface-variant mt-1 mb-4 pb-4 border-b border-outline-variant/20">
+                {document.brief}
+              </p>
+            )}
+            {!document?.brief && (
+              <div className="h-px bg-outline-variant/20 mt-3 mb-0" />
+            )}
+          </div>
           <EditorContent editor={editor} />
         </div>
       </div>

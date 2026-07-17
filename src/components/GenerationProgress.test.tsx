@@ -32,7 +32,9 @@ describe('GenerationProgress', () => {
     ]
     render(<GenerationProgress events={events} isStreaming={true} />)
     expect(screen.getByText(/Orchestrateur/)).toBeInTheDocument()
-    expect(screen.getByText(/1/)).toBeInTheDocument()
+    // "1 ACTIF" badge is shown — use getAllByText since "1" also appears in "1 agent actif"
+    const matches = screen.getAllByText(/1/)
+    expect(matches.length).toBeGreaterThanOrEqual(1)
   })
 
   it('maps agent status to correct state labels', () => {

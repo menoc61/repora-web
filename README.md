@@ -29,11 +29,12 @@ graph LR
     B --> C[PostgreSQL :5434]
     B --> D[Backend Express :8001]
     B --> E[Frontend nginx :3000]
+    B --> H[MinIO S3 :9001]
     D --> F[Ollama local :11434]
     D --> G[Drizzle migrations + seed]
 ```
 
-**C'est tout.** Ouvrez [http://localhost:3000](http://localhost:3000). La base de donnees est automatiquement migree et peuplee avec des donnees de demo.
+**C'est tout.** Ouvrez [http://localhost:3000](http://localhost:3000). La base de donnees est automatiquement migree et peuplee avec des donnees de demo (premier demarrage uniquement).
 
 > **Linux** : si `host.docker.internal` ne fonctionne pas, creez un fichier `.env` avec `OLLAMA_HOST=172.17.0.1`.
 
@@ -459,6 +460,7 @@ graph TD
 | Frontend | nginx:alpine (SPA) | 3000:80 | unless-stopped |
 | Backend | Node 22 Alpine (tsx) | 8001:8000 | unless-stopped |
 | Database | postgres:17 | 5434:5432 | unless-stopped |
+| Object Storage | MinIO (S3-compatible) | 9001:9000 | unless-stopped |
 | LLM Local | Ollama (host) | 11434 | — |
 
 ---
@@ -512,6 +514,7 @@ repora-web/
 ├── src/                          # Frontend React (15 pages)
 │   ├── api/client.ts             # HTTP + SSE client
 │   ├── hooks/useQueries.ts       # 40+ TanStack Query hooks
+│   ├── hooks/useKeyboardShortcuts.ts  # Ctrl+N/E/S/K global shortcuts
 │   ├── stores/index.ts           # Zustand (Auth, Workspace, Settings)
 │   ├── schemas/index.ts          # Zod schemas + interfaces
 │   ├── router.tsx                # TanStack Router (15 routes)
@@ -534,10 +537,9 @@ repora-web/
 │   │   ├── db/schema.ts          # 12 table Drizzle definitions
 │   │   ├── db/seed.ts            # Demo data seeder (French)
 │   │   └── config.ts             # Environment configuration
-│   ├── docker-entrypoint.sh      # Auto migration + seed on Docker start (attente DB)
-│   ├── wait-for-db.js            # Utilitaire d'attente PostgreSQL
-│   └── Dockerfile                # Multi-stage Node 22 Alpine + schema/migrations
-├── docker-compose.yml            # 3 services (frontend, backend, db)
+│   ├── docker-entrypoint.sh      # Idempotent seed + DB wait + auto-migrate
+│   └── Dockerfile                # Multi-stage Node 22 Alpine
+├── docker-compose.yml            # 4 services (frontend, backend, db, minio)
 ├── nginx.conf                    # SPA fallback + /api proxy
 ├── DESIGN.md                     # Visual design system (authoritative)
 ├── AGENTS.md                     # Build spec for autonomous agents

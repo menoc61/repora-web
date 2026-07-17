@@ -1,4 +1,5 @@
 import http from 'http'
+import { logger } from './lib/logger'
 import express from 'express'
 import cors from 'cors'
 import path from 'path'
@@ -25,13 +26,14 @@ import { discoverOllamaModel, probeToolSupport } from './ai/hermes'
 import { ensureBucket } from './services/s3.service'
 import { db } from './db'
 
+const log = logger.child('Server')
 // Global safety net: a single failing model probe or provider call must never
 // crash the whole backend (e.g. a retired cloud model rejecting a background promise).
 process.on('unhandledRejection', (reason) => {
-  console.warn('[Process] Unhandled rejection (ignored):', (reason as Error)?.message ?? reason)
+  log.warn('[Process] Unhandled rejection (ignored):', (reason as Error)?.message ?? reason)
 })
 process.on('uncaughtException', (err) => {
-  console.warn('[Process] Uncaught exception (ignored):', err?.message ?? err)
+  log.warn('[Process] Uncaught exception (ignored):', err?.message ?? err)
 })
 
 // WR-04 (code review 2026-07-09): the encryption key used for BYOK API keys
@@ -39,10 +41,10 @@ process.on('uncaughtException', (err) => {
 // and warn loudly in every other environment.
 if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY === '0123456789abcdef0123456789abcdef') {
   if (process.env.NODE_ENV === 'production') {
-    console.error('FATAL: ENCRYPTION_KEY is not set — refusing to boot with the public default key.')
+    log.error('FATAL: ENCRYPTION_KEY is not set — refusing to boot with the public default key.')
     process.exit(1)
   }
-  console.warn('[SECURITY] ENCRYPTION_KEY is not set; using an insecure public default. Set it before any BYOK keys are stored.')
+  log.warn('[SECURITY] ENCRYPTION_KEY is not set; using an insecure public default. Set it before any BYOK keys are stored.')
 }
 
 const app = express()
@@ -77,30 +79,30 @@ app.get('/healthz', (_req, res) => {
 app.use(errorHandler)
 
 discoverOllamaModel().then(async (model) => {
-  console.log(`[Hermes] Default model: ${model} (provider: ollama)`)
-  console.log(`Ollama model detected: ${model}`)
+  log.info(`[Hermes] Default model: ${model} (provider: ollama)`)
+  log.info(`Ollama model detected: ${model}`)
   // Probe only the default model at startup. Probing every model hammers flaky
   // cloud endpoints (retired/forbidden models) and can destabilize boot; the rest
   // are probed lazily on first use, with a name-heuristic fallback in between.
   try {
     await probeToolSupport('ollama', model)
   } catch (err) {
-    console.warn('[Hermes] Default model probe failed:', (err as Error).message)
+    log.warn('[Hermes] Default model probe failed:', (err as Error).message)
   }
 }).catch((err) => {
-  console.warn('[Hermes] Model discovery failed:', (err as Error).message)
+  log.warn('[Hermes] Model discovery failed:', (err as Error).message)
 })
 
 ensureBucket().then(() => {
-  console.log('[S3] Export bucket ready')
+  log.info('[S3] Export bucket ready')
 }).catch((err) => {
-  console.warn('[S3] Bucket check failed:', (err as Error).message)
+  log.warn('[S3] Bucket check failed:', (err as Error).message)
 })
 
 const server = http.createServer(app)
 createCollaborationServer(server)
 server.listen(config.port, () => {
-  console.log(`Repora backend listening on :${config.port}`)
+  log.info(`Repora backend listening on :${config.port}`)
 })
 
 export default app

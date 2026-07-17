@@ -1,4 +1,5 @@
 import { runAgent, clearGenerationState, type HermesEvent } from '../hermes'
+import { logger } from '../../lib/logger'
 import { createContext, type GenerationContext } from '../context'
 import type { OutlineJson } from '../../services/outline.service'
 import { createSectionsFromOutline, generateStaticOutline, mergeTemplateWithOutline } from '../../services/outline.service'
@@ -11,7 +12,9 @@ import { broadcastNotification } from '../../collaboration/ws'
 import { createDiagram } from '../../services/diagram.service'
 import { generateTablesFromRequirements } from '../tools/tables'
 import { generateFallbackContent } from './fallbackContent'
+import { uploadDocument, uploadDiagram } from '../../services/s3.service'
 
+const log = logger.child('Hermes')
 // ── Document status persistence ──
 
 async function saveDocumentStatus(documentId: string, status: string) {
@@ -21,7 +24,7 @@ async function saveDocumentStatus(documentId: string, status: string) {
       .set({ status, updatedAt: new Date() })
       .where(eq(documents.id, documentId))
   } catch (err) {
-    console.warn(`[Hermes] Failed to save document status "${status}":`, err)
+    log.warn(`Failed to save document status "${status}":`, err)
   }
 }
 
@@ -33,7 +36,7 @@ async function savePipelineStage(documentId: string, stage: string) {
     const outline = (doc?.outline as Record<string, unknown>) || {}
     await db.update(documents).set({ outline: { ...outline, _pipelineStage: stage }, updatedAt: new Date() }).where(eq(documents.id, documentId))
   } catch (err) {
-    console.warn(`[Hermes] Failed to save pipeline stage "${stage}":`, err)
+    log.warn(`Failed to save pipeline stage "${stage}":`, err)
   }
 }
 
@@ -55,7 +58,7 @@ async function detectResumeStage(documentId: string, projectId: string): Promise
   // Check stored pipeline stage first
   const stored = await getPipelineStage(documentId)
   if (stored && ['planner', 'writer', 'uml', 'tables', 'reviewer'].includes(stored)) {
-    console.log(`[Hermes] Resume from stored pipeline stage: ${stored}`)
+    log.info(`Resume from stored pipeline stage: ${stored}`)
     return stored as PipelineStage
   }
 
@@ -207,7 +210,7 @@ export async function orchestrateGeneration(
 
       // Detect resume stage from existing document state
       const resumeStage = await detectResumeStage(documentId, projectId)
-      console.log(`[Hermes] Pipeline starting from stage: ${resumeStage}`)
+      log.info(`Pipeline starting from stage: ${resumeStage}`)
 
       broadcastNotification({
         type: 'generation_started',
@@ -231,9 +234,9 @@ export async function orchestrateGeneration(
           adjustContext(ctx, 'templateId', templateId)
           adjustContext(ctx, 'templateName', template.name)
           yield { type: 'context_updated', agent: 'Hermes', key: 'templateName', value: template.name }
-          console.log(`[Hermes] Template "${template.name}" loaded for generation`)
+          log.info(`Template "${template.name}" loaded for generation`)
         } else {
-          console.warn(`[Hermes] Template ${templateId} not found, proceeding without template`)
+          log.warn(`Template ${templateId} not found, proceeding without template`)
           yield {
             type: 'generation_error',
             agent: 'Hermes',
@@ -311,9 +314,9 @@ export async function orchestrateGeneration(
         outlineJson = parsed
         ctx.outline = outlineJson
         adjustContext(ctx, 'outlineSource', 'planner')
-        console.log('[Hermes] Planner generated custom outline:', outlineJson.title)
+        log.info('Planner generated custom outline:', outlineJson.title)
       } else {
-        console.warn('[Hermes] Planner response was not valid JSON outline, using static fallback')
+        log.warn('Planner response was not valid JSON outline, using static fallback')
       }
 
       if (!outlineJson) {
@@ -328,9 +331,9 @@ export async function orchestrateGeneration(
           outlineJson = mergeTemplateWithOutline(templateOutline, outlineJson)
           ctx.outline = outlineJson
           adjustContext(ctx, 'outlineSource', 'template_merged')
-          console.log('[Hermes] Template outline merged with Planner output')
+          log.info('Template outline merged with Planner output')
         } catch (err) {
-          console.warn('[Hermes] Template merge failed, using Planner output only:', err)
+          log.warn('Template merge failed, using Planner output only:', err)
           yield {
             type: 'generation_error',
             agent: 'Hermes',
@@ -357,7 +360,7 @@ export async function orchestrateGeneration(
           .where(eq(sectionsTable.documentId, documentId))
           .orderBy(sectionsTable.order)
         sectionCount = sections.length
-        console.log(`[Hermes] Resume: loaded ${sectionCount} existing sections`)
+        log.info(`Resume: loaded ${sectionCount} existing sections`)
         yield { type: 'agent_status', agent: 'System', status: 'resumed', stage: resumeStage, sections_loaded: sections.length }
       }
 
@@ -388,9 +391,9 @@ export async function orchestrateGeneration(
             }
           }
           if (startIdx >= sections.length) {
-            console.log('[Hermes] Writer resume: all sections already have content')
+            log.info('Writer resume: all sections already have content')
           } else {
-            console.log(`[Hermes] Writer resume: starting from section ${startIdx + 1}/${sectionCount}`)
+            log.info(`Writer resume: starting from section ${startIdx + 1}/${sectionCount}`)
           }
         }
 
@@ -424,6 +427,7 @@ IMPORTANT: The content parameter must contain the FINAL document text. No preamb
           let writerDone = false
           let currentPrompt = sectionPrompt
           let recoveryCount = 0
+          let forceToolRetryDone = false
           while (!writerDone && rescopeCount < 3) {
             const writerGen = runAgent('Writer', currentPrompt, { projectId, documentId, sectionId: section.id })
             sectionContent = '' // Reset for this attempt
@@ -436,7 +440,7 @@ IMPORTANT: The content parameter must contain the FINAL document text. No preamb
               const now = Date.now()
               if (now - lastEventTime > AGENT_TIMEOUT_MS) {
                 timedOut = true
-                console.log(`[Hermes] Writer: agent stalled for ${(now - lastEventTime) / 1000}s on section ${section.id}`)
+                log.info(`Writer: agent stalled for ${(now - lastEventTime) / 1000}s on section ${section.id}`)
                 break
               }
               lastEventTime = now
@@ -453,7 +457,7 @@ IMPORTANT: The content parameter must contain the FINAL document text. No preamb
             // If the agent timed out and we have recovery attempts left, retry
             if (timedOut && recoveryCount < AGENT_RECOVERY_ATTEMPTS) {
               recoveryCount++
-              console.log(`[Hermes] Writer: recovery attempt ${recoveryCount}/${AGENT_RECOVERY_ATTEMPTS} for section ${section.id}`)
+              log.info(`Writer: recovery attempt ${recoveryCount}/${AGENT_RECOVERY_ATTEMPTS} for section ${section.id}`)
               yield {
                 type: 'agent_status',
                 agent: 'Writer',
@@ -489,19 +493,35 @@ IMPORTANT: The content parameter must contain the FINAL document text. No preamb
                   .set({ content: cleanedContent, status: 'draft' })
                   .where(eq(sectionsTable.id, section.id))
                 if (!toolCalled) {
-                  console.log(`[Hermes] Writer: tool not called, saved ${cleanedContent.length} chars directly to DB`)
+                  log.info(`Writer: tool not called, saved ${cleanedContent.length} chars directly to DB`)
                 }
               } catch (err) {
-                console.warn('[Hermes] Writer: failed to save content directly:', err)
+                log.warn('Writer: failed to save content directly:', err)
               }
+            }
+
+            // If the model didn't call any tools, try once more with a forceful
+            // prompt demanding tool usage before falling back to raw text
+            if (!toolCalled && cleanedContent.length > 0 && !forceToolRetryDone) {
+              forceToolRetryDone = true
+              log.info(`Writer: tool not called — retrying with forceful prompt for section ${section.id}`)
+              currentPrompt = `${sectionPrompt}\n\nCRITICAL: You MUST call the writeSection tool with the content. Do NOT output your response as text. Your response MUST be a tool call to writeSection with the content parameter containing your writing.`
+              yield {
+                type: 'agent_status',
+                agent: 'Writer',
+                status: 'writing',
+                section: `${i + 1}/${sectionCount}`,
+                section_title: section.title,
+              }
+              continue
             }
 
             // If the model didn't call any tools, rescoping won't help — accept
             // whatever text was produced and move on to the next section
             if (!toolCalled) {
-              console.log(`[Hermes] Writer: no tools called — accepting ${cleanedContent.length} chars of text output for section ${section.id}`)
+              log.info(`Writer: no tools called — accepting ${cleanedContent.length} chars of text output for section ${section.id}`)
               if (cleanedContent.length === 0) {
-                console.log(`[Hermes] Writer: empty section "${section.title}" — filling with fallback content`)
+                log.info(`Writer: empty section "${section.title}" — filling with fallback content`)
                 yield {
                   type: 'generation_error',
                   agent: 'Writer',
@@ -615,7 +635,7 @@ Generate diagrams of these types: ${diagramTypes.join(', ')}.`
         .where(eq(diagrams.projectId, projectId))
 
       if (existingDiagrams.length === 0) {
-        console.log('[Hermes] UML agent produced no diagrams — generating via fallback')
+        log.info('UML agent produced no diagrams — generating via fallback')
         yield { type: 'agent_status', agent: 'UML', status: 'generating_fallback' }
 
         // Map diagram types to likely section IDs for linking
@@ -649,7 +669,7 @@ Generate diagrams of these types: ${diagramTypes.join(', ')}.`
             yield { type: 'tool_call', agent: 'UML', tool: 'saveDiagram', args: { type: diagType, projectId, sectionId: targetSectionId } }
             yield { type: 'tool_result', agent: 'UML', tool: 'saveDiagram', result: { id: d.id, ok: true } }
           } catch (err) {
-            console.warn(`[Hermes] Fallback diagram generation failed for ${diagType}:`, (err as Error).message)
+            log.warn(`Fallback diagram generation failed for ${diagType}:`, (err as Error).message)
           }
         }
       }
@@ -658,7 +678,7 @@ Generate diagrams of these types: ${diagramTypes.join(', ')}.`
       yield { type: 'agent_status', agent: 'UML', status: 'done' }
 
       // Insert diagram images into section content
-      const diagramList = await db.select({ id: diagrams.id, type: diagrams.type, sectionId: diagrams.sectionId, renderedUrl: diagrams.renderedUrl })
+      const diagramList = await db.select({ id: diagrams.id, type: diagrams.type, sectionId: diagrams.sectionId, renderedUrl: diagrams.renderedUrl, description: diagrams.description })
         .from(diagrams)
         .where(eq(diagrams.projectId, projectId))
 
@@ -677,8 +697,33 @@ Generate diagrams of these types: ${diagramTypes.join(', ')}.`
               await db.update(sectionsTable)
                 .set({ content: existing + imageBlock, updatedAt: new Date() })
                 .where(eq(sectionsTable.id, diag.sectionId))
-              console.log(`[Hermes] Inserted diagram ${diag.type} into section ${diag.sectionId}`)
+              log.info(`Inserted diagram ${diag.type} into section ${diag.sectionId}`)
             }
+          }
+        }
+      }
+
+      // Add "Diagrammes" chapter to the document outline with references
+      if (diagramList.length > 0) {
+        const [docForOutline] = await db.select({ outline: documents.outline })
+          .from(documents).where(eq(documents.id, documentId)).limit(1)
+        const currentOutline = (docForOutline?.outline as OutlineJson | null) || ctx.outline
+        if (currentOutline) {
+          const hasDiagramChapter = currentOutline.chapters.some(c =>
+            c.title.toLowerCase().includes('diagramme'),
+          )
+          if (!hasDiagramChapter) {
+            const lastOrder = Math.max(...currentOutline.chapters.flatMap(c => c.sections.map(s => s.order)))
+            const diagramRefs = diagramList.map((d, i) => {
+              const typeLabel = d.type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+              return { title: `Diagramme ${typeLabel}`, order: lastOrder + i + 1 }
+            })
+            currentOutline.chapters.push({
+              title: `${currentOutline.chapters.length + 1}. Diagrammes UML`,
+              sections: diagramRefs,
+            })
+            await db.update(documents).set({ outline: currentOutline }).where(eq(documents.id, documentId))
+            ctx.outline = currentOutline
           }
         }
       }
@@ -720,7 +765,7 @@ Generate tables for:
       const hasTableSections = tableSections.some(s => (s.order ?? 0) >= 100)
 
       if (!hasTableSections) {
-        console.log('[Hermes] Tables agent produced no table sections — generating via fallback')
+        log.info('Tables agent produced no table sections — generating via fallback')
         yield { type: 'agent_status', agent: 'Tables', status: 'generating_fallback' }
         const fallbackTables = await generateTablesFromRequirements(documentId, projectId)
         for (const tbl of fallbackTables) {
@@ -736,7 +781,36 @@ Generate tables for:
             yield { type: 'tool_call', agent: 'Tables', tool: 'saveRequirementSection', args: { title: tbl.title, order } }
             yield { type: 'tool_result', agent: 'Tables', tool: 'saveRequirementSection', result: { id: inserted.id, ok: true } }
           } catch (err) {
-            console.warn(`[Hermes] Fallback table generation failed for "${tbl.title}":`, (err as Error).message)
+            log.warn(`Fallback table generation failed for "${tbl.title}":`, (err as Error).message)
+          }
+        }
+      }
+
+      // Add "Tableaux et Annexes" chapter referencing all table sections (order >= 100)
+      const allTableSections = await db.select({ id: sectionsTable.id, title: sectionsTable.title, order: sectionsTable.order })
+        .from(sectionsTable)
+        .where(eq(sectionsTable.documentId, documentId))
+      const tableChapterSections = allTableSections.filter(s => (s.order ?? 0) >= 100)
+      if (tableChapterSections.length > 0) {
+        const [docForOutline] = await db.select({ outline: documents.outline })
+          .from(documents).where(eq(documents.id, documentId)).limit(1)
+        const currentOutline = (docForOutline?.outline as OutlineJson | null) || ctx.outline
+        if (currentOutline) {
+          const hasTableChapter = currentOutline.chapters.some(c =>
+            c.title.toLowerCase().includes('tableau') || c.title.toLowerCase().includes('annexe'),
+          )
+          if (!hasTableChapter) {
+            const lastOrder = Math.max(...currentOutline.chapters.flatMap(c => c.sections.map(s => s.order)))
+            const tableRefs = tableChapterSections.map((s, i) => ({
+              title: s.title,
+              order: lastOrder + i + 1,
+            }))
+            currentOutline.chapters.push({
+              title: `${currentOutline.chapters.length + 1}. Tableaux et Annexes`,
+              sections: tableRefs,
+            })
+            await db.update(documents).set({ outline: currentOutline }).where(eq(documents.id, documentId))
+            ctx.outline = currentOutline
           }
         }
       }
@@ -771,6 +845,27 @@ Check: consistency between sections, terminology alignment, completeness (no emp
       yield { type: 'agent_status', agent: 'Reviewer', status: 'done' }
       await saveDocumentStatus(documentId, 'reviewed')
       await savePipelineStage(documentId, 'reviewer')
+
+      // ── S3 sync: upload final document ──
+      try {
+        const allSections = await db
+          .select({ title: sectionsTable.title, content: sectionsTable.content, order: sectionsTable.order })
+          .from(sectionsTable)
+          .where(eq(sectionsTable.documentId, documentId))
+          .orderBy(sectionsTable.order)
+
+        const docRow = await db.select({ outline: documents.outline }).from(documents).where(eq(documents.id, documentId)).limit(1)
+        const title = (docRow[0]?.outline as any)?.title || 'Document'
+        const date = new Date().toISOString().split('T')[0]
+        let md = `# ${title}\n\n**Date:** ${date}\n\n---\n\n`
+        for (const s of allSections) {
+          md += `## ${s.title}\n\n${s.content || '*(Aucun contenu)*'}\n\n`
+        }
+        const s3Key = await uploadDocument(projectId, documentId, md)
+        if (s3Key) log.info(`[S3] Document ${documentId} synced to S3`)
+      } catch (s3Err) {
+        log.warn('[S3] Post-pipeline sync failed (non-fatal):', (s3Err as Error).message)
+      }
       } // end Reviewer resume check
 
       broadcastNotification({

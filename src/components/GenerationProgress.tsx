@@ -177,6 +177,32 @@ export function GenerationProgress({ events, isStreaming }: GenerationProgressPr
   const pipelineStage = useMemo(() => derivePipelineStage(events), [events])
   const completedSteps = useMemo(() => deriveCompletedSteps(events), [events])
 
+  // Extract elapsed time from done event
+  const elapsedMs = useMemo(() => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i]
+      if (e.type === 'done' && (e as any).elapsed_ms) {
+        return (e as any).elapsed_ms as number
+      }
+    }
+    return null
+  }, [events])
+
+  // Live timer for active streaming
+  const startTime = useMemo(() => {
+    const first = events[0]
+    if (first) return new Date((first as any).timestamp ?? Date.now()).getTime()
+    return Date.now()
+  }, [events])
+  const [liveElapsed, setLiveElapsed] = useState(0)
+  useEffect(() => {
+    if (!isStreaming) return
+    const interval = setInterval(() => {
+      setLiveElapsed(Date.now() - startTime)
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [isStreaming, startTime])
+
   // Track last token timestamp per agent for stall detection
   const lastTokenTime = useRef<Map<string, number>>(new Map())
   const [stalledAgents, setStalledAgents] = useState<Set<string>>(new Set())
@@ -206,6 +232,30 @@ export function GenerationProgress({ events, isStreaming }: GenerationProgressPr
     setStalledAgents(stalled)
   }, [events, agentStates])
 
+  // ── Global section progress ──
+
+  const sectionCompleted = events.filter((e) => e.type === 'section_complete').length
+  const totalSections = useMemo(() => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i]
+      if (e.type === 'context_updated' && (e as any).key === 'totalSections') {
+        return (e as any).value as number
+      }
+      if (e.type === 'agent_status' && (e as any).sections_created) {
+        return (e as any).sections_created as number
+      }
+    }
+    return sectionCompleted
+  }, [events, sectionCompleted])
+  const sectionProgress = totalSections > 0 ? Math.round((sectionCompleted / totalSections) * 100) : 0
+
+  // ── Current pipeline stage label ──
+
+  const stageLabel = useMemo(() => {
+    const step = PIPELINE_STEPS.find((s) => s.key === pipelineStage)
+    return step?.label ?? pipelineStage
+  }, [pipelineStage])
+
   // Nothing to show
   if (!isStreaming && events.length === 0) {
     return null
@@ -213,7 +263,6 @@ export function GenerationProgress({ events, isStreaming }: GenerationProgressPr
 
   const agentList = Array.from(agentStates.values())
   const activeCount = agentList.filter((a) => a.status !== 'done' && a.status !== 'error').length
-  const sectionCount = events.filter((e) => e.type === 'section_complete').length
   const totalTokens = agentList.reduce((sum, a) => sum + a.tokenCount, 0)
 
   // Completion summary when stream ended
@@ -236,6 +285,18 @@ export function GenerationProgress({ events, isStreaming }: GenerationProgressPr
             </span>
           )}
         </div>
+        <div className="mb-3">
+          <div className="flex justify-between text-label-sm text-on-surface-variant mb-1">
+            <span>Progression</span>
+            <span>{sectionCompleted}/{totalSections} sections</span>
+          </div>
+          <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
+            <div
+              className="h-full bg-status-final transition-all duration-500 ease-out rounded-full"
+              style={{ width: `${sectionProgress}%` }}
+            />
+          </div>
+        </div>
         <div className="text-center py-4 space-y-2">
           {hasErrors ? (
             <>
@@ -252,14 +313,14 @@ export function GenerationProgress({ events, isStreaming }: GenerationProgressPr
               </p>
             </>
           )}
-          {sectionCount > 0 && (
-            <p className="font-label-sm text-[10px] text-on-surface-variant">
-              {sectionCount} section{sectionCount > 1 ? 's' : ''} cree{sectionCount > 1 ? 'es' : 'e'}
-            </p>
-          )}
           {totalTokens > 0 && (
             <p className="font-label-sm text-[10px] text-on-surface-variant">
-              {totalTokens} token{totalTokens > 1 ? 's' : ''} generes
+              ~{totalTokens} token{totalTokens > 1 ? 's' : ''} generes
+            </p>
+          )}
+          {elapsedMs !== null && (
+            <p className="font-label-sm text-[10px] text-on-surface-variant">
+              Duree: {Math.floor(elapsedMs / 60000)}min {Math.round((elapsedMs % 60000) / 1000)}s
             </p>
           )}
         </div>
@@ -274,9 +335,48 @@ export function GenerationProgress({ events, isStreaming }: GenerationProgressPr
         <h3 className="font-label-md text-label-md font-bold uppercase tracking-widest">
           Orchestrateur IA
         </h3>
-        <span className="bg-ai-glow text-ai-vibrant font-label-sm text-label-sm px-2 py-0.5 rounded">
-          {activeCount} ACTIF{activeCount !== 1 ? 'S' : ''}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-label-sm text-[10px] text-on-surface-variant tabular-nums">
+            {Math.floor(liveElapsed / 60000)}:{String(Math.floor((liveElapsed % 60000) / 1000)).padStart(2, '0')}
+          </span>
+          <span className="bg-ai-glow text-ai-vibrant font-label-sm text-label-sm px-2 py-0.5 rounded">
+            {activeCount} ACTIF{activeCount !== 1 ? 'S' : ''}
+          </span>
+        </div>
+      </div>
+
+      {/* Global section progress bar */}
+      {(sectionCompleted > 0 || totalSections > 0) && (
+        <div className="mb-4">
+          <div className="flex justify-between text-label-sm text-on-surface-variant mb-1">
+            <span>Progression document</span>
+            <span>
+              {sectionCompleted}/{totalSections}
+              {sectionProgress === 100 && (
+                <span className="ml-1 text-status-final inline-flex items-center gap-0.5">
+                  <Icon name="check_circle" className="text-[12px]" />
+                </span>
+              )}
+            </span>
+          </div>
+          <div className="h-1.5 bg-surface-alt rounded-full overflow-hidden">
+            <div
+              className={`h-full transition-all duration-500 ease-out rounded-full ${
+                sectionProgress === 100 ? 'bg-status-final' : 'bg-ai-vibrant'
+              }`}
+              style={{ width: `${sectionProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Current stage indicator */}
+      <div className="mb-3 px-3 py-2 bg-ai-vibrant/5 rounded-lg border border-ai-vibrant/10">
+        <div className="flex items-center gap-2 text-label-sm">
+          <span className="w-2 h-2 rounded-full bg-ai-vibrant animate-pulse" />
+          <span className="font-bold text-ai-vibrant">{stageLabel}</span>
+          <span className="text-on-surface-variant">— {activeCount} agent{activeCount !== 1 ? 's' : ''} actif{activeCount !== 1 ? 's' : ''}</span>
+        </div>
       </div>
 
       <PipelineProgress currentStage={pipelineStage} completedSteps={completedSteps} />

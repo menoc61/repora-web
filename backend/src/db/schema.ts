@@ -34,6 +34,7 @@ export const documents = pgTable('documents', {
   status: text('status').default('draft').notNull(),
   outline: jsonb('outline'),
   config: jsonb('config').default({}).notNull(),
+  tags: jsonb('tags').$type<string[]>().default([]).notNull(),
   exportUrl: text('export_url'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -59,6 +60,7 @@ export const diagrams = pgTable('diagrams', {
   type: text('type').notNull(),
   plantumlSource: text('plantuml_source'),
   renderedUrl: text('rendered_url'),
+  description: text('description'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 

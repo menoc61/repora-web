@@ -84,44 +84,69 @@ export const api = {
   getBaseUrl: () => BASE,
 }
 
-/** SSE helper for document streaming — returns an EventSource-like async iterator. */
-export async function* sseStream(path: string, opts?: { public?: boolean }): AsyncGenerator<Record<string, unknown>> {
-  const authorization = opts?.public ? null : getToken()
-  const res = await fetch(`${BASE}${path}`, {
-    method: 'GET',
-    headers: {
-      Accept: 'text/event-stream',
-      ...(authorization ? { Authorization: `Bearer ${authorization}` } : {}),
-    },
-  })
-  if (!res.ok || !res.body) {
-    throw new ApiError(res.status, 'stream_failed', `Stream failed: ${res.status}`)
-  }
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const events = buffer.split('\n\n')
-      buffer = events.pop() ?? ''
-      for (const evt of events) {
-        const dataLine = evt.split('\n').find((l) => l.startsWith('data:'))
-        if (dataLine) {
-          const json = dataLine.slice(5).trim()
-          if (json && json !== '[DONE]') {
-            try {
-              yield JSON.parse(json)
-            } catch {
-              /* ignore keepalive comments */
+/** SSE helper for document streaming — returns an EventSource-like async iterator with auto-reconnect. */
+export async function* sseStream(path: string, opts?: { public?: boolean; maxRetries?: number }): AsyncGenerator<Record<string, unknown>> {
+  const maxRetries = opts?.maxRetries ?? 3
+  let attempt = 0
+
+  while (attempt <= maxRetries) {
+    const authorization = opts?.public ? null : getToken()
+    const res = await fetch(`${BASE}${path}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'text/event-stream',
+        ...(authorization ? { Authorization: `Bearer ${authorization}` } : {}),
+      },
+    })
+    if (!res.ok || !res.body) {
+      if (attempt < maxRetries) {
+        attempt++
+        await new Promise((r) => setTimeout(r, Math.min(1000 * attempt, 5000)))
+        continue
+      }
+      throw new ApiError(res.status, 'stream_failed', `Stream failed: ${res.status}`)
+    }
+    attempt = 0 // reset on successful connection
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let connectionLost = false
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const events = buffer.split('\n\n')
+        buffer = events.pop() ?? ''
+        for (const evt of events) {
+          const dataLine = evt.split('\n').find((l) => l.startsWith('data:'))
+          if (dataLine) {
+            const json = dataLine.slice(5).trim()
+            if (json && json !== '[DONE]') {
+              try {
+                yield JSON.parse(json)
+              } catch {
+                /* ignore keepalive comments */
+              }
             }
           }
         }
       }
+    } catch (err) {
+      connectionLost = true
+      // If stream broke mid-generation, retry the connection
+      if (attempt < maxRetries) {
+        attempt++
+        await new Promise((r) => setTimeout(r, Math.min(1000 * attempt, 5000)))
+        continue
+      }
+      throw err
+    } finally {
+      reader.releaseLock()
     }
-  } finally {
-    reader.releaseLock()
+    // If we got here cleanly (done=true), we're done
+    if (!connectionLost) return
+    // Connection lost but retries exhausted
+    return
   }
 }

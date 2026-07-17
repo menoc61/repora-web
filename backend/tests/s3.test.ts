@@ -93,6 +93,7 @@ describe('s3.service', () => {
 
   it('uploadExport sends PutObject with bucket + generated key', async () => {
     const { svc, config } = await loadS3()
+    await svc.ensureBucket()
     const key = await svc.uploadExport('doc-1', 'pdf', Buffer.from('hello'), 'application/pdf')
     expect(putCalls.length).toBe(1)
     expect(putCalls[0].Bucket).toBe(config.s3.bucket)
@@ -103,13 +104,15 @@ describe('s3.service', () => {
 
   it('downloadExport returns buffer + content type', async () => {
     const { svc, config } = await loadS3()
+    await svc.ensureBucket()
     const res = await svc.downloadExport('exports/doc-1/pdf-x.pdf')
+    expect(res).not.toBeNull()
     expect(getCalls.length).toBe(1)
     expect(getCalls[0].Bucket).toBe(config.s3.bucket)
     expect(getCalls[0].Key).toBe('exports/doc-1/pdf-x.pdf')
-    expect(res.contentType).toBe('application/pdf')
-    expect(res.buffer).toBeInstanceOf(Buffer)
-    expect(res.buffer.length).toBe(3)
+    expect(res!.contentType).toBe('application/pdf')
+    expect(res!.buffer).toBeInstanceOf(Buffer)
+    expect(res!.buffer.length).toBe(3)
   })
 
   it('getExportUrl builds the endpoint URL', async () => {
@@ -126,9 +129,40 @@ describe('s3.service', () => {
     expect(createCalls.length).toBe(1)
   })
 
-  it('uploadExport propagates SDK errors', async () => {
+  it('uploadExport returns null when S3 is unavailable', async () => {
     const { svc } = await loadS3()
     shouldPutFail = true
-    await expect(svc.uploadExport('doc-1', 'pdf', Buffer.from('x'), 'application/pdf')).rejects.toThrow('put failed')
+    await svc.ensureBucket()
+    const result = await svc.uploadExport('doc-1', 'pdf', Buffer.from('x'), 'application/pdf')
+    expect(result).toBeNull()
+  })
+
+  it('uploadExport returns null when ensureBucket was never called', async () => {
+    const { svc } = await loadS3()
+    const result = await svc.uploadExport('doc-1', 'pdf', Buffer.from('x'), 'application/pdf')
+    expect(result).toBeNull()
+  })
+
+  it('listProjectDocuments returns empty array when S3 unavailable', async () => {
+    const { svc } = await loadS3()
+    const result = await svc.listProjectDocuments('proj-1')
+    expect(result).toEqual([])
+  })
+
+  it('listProjectDiagrams returns empty array when S3 unavailable', async () => {
+    const { svc } = await loadS3()
+    const result = await svc.listProjectDiagrams('proj-1')
+    expect(result).toEqual([])
+  })
+
+  it('deleteProjectStorage does not throw when S3 unavailable', async () => {
+    const { svc } = await loadS3()
+    await expect(svc.deleteProjectStorage('proj-1')).resolves.toBeUndefined()
+  })
+
+  it('downloadExport returns null when S3 unavailable', async () => {
+    const { svc } = await loadS3()
+    const result = await svc.downloadExport('exports/doc-1/pdf-x.pdf')
+    expect(result).toBeNull()
   })
 })

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useTemplates, useCreateDocumentFromTemplate, useGenerateDocument } from '../../hooks/useQueries'
 import type { Template } from '../../schemas'
+import Icon from '../Icon'
 import { TEMPLATES, FILTERS, type TemplateItem } from './types'
 import SearchNav from './SearchNav'
 import FilterChips from './FilterChips'
@@ -71,6 +72,13 @@ export default function TemplateGalleryView() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+          {filtered.length === 0 && (
+            <div className="col-span-full text-center py-16">
+              <Icon name="folder_open" className="text-[48px] text-on-surface-variant/30 mx-auto mb-3" />
+              <p className="font-body text-body-md text-on-surface-variant">Aucun modele trouve</p>
+              <p className="font-body text-body-sm text-on-surface-variant/60 mt-1">Essayez un autre filtre ou creez un modele personnalise.</p>
+            </div>
+          )}
           {filtered.map((t, i) => (
             <TemplateCard key={`${t.title}-${i}`} template={t} onUse={() => handleUseTemplate(t)} isPending={isPending} />
           ))}

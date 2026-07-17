@@ -2,6 +2,7 @@ import { Link, useNavigate } from '@tanstack/react-router'
 import Icon from '../components/Icon'
 import { Button } from '../components/ui/button'
 import { useCreateProject } from '../hooks/useQueries'
+import { useWorkspaceStore } from '../stores'
 
 const NAV = [
   { to: '/workspace', label: 'Tableau de bord', icon: 'dashboard' },
@@ -15,6 +16,7 @@ const NAV = [
 export default function Sidebar() {
   const navigate = useNavigate()
   const createProject = useCreateProject()
+  const recentDocuments = useWorkspaceStore((s) => s.recentDocuments)
 
   async function handleNewDocument() {
     try {
@@ -60,6 +62,34 @@ export default function Sidebar() {
           </Link>
         ))}
       </nav>
+
+      {recentDocuments.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-outline-variant">
+          <div className="flex items-center gap-2 mb-2 px-2">
+            <Icon name="schedule" className="text-[14px] text-on-surface-variant" />
+            <span className="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider">Recents</span>
+          </div>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {recentDocuments.slice(0, 5).map((doc) => (
+              <Link
+                key={doc.id}
+                to="/editor"
+                search={{ id: doc.id }}
+                className="flex items-center gap-2 py-1.5 px-2 rounded text-on-surface-variant hover:bg-surface-container-high transition-colors group"
+              >
+                <Icon name="description" className="text-[14px] opacity-50" />
+                <span className="font-body-sm text-body-sm truncate flex-1">{doc.title}</span>
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  doc.status === 'validated' ? 'bg-success' :
+                  doc.status === 'in_review' ? 'bg-warning' :
+                  doc.status === 'rejected' ? 'bg-danger' :
+                  'bg-outline-variant'
+                }`} />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="pt-6 border-t border-outline-variant space-y-1">
         <Link

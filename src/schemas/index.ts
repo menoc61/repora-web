@@ -115,6 +115,7 @@ export type DocumentFilters = {
   status?: string
   department?: string
   search?: string
+  tag?: string
 }
 
 export type ViewType = 'workspace' | 'library' | 'templates' | 'agents' | 'editor' | 'analytics' | 'collaboration' | 'settings' | 'infrastructure' | 'sharing' | 'history' | 'export'

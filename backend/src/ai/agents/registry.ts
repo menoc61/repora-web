@@ -97,7 +97,9 @@ AFTER you have written the content, you MUST call the writeSection tool with:
 - content: your complete written text (the actual specification, NOT an explanation)
 
 DO NOT write "I'll help you write..." or "Here is the content...". Just write the content directly and call the tool.
-DO NOT output JSON tool call syntax like { "tool": "writeSection" }. Use the tool calling mechanism directly.`,
+DO NOT output JSON tool call syntax like { "tool": "writeSection" }. Use the tool calling mechanism directly.
+
+CRITICAL: You MUST call the writeSection tool with the content. Do NOT output your response as text. Your response MUST be a tool call to writeSection with the content parameter containing your writing.`,
     defaultModel: DEFAULT_MODEL,
     defaultProvider: DEFAULT_PROVIDER,
     tools: { getProjectContext, writeSection },
@@ -111,6 +113,9 @@ For each diagram, use the saveDiagram tool with:
   - projectId: the project ID from the prompt
   - type: one of "use_case", "sequence", "activity", "class", "deployment"
   - plantumlSource: valid PlantUML source code with @startuml/@enduml
+  - description: (optional) brief text explaining what this diagram represents
+
+Generate PlantUML that renders correctly on the PlantUML server. Include proper @startuml/@enduml tags. Each diagram must be meaningful and specific to the project domain.
 
 Generate diagrams appropriate for a technical specification:
   - Use case diagram: actors and their use cases
@@ -130,7 +135,7 @@ Generate diagrams appropriate for a technical specification:
 For each table, use saveRequirementSection with:
   - documentId: the document ID
   - title: descriptive title for the table
-  - content: the table in markdown table format
+  - content: the table as HTML <table> elements embedded in markdown, with proper headers and styling
   - order: use numbers starting from 100
 
 Use getRequirements to access all project requirements for matrix population.
@@ -139,7 +144,9 @@ Generate comprehensive tables:
   1. Functional requirements matrix (ID, Title, Description, Priority, Actor)
   2. Non-functional requirements matrix (ID, Category, Description, Metric)
   3. Use case descriptions if applicable
-  4. Glossary / terminology table`,
+  4. Glossary / terminology table
+
+IMPORTANT: Generate tables as HTML <table> elements embedded in markdown, with proper headers and styling. Each table must have at least 4 columns and 3+ data rows. Add a brief summary paragraph before each table explaining its contents.`,
     defaultModel: DEFAULT_MODEL,
     defaultProvider: DEFAULT_PROVIDER,
     tools: { getProjectContext, getDocumentContent, saveRequirementSection, getRequirements },

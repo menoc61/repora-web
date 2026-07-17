@@ -4,10 +4,16 @@ import { useDocumentStream } from './useQueries'
 import { useGenerationStore } from '../stores/generationStore'
 import { notify } from '../components/Toast'
 
-/**
- * Convert markdown to HTML for TipTap's insertContent.
- * Handles all standard markdown features for well-formatted editor content.
- */
+function stripRawToolCalls(text: string): string {
+  if (!text) return text
+  let cleaned = text
+  cleaned = cleaned.replace(/```(?:json|markdown|tool_call)?\s*\n?/g, '').replace(/```\s*\n?/g, '')
+  const toolCallPattern = /\{\s*(?:"tool"|"action"|"name")\s*:\s*"[^"]*"(?:\s*,\s*"arguments"\s*:\s*\{[^}]*\})?\s*\}/g
+  cleaned = cleaned.replace(toolCallPattern, '').trim()
+  cleaned = cleaned.replace(/^\n+|\n+$/g, '').trim()
+  return cleaned
+}
+
 function mdToHtml(md: string): string {
   const lines = md.split('\n')
   const out: string[] = []
@@ -16,7 +22,6 @@ function mdToHtml(md: string): string {
   while (i < lines.length) {
     const line = lines[i]
 
-    // Code block (fenced)
     if (/^```/.test(line)) {
       const lang = line.slice(3).trim()
       const codeLines: string[] = []
@@ -25,19 +30,17 @@ function mdToHtml(md: string): string {
         codeLines.push(lines[i])
         i++
       }
-      i++ // skip closing ```
+      i++
       out.push(`<pre><code>${escapeHtml(codeLines.join('\n'))}</code></pre>`)
       continue
     }
 
-    // Thematic break
     if (/^(---|\*\*\*|___)\s*$/.test(line)) {
       out.push('<hr />')
       i++
       continue
     }
 
-    // Heading
     const hMatch = line.match(/^(#{1,6})\s+(.+)$/)
     if (hMatch) {
       const level = hMatch[1].length
@@ -47,7 +50,6 @@ function mdToHtml(md: string): string {
       continue
     }
 
-    // Blockquote
     if (/^>\s/.test(line)) {
       const quoteLines: string[] = []
       while (i < lines.length && /^>/.test(lines[i])) {
@@ -58,10 +60,9 @@ function mdToHtml(md: string): string {
       continue
     }
 
-    // Table
     if (/\|.*\|/.test(line) && i + 1 < lines.length && /^\|[\s:-]+\|/.test(lines[i + 1])) {
       const headerCells = line.split('|').filter(c => c.trim()).map(c => c.trim())
-      i += 2 // skip header separator
+      i += 2
       out.push('<table><thead><tr>')
       for (const cell of headerCells) {
         out.push(`<th>${parseInline(cell)}</th>`)
@@ -80,7 +81,6 @@ function mdToHtml(md: string): string {
       continue
     }
 
-    // Task list
     const taskMatch = line.match(/^(\s*)[-*]\s+\[([ xX])\]\s+(.+)$/)
     if (taskMatch) {
       const checked = taskMatch[2] !== ' '
@@ -89,7 +89,6 @@ function mdToHtml(md: string): string {
       continue
     }
 
-    // Unordered list
     if (/^(\s*)[-*+]\s+(.+)$/.test(line)) {
       out.push('<ul>')
       while (i < lines.length && /^(\s*)[-*+]\s+(.+)$/.test(lines[i])) {
@@ -101,7 +100,6 @@ function mdToHtml(md: string): string {
       continue
     }
 
-    // Ordered list
     if (/^\s*\d+\.\s+(.+)$/.test(line)) {
       out.push('<ol>')
       while (i < lines.length && /^\s*\d+\.\s+(.+)$/.test(lines[i])) {
@@ -113,13 +111,11 @@ function mdToHtml(md: string): string {
       continue
     }
 
-    // Empty line → paragraph break
     if (/^\s*$/.test(line)) {
       i++
       continue
     }
 
-    // Regular paragraph (collect consecutive lines)
     const paraLines: string[] = []
     while (i < lines.length && !/^\s*$/.test(lines[i]) && !/^#{1,6}\s/.test(lines[i]) && !/^```/.test(lines[i]) && !/^>/.test(lines[i]) && !/^\s*[-*+]\s/.test(lines[i]) && !/^\s*\d+\.\s/.test(lines[i])) {
       paraLines.push(lines[i])
@@ -138,61 +134,69 @@ function escapeHtml(s: string): string {
 }
 
 function parseInline(text: string): string {
-  // Links: [text](url)
   let s = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-  // Images: ![alt](src)
   s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />')
-  // Bold+italic
   s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
-  // Bold
   s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-  // Italic
   s = s.replace(/\*(.+?)\*/g, '<em>$1</em>')
-  // Inline code
   s = s.replace(/`([^`]+)`/g, '<code>$1</code>')
-  // Strikethrough
   s = s.replace(/~~(.+?)~~/g, '<s>$1</s>')
   return s
 }
 
 export function useGenerationWriter(docId: string | undefined, editor: Editor | null) {
   const { events, isStreaming } = useDocumentStream(docId)
-  const buffer = useRef('')
+  const fullBuffer = useRef('')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const currentSection = useRef<string | null>(null)
+  const lastEventCount = useRef(0)
 
   const flush = () => {
-    if (!editor || !buffer.current.trim()) return
-    const md = currentSection.current ? `## ${currentSection.current}\n\n${buffer.current}` : buffer.current
-    const html = mdToHtml(md)
-    editor.commands.insertContent(html)
-    buffer.current = ''
+    if (!editor) return
+    let content = fullBuffer.current
+    if (currentSection.current) {
+      content = `## ${currentSection.current}\n\n${content}`
+    }
+    content = stripRawToolCalls(content)
+    if (!content.trim()) return
+    const html = mdToHtml(content)
+    editor.commands.setContent(html)
+    const size = editor.state.doc.content.size
+    editor.commands.setTextSelection({ from: size, to: size })
+    editor.commands.scrollIntoView()
   }
 
   useEffect(() => {
     if (!editor) return
     if (!isStreaming && events.length && events[events.length - 1].type === 'done') {
       flush()
-      const { completeSession } = useGenerationStore.getState()
+      const doneEvent = events[events.length - 1] as any
+      const { completeSession, updateSession } = useGenerationStore.getState()
       const sess = useGenerationStore.getState().sessions.find((s) => s.documentId === docId && s.status === 'generating')
-      if (sess) completeSession(sess.sessionId)
-      notify({ type: 'generation_complete', title: 'Generation terminee', message: 'Le document a ete genere avec succes.' })
+      if (sess) {
+        if (doneEvent.elapsed_ms) {
+          updateSession(sess.sessionId, { elapsedMs: doneEvent.elapsed_ms, completedAt: doneEvent.completed_at })
+        }
+        completeSession(sess.sessionId)
+      }
+      const elapsed = doneEvent.elapsed_ms ? ` (${Math.round(doneEvent.elapsed_ms / 1000)}s)` : ''
+      notify({ type: 'generation_complete', title: 'Generation terminee', message: `Le document a ete genere avec succes${elapsed}.` })
       return
     }
     const last = events[events.length - 1]
     if (!last) return
     if (last.type === 'agent_status' && (last as any).section_title) {
       flush()
+      fullBuffer.current = ''
       currentSection.current = (last as any).section_title
     } else if (last.type === 'token') {
-      buffer.current += (last as any).token
+      fullBuffer.current += (last as any).token
       if (!timer.current) {
         timer.current = setTimeout(() => { flush(); timer.current = null }, 200)
       }
     }
   }, [events, isStreaming, editor, docId])
 
-  // Cleanup timer on unmount
   useEffect(() => {
     return () => {
       if (timer.current) {

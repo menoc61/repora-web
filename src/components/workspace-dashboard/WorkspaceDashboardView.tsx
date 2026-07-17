@@ -171,6 +171,13 @@ export default function WorkspaceDashboardView() {
             {viewMode === 'grid' && (
               <NewDocumentCard onClick={handleNewDocument} generating={isCreatingNew} />
             )}
+            {docsWithGenerating.length === 0 && viewMode === 'list' && (
+              <div className="col-span-12 text-center py-12">
+                <Icon name="description" className="text-[48px] text-on-surface-variant/30 mx-auto mb-3" />
+                <p className="font-body text-body-md text-on-surface-variant">Aucun document pour le moment</p>
+                <p className="font-body text-body-sm text-on-surface-variant/60 mt-1">Creez votre premier cahier des charges pour commencer.</p>
+              </div>
+            )}
             {docsWithGenerating.map((d) => (
               <DocumentCard key={d.id} doc={d} viewMode={viewMode} onOpen={onOpenDocument} />
             ))}

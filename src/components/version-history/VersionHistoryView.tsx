@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import Icon from '../Icon'
 import { Button } from '../ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../ui/dialog'
 import VersionCard from './VersionCard'
 import DiffViewer from './DiffViewer'
 import AcceptChangesBar from './AcceptChangesBar'
@@ -155,26 +156,26 @@ export default function VersionHistoryView({ docId }: VersionHistoryViewProps) {
         onApplySuggestion={handleApplySuggestion}
         onManageRetention={handleManageRetention}
       />
-      {showRetention && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50" onClick={() => setShowRetention(false)}>
-          <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-headline-md text-headline-md mb-4">Gerer la retention</h3>
-            <p className="text-body-sm text-on-surface-variant mb-4">Definissez la duree de conservation des versions pour vos documents.</p>
-            <div className="space-y-3 mb-6">
-              {[30, 90, 180, 365].map((days) => (
-                <label key={days} className="flex items-center gap-3 p-3 bg-surface-studio rounded border border-outline-variant cursor-pointer hover:border-secondary">
-                  <input type="radio" name="retention" checked={days === retentionDays} className="text-secondary" onChange={() => setRetentionDays(days)} />
-                  <span className="font-body-sm">{days} jours</span>
-                </label>
-              ))}
-            </div>
-            <div className="flex gap-2 justify-end">
-              <Button variant="outline" className="px-4 py-2" onClick={() => setShowRetention(false)}>Annuler</Button>
-              <Button className="px-4 py-2 bg-secondary text-white" onClick={handleSaveRetention} disabled={saveDocument.isPending}>{saveDocument.isPending ? 'Enregistrement...' : 'Enregistrer'}</Button>
-            </div>
+      <Dialog open={showRetention} onOpenChange={setShowRetention}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Gerer la retention</DialogTitle>
+          </DialogHeader>
+          <p className="text-body-sm text-on-surface-variant">Definissez la duree de conservation des versions pour vos documents.</p>
+          <div className="space-y-3">
+            {[30, 90, 180, 365].map((days) => (
+              <label key={days} className="flex items-center gap-3 p-3 bg-surface-studio rounded border border-outline-variant cursor-pointer hover:border-secondary">
+                <input type="radio" name="retention" checked={days === retentionDays} className="text-secondary" onChange={() => setRetentionDays(days)} />
+                <span className="font-body-sm">{days} jours</span>
+              </label>
+            ))}
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRetention(false)}>Annuler</Button>
+            <Button className="bg-secondary text-white" onClick={handleSaveRetention} disabled={saveDocument.isPending}>{saveDocument.isPending ? 'Enregistrement...' : 'Enregistrer'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

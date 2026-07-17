@@ -27,7 +27,7 @@ export default function Settings() {
   const deleteApiKey = useDeleteApiKey(isAdmin)
   const { data: health } = useHealth()
   const { settings, updateSettings } = useSettingsStore()
-  const { sessions, removeSession } = useGenerationStore()
+  const { sessions, removeSession, _hydrated } = useGenerationStore()
   const navigate = useNavigate()
   const [showKeyModal, setShowKeyModal] = useState(false)
   const [newProvider, setNewProvider] = useState('')
@@ -473,7 +473,11 @@ export default function Settings() {
               <h2 className="font-headline-md text-headline-md text-primary">Sessions de generation</h2>
               <p className="font-body-md text-body-md text-on-surface-variant">Cliquez sur une session pour l'ouvrir dans l'editeur.</p>
             </div>
-            {sessions.length === 0 ? (
+            {!_hydrated ? (
+              <div className="bg-white border border-outline-variant rounded-lg p-6 text-center">
+                <p className="font-body-sm text-body-sm text-on-surface-variant italic">Chargement des sessions...</p>
+              </div>
+            ) : sessions.length === 0 ? (
               <div className="bg-white border border-outline-variant rounded-lg p-6 text-center">
                 <p className="font-body-sm text-body-sm text-on-surface-variant italic">Aucune session de generation.</p>
               </div>

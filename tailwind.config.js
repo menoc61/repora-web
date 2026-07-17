@@ -44,6 +44,11 @@ export default {
         'inverse-surface': '#303032',
         'ai-vibrant': '#2563EB',
         secondary: '#0058be',
+        danger: '#dc2626',
+        success: '#10B981',
+        warning: '#F59E0B',
+        'surface-alt': '#F1F5F9',
+        'muted-foreground': '#6B7280',
         'on-tertiary': '#ffffff',
         'on-background': '#1b1b1d',
         tertiary: '#000000',
@@ -76,6 +81,7 @@ export default {
       fontFamily: {
         body: ['Inter', 'sans-serif'],
         headline: ['Geist', 'sans-serif'],
+        'headline-sm': ['Geist', 'sans-serif'],
         label: ['"JetBrains Mono"', 'monospace'],
       },
       fontSize: {
@@ -83,11 +89,17 @@ export default {
         'body-md': ['16px', { lineHeight: '24px', fontWeight: '400' }],
         'body-lg': ['18px', { lineHeight: '28px', fontWeight: '400' }],
         'headline-md': ['24px', { lineHeight: '32px', fontWeight: '600' }],
+        'headline-sm': ['18px', { lineHeight: '24px', fontWeight: '600' }],
         'headline-lg': ['32px', { lineHeight: '40px', letterSpacing: '-0.01em', fontWeight: '600' }],
         'headline-lg-mobile': ['28px', { lineHeight: '36px', fontWeight: '600' }],
         'display-lg': ['48px', { lineHeight: '56px', letterSpacing: '-0.02em', fontWeight: '700' }],
         'label-sm': ['11px', { lineHeight: '14px', letterSpacing: '0.05em', fontWeight: '500' }],
         'label-md': ['13px', { lineHeight: '16px', letterSpacing: '0.02em', fontWeight: '500' }],
+      },
+      boxShadow: {
+        'elevation-1': '0 1px 3px rgba(0,0,0,0.06)',
+        'elevation-2': '0 4px 12px rgba(0,0,0,0.08)',
+        'elevation-3': '0 8px 24px rgba(0,0,0,0.12)',
       },
       keyframes: {
         'pulse-glow': {

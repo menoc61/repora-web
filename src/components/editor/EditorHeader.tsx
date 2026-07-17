@@ -121,14 +121,14 @@ export function EditorHeader({ title, status, docId, projectId, onShare, onExpor
                 onClick={() => { onExport('pdf'); setExportOpen(false) }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-body-sm text-on-surface hover:bg-surface-container-low transition-colors"
               >
-                <Icon name="picture_as_pdf" className="text-[16px] text-red-500" />
+                <Icon name="picture_as_pdf" className="text-[16px] text-danger" />
                 PDF
               </button>
               <button
                 onClick={() => { onExport('docx'); setExportOpen(false) }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-body-sm text-on-surface hover:bg-surface-container-low transition-colors"
               >
-                <Icon name="description" className="text-[16px] text-blue-500" />
+                <Icon name="description" className="text-[16px] text-secondary" />
                 Word (DOCX)
               </button>
             </div>

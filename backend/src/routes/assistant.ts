@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express'
+import { logger } from '../lib/logger'
 import { streamText } from 'ai'
 import { requireAuth } from '../middleware/auth'
 import { createSession, getSession, generateFromSession, getSessionSummary } from '../services/assistant.service'
@@ -6,6 +7,7 @@ import { generateDocument } from '../services/project.service'
 import { getLanguageModel, defaultModel } from '../ai/providers/interface'
 import { AppError } from '../middleware/error'
 
+const log = logger.child('Assistant')
 export const assistantRouter = Router()
 
 const SYSTEM_PROMPT = `Tu es un assistant conversationnel specialise dans le recueil du besoin pour la redaction de cahiers des charges. Ton role est de guider l'utilisateur a travers un dialogue structure pour collecter les informations necessaires.
@@ -81,7 +83,7 @@ assistantRouter.post('/chat', requireAuth, async (req: Request, res: Response, n
       .set({ messages: [...updatedMessages, assistantMsg], updatedAt: new Date() })
       .where(eq(assistantSessions.id, sessionId))
       .execute()
-      .catch((err: unknown) => console.error('Failed to persist assistant session:', err))
+      .catch((err: unknown) => log.error('Failed to persist assistant session:', err))
 
     res.end()
   } catch (err) { next(err) }

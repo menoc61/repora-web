@@ -1,3 +1,4 @@
+const log = logger.child('Diagram')
 /**
  * Diagram generation tools for the UML agent.
  *
@@ -8,6 +9,7 @@
  */
 
 import { tool } from 'ai'
+import { logger } from '../../lib/logger'
 import { z } from 'zod'
 import { deflateSync } from 'zlib'
 import { config } from '../../config'
@@ -35,6 +37,14 @@ function encode64(data: Buffer): string {
   return result
 }
 
+const TYPE_DESCRIPTIONS: Record<string, string> = {
+  use_case: 'Diagramme de cas d\'utilisation illustrant les acteurs et leurs interactions avec le système',
+  sequence: 'Diagramme de séquence montrant les échanges entre les composants du système',
+  activity: 'Diagramme d\'activité décrivant les flux de processus métier',
+  class: 'Diagramme de classes représentant le modèle de domaine et les relations entre entités',
+  deployment: 'Diagramme de déploiement illustrant l\'infrastructure et l\'architecture système',
+}
+
 export const saveDiagram = tool({
   description: 'Save a PlantUML diagram source for the project. The type must be one of: use_case, sequence, activity, class, deployment.',
   inputSchema: z.object({
@@ -45,12 +55,17 @@ export const saveDiagram = tool({
     plantumlSource: z
       .string()
       .describe('Valid PlantUML source with @startuml/@enduml'),
+    description: z
+      .string()
+      .optional()
+      .describe('Brief text description of what this diagram represents in the project context'),
   }),
-  execute: async ({ projectId, type, plantumlSource }) => {
+  execute: async ({ projectId, type, plantumlSource, description }) => {
     const { db } = await import('../../db')
     const { diagrams: diagramsTable } = await import('../../db/schema')
     const encoded = encodePlantUML(plantumlSource)
     const renderedUrl = `${config.plantumlUrl}/svg/${encoded}`
+    const desc = description || TYPE_DESCRIPTIONS[type] || `Diagramme ${type}`
     const [diagram] = await db
       .insert(diagramsTable)
       .values({
@@ -58,8 +73,11 @@ export const saveDiagram = tool({
         type,
         plantumlSource,
         renderedUrl,
+        description: desc,
       })
       .returning()
-    return { id: diagram.id, renderedUrl, ok: true }
+    const typeLabel = type.replace(/_/g, ' ')
+    const markdownRef = `\n\n### ${typeLabel.charAt(0).toUpperCase() + typeLabel.slice(1)}\n\n${desc}\n\n![${desc}](${renderedUrl})\n\n`
+    return { id: diagram.id, renderedUrl, description: desc, markdownRef, ok: true }
   },
 })

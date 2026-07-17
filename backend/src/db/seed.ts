@@ -1,3 +1,4 @@
+const log = logger.child('Seed')
 // ── seed.ts — Semer la base de données Repora avec des données de démo en français ──
 // Compatible avec tsx (dev) ET Docker (JS compilé) grâce aux imports ESM dynamiques.
 // Les UUIDs sont en minuscules hexadécimales (a-f, 0-9) — pas de lettres au-delà de 'f'.
@@ -6,6 +7,7 @@
 // exigences, templates, agents configurés avec les modèles fonctionnels, validations, commentaires.
 
 import { config } from '../config.js'
+import { logger } from '../lib/logger'
 const queryClient = (await import('postgres')).default(config.databaseUrl)
 const { drizzle } = await import('drizzle-orm/postgres-js')
 const schema = await import('./schema.js')
@@ -54,7 +56,7 @@ const {
 const hash = (pw: string) => bcrypt.default.hashSync(pw, 12)
 
 async function seed() {
-  console.log('🌱 Semis de la base de données Repora...')
+  log.info('🌱 Semis de la base de données Repora...')
 
   // ═══════════════════════════════════════════════════════════════
   //  0. TRUNCATE CASCADE — État reproductible à chaque exécution
@@ -67,7 +69,7 @@ async function seed() {
   for (const t of tableNames) {
     await queryClient.unsafe(`TRUNCATE TABLE ${t} CASCADE`)
   }
-  console.log('  🗑️  Tables vidées (TRUNCATE CASCADE)')
+  log.info('  🗑️  Tables vidées (TRUNCATE CASCADE)')
 
   // ═══════════════════════════════════════════════════════════════
   //  1. UTILISATEURS (6)
@@ -119,7 +121,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 6 utilisateurs')
+  log.info('  ✅ 6 utilisateurs')
 
   // ═══════════════════════════════════════════════════════════════
   //  2. PROJETS (5) — Briefs réalistes en français
@@ -169,7 +171,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 5 projets')
+  log.info('  ✅ 5 projets')
 
   // ═══════════════════════════════════════════════════════════════
   //  3. DOCUMENTS (7)
@@ -258,7 +260,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 7 documents')
+  log.info('  ✅ 7 documents')
 
   // ═══════════════════════════════════════════════════════════════
   //  4. SECTIONS (22) — Contenu réaliste en français, agents/modèles variés
@@ -517,7 +519,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 22 sections')
+  log.info('  ✅ 22 sections')
 
   // ═══════════════════════════════════════════════════════════════
   //  5. DIAGRAMMES (4) — PlantUML source
@@ -559,7 +561,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 4 diagrammes')
+  log.info('  ✅ 4 diagrammes')
 
   // ═══════════════════════════════════════════════════════════════
   //  6. COMMENTAIRES (6) — Résolus et non résolus
@@ -611,7 +613,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 6 commentaires')
+  log.info('  ✅ 6 commentaires')
 
   // ═══════════════════════════════════════════════════════════════
   //  7. EXIGENCES (9) — Fonctionnelles et non fonctionnelles
@@ -684,7 +686,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 9 exigences')
+  log.info('  ✅ 9 exigences')
 
   // ═══════════════════════════════════════════════════════════════
   //  8. VALIDATIONS (3) — En attente, Approuvée, Rejetée
@@ -726,7 +728,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 3 validations')
+  log.info('  ✅ 3 validations')
 
   // ═══════════════════════════════════════════════════════════════
   //  9. TEMPLATES (7) — Catégories : Juridique, Ingénierie, Finance, Sécurité, Marketing
@@ -785,7 +787,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 7 templates')
+  log.info('  ✅ 7 templates')
 
   // ═══════════════════════════════════════════════════════════════
   // 10. CONFIGURATIONS D'AGENTS (6) — Hermes, Planner, Writer, UML, Tables, Reviewer
@@ -812,7 +814,7 @@ async function seed() {
         id: 'f0000000-0000-0000-0000-000000000002',
         agentName: 'Planner',
         provider: 'ollama',
-        modelId: 'qwen2.5-coder:latest',
+        modelId: config.ollamaModel,
         temperature: 0.3,
         topP: 0.9,
         maxTokens: 4096,
@@ -872,7 +874,7 @@ async function seed() {
         id: 'f0000000-0000-0000-0000-000000000006',
         agentName: 'Reviewer',
         provider: 'ollama',
-        modelId: 'qwen2.5-coder:latest',
+        modelId: config.ollamaModel,
         temperature: 0.3,
         topP: 0.9,
         maxTokens: 8192,
@@ -885,7 +887,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 6 configurations d\'agents')
+  log.info('  ✅ 6 configurations d\'agents')
 
   // ═══════════════════════════════════════════════════════════════
   // 11. CLÉS API (2) — Pour l'utilisateur admin
@@ -907,7 +909,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 2 clés API')
+  log.info('  ✅ 2 clés API')
 
   // ═══════════════════════════════════════════════════════════════
   // 12. JOURNAL D'AUDIT (30) — Traçabilité des actions
@@ -1132,7 +1134,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 30 entrées de journal d\'audit')
+  log.info('  ✅ 30 entrées de journal d\'audit')
 
   // ═══════════════════════════════════════════════════════════════
   // 13. PROJETS SHOWCASE — Contenu généré par IA (nemotron-3-super:cloud)
@@ -1159,7 +1161,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 2 projets showcase')
+  log.info('  ✅ 2 projets showcase')
 
   // ── Documents showcase ──
   await db
@@ -1207,7 +1209,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 2 documents showcase')
+  log.info('  ✅ 2 documents showcase')
 
   // ── Sections showcase 1 : Bibliothèque Numérique (8 sections, contenu réel IA) ──
   await db
@@ -1303,7 +1305,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 8 sections showcase (Bibliothèque)')
+  log.info('  ✅ 8 sections showcase (Bibliothèque)')
 
   // ── Sections showcase 2 : Gestion de Projets (5 sections, contenu réel IA) ──
   await db
@@ -1366,7 +1368,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 5 sections showcase (Projets)')
+  log.info('  ✅ 5 sections showcase (Projets)')
 
   // ── Diagrammes showcase — PlantUML réels générés par l'agent UML ──
   await db
@@ -1414,7 +1416,7 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 5 diagrammes showcase')
+  log.info('  ✅ 5 diagrammes showcase')
 
   // ── Exigences showcase ──
   await db
@@ -1450,9 +1452,9 @@ async function seed() {
       },
     ])
     .onConflictDoNothing()
-  console.log('  ✅ 4 exigences showcase')
+  log.info('  ✅ 4 exigences showcase')
 
-  console.log('🌱 Semis terminé avec succès !')
+  log.info('🌱 Semis terminé avec succès !')
 }
 
 seed()
@@ -1461,7 +1463,7 @@ seed()
     process.exit(0)
   })
   .catch((err) => {
-    console.error('❌ Échec du semis :', err)
+    log.error('❌ Échec du semis :', err)
     queryClient.end()
     process.exit(1)
   })

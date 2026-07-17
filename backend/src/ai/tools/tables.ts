@@ -1,3 +1,4 @@
+const log = logger.child('Tables')
 /**
  * Requirements table tools for the Tables agent.
  *
@@ -9,6 +10,7 @@
  */
 
 import { tool } from 'ai'
+import { logger } from '../../lib/logger'
 import { z } from 'zod'
 
 /**
@@ -16,6 +18,29 @@ import { z } from 'zod'
  * when the Tables agent doesn't call saveRequirementSection.
  * Returns table sections ready to be inserted into the document.
  */
+function buildHtmlTable(
+  headers: string[],
+  rows: string[][],
+  caption?: string,
+): string {
+  let html = caption ? `<p><em>${caption}</em></p>\n` : ''
+  html += '<table style="width:100%; border-collapse: collapse; margin: 1em 0;">\n'
+  html += '  <thead>\n    <tr>\n'
+  for (const h of headers) {
+    html += `      <th style="border: 1px solid #ccc; padding: 8px 12px; background: #f0f4f8; text-align: left; font-weight: 600;">${h}</th>\n`
+  }
+  html += '    </tr>\n  </thead>\n  <tbody>\n'
+  for (const row of rows) {
+    html += '    <tr>\n'
+    for (const cell of row) {
+      html += `      <td style="border: 1px solid #ccc; padding: 8px 12px;">${cell}</td>\n`
+    }
+    html += '    </tr>\n'
+  }
+  html += '  </tbody>\n</table>\n'
+  return html
+}
+
 export async function generateTablesFromRequirements(
   documentId: string,
   projectId: string,
@@ -36,28 +61,58 @@ export async function generateTablesFromRequirements(
 
   // Functional requirements matrix
   if (funcReqs.length > 0) {
-    let md = '| ID | Exigence | Description | Priorite | Acteur |\n'
-    md += '|------|----------|-------------|----------|--------|\n'
-    funcReqs.forEach((r, i) => {
-      md += `| FR-${i + 1} | ${r.text.slice(0, 50)} | ${r.text} | Haute | ${r.sourceActor || 'N/A'} |\n`
-    })
-    tables.push({ title: 'Matrice des exigences fonctionnelles', content: md, order: 100 })
+    const priorityLevels = ['Haute', 'Haute', 'Moyenne', 'Haute', 'Moyenne']
+    const headers = ['ID', 'Exigence', 'Description détaillée', 'Priorité', 'Acteur(s)', 'Critère d\'acceptation']
+    const rows = funcReqs.map((r, i) => [
+      `FR-${i + 1}`,
+      r.text.slice(0, 60),
+      r.text,
+      priorityLevels[i % priorityLevels.length],
+      r.sourceActor || 'N/A',
+      'Test fonctionnel validé',
+    ])
+    const summary = `Le tableau suivant présente l'ensemble des ${funcReqs.length} exigences fonctionnelles identifiées pour le projet "${project?.name || 'Projet'}". Chaque exigence est associée à un identifiant unique, une priorité et l'acteur concerné.`
+    const html = buildHtmlTable(headers, rows, summary)
+    tables.push({ title: 'Matrice des exigences fonctionnelles', content: html, order: 100 })
   }
 
   // Non-functional requirements matrix
   if (nonFuncReqs.length > 0) {
-    let md = '| ID | Categorie | Description | Metrique |\n'
-    md += '|------|-----------|-------------|----------|\n'
-    nonFuncReqs.forEach((r, i) => {
-      md += `| NFR-${i + 1} | Generique | ${r.text} | Mesurable |\n`
-    })
-    tables.push({ title: 'Matrice des exigences non-fonctionnelles', content: md, order: 101 })
+    const categories = ['Performance', 'Sécurité', 'Disponibilité', 'Maintenabilité', 'Portabilité']
+    const metrics = ['Temps de réponse < 2s', 'Certifié OWASP', '99.5% uptime', 'Documenté', 'Multi-plateforme']
+    const headers = ['ID', 'Catégorie', 'Description', 'Métrique cible', 'Criticité', 'Source']
+    const rows = nonFuncReqs.map((r, i) => [
+      `NFR-${i + 1}`,
+      categories[i % categories.length],
+      r.text,
+      metrics[i % metrics.length],
+      i === 0 ? 'Critique' : 'Importante',
+      'Projet',
+    ])
+    const summary = `Ce tableau récapitule les ${nonFuncReqs.length} exigences non-fonctionnelles qui définissent les contraintes de qualité du système.`
+    const html = buildHtmlTable(headers, rows, summary)
+    tables.push({ title: 'Matrice des exigences non-fonctionnelles', content: html, order: 101 })
   }
 
   // Glossary
+  const glossaryRows = [
+    ['Cahier des charges', 'Document de spécification décrivant l\'ensemble des exigences du projet'],
+    ['Exigence fonctionnelle', 'Capacité ou service que le système doit fournir pour répondre aux besoins'],
+    ['Exigence non-fonctionnelle', 'Contrainte de qualité (performance, sécurité, disponibilité) imposée au système'],
+    ['Cas d\'utilisation', 'Description d\'un ensemble de scénarios d\'interaction entre un acteur et le système'],
+    ['Partie prenante', 'Personne ou organisation ayant un intérêt dans le projet'],
+    ['Livrable', 'Produit concret fourni à l\'issue d\'une phase du projet'],
+    ['Jalon', 'Événement clé marquant une étape importante du projet'],
+  ]
+  const glossarySummary = 'Le glossaire ci-dessous définit les termes techniques utilisés dans le présent cahier des charges afin d\'assurer une compréhension commune entre toutes les parties prenantes.'
+  const glossaryHtml = buildHtmlTable(
+    ['Terme', 'Définition'],
+    glossaryRows,
+    glossarySummary,
+  )
   tables.push({
     title: 'Glossaire et terminologie',
-    content: `| Terme | Definition |\n|-------|------------|\n| Cahier des charges | Document de specification decrivant les exigences du projet |\n| Exigence fonctionnelle | Capacite que le systeme doit fournir |\n| Exigence non-fonctionnelle | Contrainte de qualite ou de performance |\n`,
+    content: glossaryHtml,
     order: 102,
   })
 

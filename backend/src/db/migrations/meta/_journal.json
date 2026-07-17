@@ -1,1 +1,41 @@
-{"version":"7","dialect":"postgresql","entries":[{"idx":0,"version":"7","when":1783584452623,"tag":"0000_rainy_scarlet_spider","breakpoints":true},{"idx":1,"version":"7","when":1752060000000,"tag":"0001_dusty_iron_patriot","breakpoints":true},{"idx":2,"version":"7","when":1752065000000,"tag":"0002_swift_silver_samurai","breakpoints":true}]}
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1783584452623,
+      "tag": "0000_rainy_scarlet_spider",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1752060000000,
+      "tag": "0001_dusty_iron_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1752065000000,
+      "tag": "0002_swift_silver_samurai",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784039896223,
+      "tag": "0003_clammy_peter_quill",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784100000000,
+      "tag": "0004_flat_storm",
+      "breakpoints": true
+    }
+  ]
+}

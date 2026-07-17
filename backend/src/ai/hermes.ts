@@ -1,4 +1,5 @@
 import { streamText, isStepCount } from 'ai'
+import { logger } from '../lib/logger'
 import type { Tool } from 'ai'
 import { AGENT_REGISTRY } from './agents/registry'
 import { getLanguageModel, setDefaultModel, defaultModel, knownToolCallers } from './providers/interface'
@@ -10,6 +11,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { generateFallbackContent } from '../ai/pipeline/fallbackContent'
 
+const log = logger.child('Hermes')
 // Re-export the orchestrator pipeline (refactored into pipeline/ directory)
 export { orchestrateGeneration } from './pipeline/orchestrate'
 
@@ -56,6 +58,8 @@ export type HermesEvent = {
 } | {
   type: 'done'
   document_id?: string
+  elapsed_ms?: number
+  completed_at?: string
   [key: string]: unknown
 }
 
@@ -89,7 +93,7 @@ export async function probeToolSupport(
     return result
   }
 
-  console.log(`[Hermes] Probing tool support for ${modelId}...`)
+  log.info(`Probing tool support for ${modelId}...`)
   const probeTool = {
     description: 'Say hello',
     inputSchema: z.object({ name: z.string() }),
@@ -116,11 +120,11 @@ export async function probeToolSupport(
     // If it errored, it doesn't.
     const supports = gotToolCall
     toolSupportCache.set(cacheKey, supports)
-    console.log(`[Hermes] Tool support for ${modelId}: ${supports ? 'YES' : 'no'}`)
+    log.info(`Tool support for ${modelId}: ${supports ? 'YES' : 'no'}`)
     return supports
   } catch (err) {
     toolSupportCache.set(cacheKey, false)
-    console.log(`[Hermes] Tool support for ${modelId}: no (probe error: ${(err as Error).message?.slice(0, 80)})`)
+    log.info(`Tool support for ${modelId}: no (probe error: ${(err as Error).message?.slice(0, 80)})`)
     return false
   }
 }
@@ -164,9 +168,9 @@ export async function discoverOllamaModel(): Promise<string> {
   const models = await enumerateOllamaModels()
   if (models.length > 0) {
     availableModels = models
-    console.log(`[Hermes] Detected ${availableModels.length} Ollama model(s): ${availableModels.join(', ')}`)
+    log.info(`Detected ${availableModels.length} Ollama model(s): ${availableModels.join(', ')}`)
   } else {
-    console.log('[Hermes] No Ollama models detected via CLI or API')
+    log.info('No Ollama models detected via CLI or API')
   }
 
   // 1. Respect OLLAMA_MODEL env var if set — becomes the default.
@@ -175,7 +179,7 @@ export async function discoverOllamaModel(): Promise<string> {
     setDefaultModel(discoveredModel)
     // Ensure the env-selected model is in the probe list even if `ollama list` missed it.
     if (!availableModels.includes(discoveredModel)) availableModels.unshift(discoveredModel)
-    console.log(`[Hermes] Using OLLAMA_MODEL from env: ${discoveredModel}`)
+    log.info(`Using OLLAMA_MODEL from env: ${discoveredModel}`)
     return discoveredModel
   }
 
@@ -183,7 +187,7 @@ export async function discoverOllamaModel(): Promise<string> {
   if (availableModels.length > 0) {
     discoveredModel = availableModels[0]
     setDefaultModel(discoveredModel)
-    console.log(`[Hermes] Default model: ${discoveredModel} (set OLLAMA_MODEL env var to override)`)
+    log.info(`Default model: ${discoveredModel} (set OLLAMA_MODEL env var to override)`)
   }
   return discoveredModel
 }
@@ -246,9 +250,11 @@ export async function* runAgent(
     // DB read failed — use registry defaults
   }
 
-  // For Ollama: if no specific model set in DB, use the discovered model
+  // For Ollama: always prefer the discovered model (env-configured)
+  // DB config can override provider/BYOK settings, but for Ollama the
+  // env-configured model is authoritative (tool support, availability, etc.)
   if (provider === 'ollama') {
-    if (!modelId || modelId === agentDef.defaultModel) {
+    if (discoveredModel) {
       modelId = discoveredModel
     }
     // Ollama doesn't need an API key
@@ -297,6 +303,7 @@ export async function* runAgent(
     })
 
     let hasOutput = false
+    let toolCalled = false
     for await (const event of stream.fullStream) {
       switch (event.type) {
         case 'text-delta':
@@ -304,6 +311,7 @@ export async function* runAgent(
           yield { type: 'token', token: event.text, agent: agentName }
           break
         case 'tool-call':
+          toolCalled = true
           hasOutput = true
           yield { type: 'tool_call', agent: agentName, tool: event.toolName, args: event.input }
           break
@@ -316,21 +324,54 @@ export async function* runAgent(
     // If tools were passed but the model produced zero output,
     // the model silently failed to handle tools. Retry without.
     if (tools && !hasOutput) {
-      console.warn(`[Hermes] ${agentName}: zero output with tools — retrying without tools`)
+      log.warn(`${agentName}: zero output with tools — retrying without tools`)
       yield* generateWithoutTools()
+    }
+
+    // If tools were passed and the model produced text but never called any tool,
+    // the model chose not to use them despite supporting them. Retry with a
+    // more forceful system prompt demanding tool usage.
+    if (tools && hasOutput && !toolCalled) {
+      log.warn(`${agentName}: produced text but never called tools — retrying with forceful prompt`)
+      try {
+        const retryStream = await streamText({
+          model,
+          system: `${agentDef.systemPrompt}\n\nYOU MUST CALL THE TOOL. Do not output text content directly. Your output MUST be through the tool call mechanism.`,
+          prompt,
+          tools,
+          temperature,
+          topP,
+          stopWhen: isStepCount(agentMaxSteps),
+        })
+        for await (const event of retryStream.fullStream) {
+          switch (event.type) {
+            case 'text-delta':
+              yield { type: 'token', token: event.text, agent: agentName }
+              break
+            case 'tool-call':
+              yield { type: 'tool_call', agent: agentName, tool: event.toolName, args: event.input }
+              break
+            case 'tool-result':
+              yield { type: 'tool_result', agent: agentName, tool: event.toolName, result: event.output }
+              break
+          }
+        }
+      } catch (retryErr) {
+        log.warn(`${agentName}: forceful retry failed (${(retryErr as Error).message?.slice(0, 80)}) — accepting original text output`)
+      }
     }
   } catch (err) {
     try {
       // Any error when tools are passed → retry without tools
       if (tools) {
-        console.warn(`[Hermes] ${agentName}: error with tools (${(err as Error).message?.slice(0, 80)}) — retrying without tools`)
+        log.warn(`${agentName}: error with tools (${(err as Error).message?.slice(0, 80)}) — retrying without tools`)
         yield* generateWithoutTools()
       } else {
-        console.warn(`[Hermes] ${agentName}: LLM unavailable (${(err as Error).message?.slice(0, 80)}). Continuing with fallback.`)
+        log.warn(`${agentName}: LLM unavailable (${(err as Error).message?.slice(0, 80)}). Continuing with fallback.`)
         yield { type: 'generation_error', agent: agentName, message: (err as Error).message, error_type: 'provider_unavailable' }
       }
     } catch (fallbackErr) {
-      console.warn(`[Hermes] ${agentName}: all attempts failed (${(fallbackErr as Error).message?.slice(0, 80)}). Continuing with fallback.`)
+      log.warn(`${agentName}: all attempts failed (${(fallbackErr as Error).message?.slice(0, 80)}). Continuing with fallback.`)
       yield { type: 'generation_error', agent: agentName, message: (fallbackErr as Error).message, error_type: 'provider_unavailable' }
     }
   }
@@ -367,6 +408,7 @@ import { orchestrateGeneration } from './pipeline/orchestrate'
  */
 export function initiateGeneration(projectId: string, prompt: string, documentId: string, templateId?: string, config?: Record<string, unknown>): void {
   const state: GenerationState = { events: [], listeners: new Set(), done: false }
+  const startedAt = Date.now()
   generationStates.set(documentId, state)
 
   // Run the pipeline eagerly in the background (fire-and-forget)
@@ -396,16 +438,17 @@ export function initiateGeneration(projectId: string, prompt: string, documentId
       // Generate fallback content so the document is never empty
       try {
         const count = await generateFallbackContent(projectId, documentId, prompt)
-        console.log(`[Hermes] Fallback content generated: ${count} sections`)
+        log.info(`Fallback content generated: ${count} sections`)
         state.events.push({ type: 'context_updated', agent: 'Hermes', key: 'fallbackSections', value: count })
       } catch (fbErr) {
-        console.warn('[Hermes] Fallback content generation also failed:', (fbErr as Error).message)
+        log.warn('Fallback content generation also failed:', (fbErr as Error).message)
       }
     } finally {
       state.done = true
-      // Signal completion to all listeners
+      const elapsedMs = Date.now() - startedAt
+      // Signal completion to all listeners with timing data
       for (const listener of state.listeners) {
-        try { listener({ type: 'done', document_id: documentId } as HermesEvent) } catch { /* ignore */ }
+        try { listener({ type: 'done', document_id: documentId, elapsed_ms: elapsedMs, completed_at: new Date().toISOString() } as HermesEvent) } catch { /* ignore */ }
       }
     }
   })()
